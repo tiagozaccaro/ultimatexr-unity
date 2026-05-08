@@ -7,19 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-TODO: Write update guide:
-  -UxrApplyConstrainEventArgs new properties.
-  -Rename CheckAndApplyLockHands() to KeepGripsInPlace()
-  -Removed UxrGrabbableObject.PlaceOnAnchor
-  -SDK constants moved from UxrManager to UxrConstants.
-  -Component synchronization in UxrManager now uses IUxrStateSync instead of
-   UxrComponent.
-  -UxrComponent.TryGetComponentById now is UxrUniqueIdImplementer.TryGetComponentById().
-  -UxrManager.ExecuteStateChange is now called ExecuteStateSyncEvent.
-  -Avatar prefab that is set up using UxrNetworkManager inspector, now is changed
-   to "Update Externally" mode so that it is instantiated using external mode by default.
-   Then it will switch to local if the avatar spawned is the local avatar.
-
 ### Added
 
 - Add native multiplayer support and connectors for various network SDKs
@@ -94,6 +81,24 @@ TODO: Write update guide:
 - Add new cabinet prefab to Lab in example scene to showcase grabbable parent dummies.
 - Expose properties in UxrTeleportSpawnCollider to have public access.
 - Add support for Meta Quest 3S.
+- Add partial avatar rendering support to show controllers together with selected
+  parts of the avatar body.
+- Add first-person hidden renderer support to hide avatar geometry from the local
+  camera while keeping it visible in mirrors, external cameras and remote views.
+- Add a redesigned wall fade system with inside-fade and inside-geometry state
+  tracking, portal-style visibility and out-of-bounds visual feedback.
+- Add OpenXR loader detection and improved OpenXR controller tracking support,
+  including aim/grip pose handling.
+- Add unique ID debug information support to help diagnose unresolved, invalid or
+  duplicated unique ID references.
+- Add network avatar support for initialization state, dummy network transforms
+  and network-safe hierarchy changes.
+- Add voice integration support for local microphone subscription state and active
+  remote voice source detection.
+- Add grabbable object lifecycle events in UxrGrabManager for registration,
+  unregistration, enabling and disabling.
+- Add explicit prefab lists to UxrInstanceManager to control which prefabs can be
+  instantiated at runtime.
 
 ### Changed
 
@@ -133,6 +138,27 @@ TODO: Write update guide:
 - Make UxrControllerTracking's properties UpdateAvatarLeftHand/UpdateAvatarRightHand
   public instead of protected.
 - Allow UxrTeleportLocomotionBase to be disabled to ignore the component.
+- Replace the previous avatar render mode flags with clearer explicit avatar
+  render modes.
+- Redesign UxrCameraWallFade with separate fade and geometry states, replacing
+  the previous wall/peeking terminology.
+- Change avatar event args to use pooled event arguments to reduce runtime
+  allocations.
+- Change SerializeState() so state serialization versions are handled separately
+  through SerializeStateVersion().
+- Rename unique ID serialization and global ID APIs to use clearer UniqueId
+  terminology.
+- Change UxrInstanceManager so it no longer auto-registers every prefab. Prefabs
+  that can be instantiated should now be registered through user-defined prefab
+  lists, preventing unwanted prefab references from being included in builds.
+- Improve locomotion collision checks so they better account for body colliders,
+  grabbed objects and different locomotion validation purposes.
+- Improve manipulation APIs to reduce allocations and better support constrained
+  motion, multi-user interaction and reusable query buffers.
+- Change UxrReturnGrabbableObject default return behavior from LastAnchor to
+  MostRecentAnchor.
+- Update network and voice abstraction APIs to better support multiple networking
+  and voice backends.
 
 ### Fixed
 
@@ -174,6 +200,11 @@ TODO: Write update guide:
   there are two or more instances of an avatar with Local update mode in the scene.
 - Fix bug in manipulation system where throwing physics-driven objects sometimes
   has a small lag between the button release and the physics.
+- Improve first-person avatar visibility handling in mirrors and external cameras.
+- Improve wall fade state tracking when the user moves into or through geometry.
+- Improve unique ID diagnostics when serialized references cannot be resolved.
+- Improve controller connection and OpenXR tracking behavior.
+- Improve voice source detection for local and remote participants.
 
 ## [0.9.7] - 2024-01-10
   
