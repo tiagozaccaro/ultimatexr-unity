@@ -6,7 +6,7 @@
 	}
 	SubShader
 	{
-		Tags{ "Queue" = "Overlay+1000" "RenderType" = "Transparent" "IgnoreProjector" = "True" }
+		Tags{ "Queue" = "Overlay+995" "RenderType" = "Transparent" "IgnoreProjector" = "True" }
 		LOD 100
 
 		Pass
@@ -20,7 +20,7 @@
 			#pragma fragment frag
 			
 			#include "UnityCG.cginc"
-
+			
 			struct appdata
 			{
 				float4 vertex : POSITION;
@@ -35,6 +35,7 @@
 				UNITY_VERTEX_OUTPUT_STEREO
 			};
 
+			float _UxrRenderFirstPersonEffects;
 			float4 _Color;
 			
 			v2f vert (appdata v)
@@ -51,6 +52,7 @@
 			
 			fixed4 frag (v2f i) : SV_Target
 			{
+				clip(_UxrRenderFirstPersonEffects - 0.5);
 				return _Color;
 			}
 			ENDCG

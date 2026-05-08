@@ -23,22 +23,23 @@ namespace UltimateXR.Editor.Locomotion
         /// </summary>
         protected virtual void OnEnable()
         {
-            _propControllerHand           = serializedObject.FindProperty("_controllerHand");
-            _propUseControllerForward     = serializedObject.FindProperty("_useControllerForward");
-            _propParentToDestination      = serializedObject.FindProperty("_parentToDestination");
-            _propShakeFilter              = serializedObject.FindProperty("_shakeFilter");
-            _propTranslationType          = serializedObject.FindProperty("_translationType");
-            _propFadeTranslationColor     = serializedObject.FindProperty("_fadeTranslationColor");
-            _propFadeTranslationSeconds   = serializedObject.FindProperty("_fadeTranslationSeconds");
-            _propSmoothTranslationSeconds = serializedObject.FindProperty("_smoothTranslationSeconds");
-            _propAllowJoystickBackStep    = serializedObject.FindProperty("_allowJoystickBackStep");
-            _propBackStepDistance         = serializedObject.FindProperty("_backStepDistance");
-            _propRotationType             = serializedObject.FindProperty("_rotationType");
-            _propRotationStepDegrees      = serializedObject.FindProperty("_rotationStepDegrees");
-            _propFadeRotationColor        = serializedObject.FindProperty("_fadeRotationColor");
-            _propFadeRotationSeconds      = serializedObject.FindProperty("_fadeRotationSeconds");
-            _propSmoothRotationSeconds    = serializedObject.FindProperty("_smoothRotationSeconds");
-            _propReorientationType        = serializedObject.FindProperty("_reorientationType");
+            _propControllerHand                = serializedObject.FindProperty("_controllerHand");
+            _propUseControllerForward          = serializedObject.FindProperty("_useControllerForward");
+            _propParentToDestination           = serializedObject.FindProperty("_parentToDestination");
+            _propShakeFilter                   = serializedObject.FindProperty("_shakeFilter");
+            _propTranslationType               = serializedObject.FindProperty("_translationType");
+            _propFadeTranslationColor          = serializedObject.FindProperty("_fadeTranslationColor");
+            _propFadeTranslationSeconds        = serializedObject.FindProperty("_fadeTranslationSeconds");
+            _propInterpolateTranslationSeconds = serializedObject.FindProperty("_interpolateTranslationSeconds");
+            _propAllowJoystickBackStep         = serializedObject.FindProperty("_allowJoystickBackStep");
+            _propBackStepDistance              = serializedObject.FindProperty("_backStepDistance");
+            _propTurnType                      = serializedObject.FindProperty("_turnType");
+            _propTurnStepDegrees               = serializedObject.FindProperty("_turnStepDegrees");
+            _propFadeTurnColor                 = serializedObject.FindProperty("_fadeTurnColor");
+            _propFadeTurnSeconds               = serializedObject.FindProperty("_fadeTurnSeconds");
+            _propInterpolateTurnSeconds        = serializedObject.FindProperty("_interpolateTurnSeconds");
+            _propSmoothTurnSpeedDeg            = serializedObject.FindProperty("_smoothTurnSpeedDeg");
+            _propReorientationType             = serializedObject.FindProperty("_reorientationType");
 
             _propTarget                      = serializedObject.FindProperty("_target");
             _propTargetPlacementAboveHit     = serializedObject.FindProperty("_targetPlacementAboveHit");
@@ -46,13 +47,14 @@ namespace UltimateXR.Editor.Locomotion
             _propValidMaterialColorTargets   = serializedObject.FindProperty("_validMaterialColorTargets");
             _propInvalidMaterialColorTargets = serializedObject.FindProperty("_invalidMaterialColorTargets");
 
-            _propTriggerCollidersInteraction = serializedObject.FindProperty("_triggerCollidersInteraction");
-            _propMaxAllowedDistance          = serializedObject.FindProperty("_maxAllowedDistance");
-            _propMaxAllowedHeightDifference  = serializedObject.FindProperty("_maxAllowedHeightDifference");
-            _propMaxAllowedSlopeDegrees      = serializedObject.FindProperty("_maxAllowedSlopeDegrees");
-            _propDestinationValidationRadius = serializedObject.FindProperty("_destinationValidationRadius");
-            _propValidTargetLayers           = serializedObject.FindProperty("_validTargetLayers");
-            _propBlockingTargetLayers        = serializedObject.FindProperty("_blockingTargetLayers");
+            _propTriggerCollidersInteraction        = serializedObject.FindProperty("_triggerCollidersInteraction");
+            _propMaxAllowedDistance                 = serializedObject.FindProperty("_maxAllowedDistance");
+            _propMaxAllowedHeightDifference         = serializedObject.FindProperty("_maxAllowedHeightDifference");
+            _propMaxAllowedSlopeDegrees             = serializedObject.FindProperty("_maxAllowedSlopeDegrees");
+            _propDestinationValidationRadius        = serializedObject.FindProperty("_destinationValidationRadius");
+            _propDestinationValidationMaxStepHeight = serializedObject.FindProperty("_destinationValidationMaxStepHeight");
+            _propValidTargetLayers                  = serializedObject.FindProperty("_validTargetLayers");
+            _propBlockingTargetLayers               = serializedObject.FindProperty("_blockingTargetLayers");
         }
 
         /// <summary>
@@ -80,9 +82,9 @@ namespace UltimateXR.Editor.Locomotion
             {
                 EditorGUILayout.PropertyField(_propTranslationType, ContentTranslationType);
 
-                if (_propTranslationType.enumValueIndex == (int)UxrTranslationType.Smooth && _propReorientationType.enumValueIndex != (int)UxrReorientationType.KeepOrientation)
+                if (_propTranslationType.enumValueIndex == (int)UxrTranslationType.Interpolate && _propReorientationType.enumValueIndex != (int)UxrReorientationType.KeepOrientation)
                 {
-                    EditorGUILayout.HelpBox("For smooth translation it is recommended to use Keep Orientation as Reorient After Teleport parameter in the Rotation settings", MessageType.Warning);
+                    EditorGUILayout.HelpBox("For Interpolate translation it is recommended to use Keep Orientation as Reorient After Teleport parameter in the Turn settings", MessageType.Warning);
                 }
 
                 if (_propTranslationType.enumValueIndex == (int)UxrTranslationType.Fade)
@@ -90,35 +92,40 @@ namespace UltimateXR.Editor.Locomotion
                     EditorGUILayout.PropertyField(_propFadeTranslationColor, ContentFadeTranslationColor);
                     EditorGUILayout.Slider(_propFadeTranslationSeconds, 0.01f, 2.0f, ContentFadeTranslationSeconds);
                 }
-                else if (_propTranslationType.enumValueIndex == (int)UxrTranslationType.Smooth)
+                else if (_propTranslationType.enumValueIndex == (int)UxrTranslationType.Interpolate)
                 {
-                    EditorGUILayout.Slider(_propSmoothTranslationSeconds, 0.01f, 2.0f, ContentSmoothTranslationSeconds);
+                    EditorGUILayout.Slider(_propInterpolateTranslationSeconds, 0.01f, 2.0f, ContentInterpolateTranslationSeconds);
                 }
 
                 EditorGUILayout.PropertyField(_propAllowJoystickBackStep, ContentAllowJoystickBackStep);
                 EditorGUILayout.PropertyField(_propBackStepDistance,      ContentBackStepDistance);
             }
 
-            _foldoutRotation = UxrEditorUtils.FoldoutStylish("Rotation", _foldoutRotation);
+            _foldoutTurn = UxrEditorUtils.FoldoutStylish("Turn", _foldoutTurn);
 
-            if (_foldoutRotation)
+            if (_foldoutTurn)
             {
-                EditorGUILayout.PropertyField(_propRotationType, ContentRotationType);
+                EditorGUILayout.PropertyField(_propTurnType, ContentTurnType);
 
-                if (_propRotationType.enumValueIndex != (int)UxrRotationType.NotAllowed)
+                if (_propTurnType.enumValueIndex != (int)UxrTurnType.NotAllowed && _propTurnType.enumValueIndex != (int)UxrTurnType.Smooth)
                 {
-                    EditorGUILayout.Slider(_propRotationStepDegrees, 10.0f, 180.0f, ContentRotationStepDegrees);
+                    EditorGUILayout.Slider(_propTurnStepDegrees, 10.0f, 180.0f, ContentTurnStepDegrees);
                 }
 
-                if (_propRotationType.enumValueIndex == (int)UxrRotationType.Fade)
+                if (_propTurnType.enumValueIndex == (int)UxrTurnType.Fade)
                 {
-                    EditorGUILayout.PropertyField(_propFadeRotationColor, ContentFadeRotationColor);
-                    EditorGUILayout.Slider(_propFadeRotationSeconds, 0.01f, 2.0f, ContentFadeRotationSeconds);
+                    EditorGUILayout.PropertyField(_propFadeTurnColor, ContentFadeTurnColor);
+                    EditorGUILayout.Slider(_propFadeTurnSeconds, 0.01f, 2.0f, ContentFadeTurnSeconds);
                 }
 
-                if (_propRotationType.enumValueIndex == (int)UxrRotationType.Smooth)
+                if (_propTurnType.enumValueIndex == (int)UxrTurnType.Interpolate)
                 {
-                    EditorGUILayout.Slider(_propSmoothRotationSeconds, 0.01f, 2.0f, ContentSmoothRotationSeconds);
+                    EditorGUILayout.Slider(_propInterpolateTurnSeconds, 0.01f, 2.0f, ContentInterpolateTurnSeconds);
+                }
+
+                if (_propTurnType.enumValueIndex == (int)UxrTurnType.Smooth)
+                {
+                    EditorGUILayout.PropertyField(_propSmoothTurnSpeedDeg, ContentSmoothTurnSpeedDeg);
                 }
 
                 EditorGUILayout.PropertyField(_propReorientationType, ContentReorientationType);
@@ -130,8 +137,20 @@ namespace UltimateXR.Editor.Locomotion
 
             if (_foldoutTarget)
             {
+                Object previousTarget = _propTarget.objectReferenceValue;
+                
                 EditorGUI.BeginChangeCheck();
                 EditorGUILayout.PropertyField(_propTarget, ContentTarget);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Object newTarget = _propTarget.objectReferenceValue;
+
+                    if (newTarget is Component targetComponent && !targetComponent.transform.IsChildOf(((Component)serializedObject.targetObject).transform))
+                    {
+                        EditorUtility.DisplayDialog("Invalid Target", "The target must be a reference in the same prefab.", "OK");
+                        _propTarget.objectReferenceValue = previousTarget;
+                    }
+                }
 
                 EditorGUILayout.Slider(_propTargetPlacementAboveHit, 0.0f, 1.0f, ContentTargetPlacementAboveHit);
                 EditorGUILayout.PropertyField(_propShowTargetAlsoWhenInvalid, ContentShowTargetAlsoWhenInvalid);
@@ -153,9 +172,10 @@ namespace UltimateXR.Editor.Locomotion
                 EditorGUILayout.PropertyField(_propMaxAllowedDistance,          ContentMaxAllowedDistance);
                 EditorGUILayout.PropertyField(_propMaxAllowedHeightDifference,  ContentMaxAllowedHeightDifference);
                 EditorGUILayout.Slider(_propMaxAllowedSlopeDegrees, 0.0f, 90.0f, ContentMaxAllowedSlopeDegrees);
-                EditorGUILayout.PropertyField(_propDestinationValidationRadius, ContentDestinationValidationRadius);
-                EditorGUILayout.PropertyField(_propValidTargetLayers,           ContentValidTargetLayers);
-                EditorGUILayout.PropertyField(_propBlockingTargetLayers,        ContentBlockingTargetLayers);
+                EditorGUILayout.PropertyField(_propDestinationValidationRadius,        ContentDestinationValidationRadius);
+                EditorGUILayout.PropertyField(_propDestinationValidationMaxStepHeight, ContentDestinationValidationMaxStepHeight);
+                EditorGUILayout.PropertyField(_propValidTargetLayers,                  ContentValidTargetLayers);
+                EditorGUILayout.PropertyField(_propBlockingTargetLayers,               ContentBlockingTargetLayers);
             }
 
             OnTeleportInspectorGUI();
@@ -173,34 +193,36 @@ namespace UltimateXR.Editor.Locomotion
 
         #region Private Types & Data
 
-        private GUIContent ContentControllerHand              { get; } = new GUIContent("Controller Hand",               "Which hand controls the input");
-        private GUIContent ContentUseControllerForward        { get; } = new GUIContent("Use Controller Forward",        "Will the teleport use the controller's forward vector instead of its own transform forward?");
-        private GUIContent ContentParentToDestination         { get; } = new GUIContent("Parent To Destination",         "Whether to parent the avatar to the destination object after teleport. Use it when building applications with moving vehicles or platforms the avatar can move on, so that the avatar keeps the relative position/orientation after teleporting.");
-        private GUIContent ContentShakeFilter                 { get; } = new GUIContent("Shake Filter",                  "The amount of filtering to apply to the hand movement to smooth it out");
-        private GUIContent ContentTranslationType             { get; } = new GUIContent("Translation Type",              "Which translation method to use");
-        private GUIContent ContentFadeTranslationColor        { get; } = new GUIContent("Translation Fade Color",        "The fade color when Fade translation type is used");
-        private GUIContent ContentFadeTranslationSeconds      { get; } = new GUIContent("Translation Fade Seconds",      "The fade transition in seconds when Fade translation type is used");
-        private GUIContent ContentSmoothTranslationSeconds    { get; } = new GUIContent("Smooth Translation Seconds",    "The translation duration in seconds when Smooth translation type is used");
-        private GUIContent ContentAllowJoystickBackStep       { get; } = new GUIContent("Allow Joystick Back Step",      "Whether to allow back steps by pressing the joystick down");
-        private GUIContent ContentBackStepDistance            { get; } = new GUIContent("Back Step Distance",            "The distance of each back step");
-        private GUIContent ContentRotationType                { get; } = new GUIContent("Rotation Type",                 "Which rotation method to use");
-        private GUIContent ContentRotationStepDegrees         { get; } = new GUIContent("Rotation Step Degrees",         "The amount of degrees of each turn for Immediate and Fade rotations");
-        private GUIContent ContentFadeRotationColor           { get; } = new GUIContent("Rotation Fade Color",           "The fade color when Fade rotation is used");
-        private GUIContent ContentFadeRotationSeconds         { get; } = new GUIContent("Rotation Fade Seconds",         "The fade transition in seconds when Fade rotation is used");
-        private GUIContent ContentSmoothRotationSeconds       { get; } = new GUIContent("Smooth Rotation Seconds",       "The rotation duration in seconds when Smooth rotation is used");
-        private GUIContent ContentReorientationType           { get; } = new GUIContent("Reorient After Teleport",       "How to orient the view right after teleporting");
-        private GUIContent ContentTarget                      { get; } = new GUIContent("Target",                        "Which teleport target to use. Can be either a prefab or an already instantiated object");
-        private GUIContent ContentTargetPlacementAboveHit     { get; } = new GUIContent("Target Placement Above Floor",  "Offset applied to the teleport target to help placing it a little above the floor");
-        private GUIContent ContentShowTargetAlsoWhenInvalid   { get; } = new GUIContent("Show Target Also When Invalid", "Whether to show the target object also when the destination is not valid");
-        private GUIContent ContentValidMaterialColorTargets   { get; } = new GUIContent("Target Color When Valid",       "Target color to use when the destination is valid");
-        private GUIContent ContentInvalidMaterialColorTargets { get; } = new GUIContent("Target Color When Invalid",     "Target color to use when the destination is not valid");
-        private GUIContent ContentTriggerCollidersInteraction { get; } = new GUIContent("Trigger Colliders Interaction", "Whether colliders with the trigger property set will interact with the teleport raycasts");
-        private GUIContent ContentMaxAllowedDistance          { get; } = new GUIContent("Max Allowed Distance Travel",   "Maximum allowed distance that can be travelled using each teleport");
-        private GUIContent ContentMaxAllowedHeightDifference  { get; } = new GUIContent("Max Allowed Height Difference", "Maximum allowed height difference to be able to teleport");
-        private GUIContent ContentMaxAllowedSlopeDegrees      { get; } = new GUIContent("Max Allowed Slope Degrees",     "Maximum allowed slope degrees at destination");
-        private GUIContent ContentDestinationValidationRadius { get; } = new GUIContent("Destination Validation Radius", "Radius of a cylinder that will be used to validate the destination surroundings to allow teleporting");
-        private GUIContent ContentValidTargetLayers           { get; } = new GUIContent("Valid Target Layers",           "Valid layers for teleporting destination objects");
-        private GUIContent ContentBlockingTargetLayers        { get; } = new GUIContent("Blocking Target Layers",        "Objects that will block teleporting raycasts");
+        private GUIContent ContentControllerHand                     { get; } = new GUIContent("Controller Hand",                        "Which hand controls the input");
+        private GUIContent ContentUseControllerForward               { get; } = new GUIContent("Use Controller Forward",                 "Will the teleport use the controller's forward vector instead of its own transform forward?");
+        private GUIContent ContentParentToDestination                { get; } = new GUIContent("Parent To Destination",                  "Whether to parent the avatar to the destination object after teleport. Use it when building applications with moving vehicles or platforms the avatar can move on, so that the avatar keeps the relative position/orientation after teleporting.");
+        private GUIContent ContentShakeFilter                        { get; } = new GUIContent("Shake Filter",                           "The amount of filtering to apply to the hand movement to smooth it out");
+        private GUIContent ContentTranslationType                    { get; } = new GUIContent("Translation Type",                       "Which translation method to use");
+        private GUIContent ContentFadeTranslationColor               { get; } = new GUIContent("Translation Fade Color",                 "The fade color when Fade translation type is used");
+        private GUIContent ContentFadeTranslationSeconds             { get; } = new GUIContent("Translation Fade Seconds",               "The fade transition in seconds when Fade translation type is used");
+        private GUIContent ContentInterpolateTranslationSeconds      { get; } = new GUIContent("Interpolate Translation Seconds",        "The translation duration in seconds when Interpolate translation type is used");
+        private GUIContent ContentAllowJoystickBackStep              { get; } = new GUIContent("Allow Joystick Back Step",               "Whether to allow back steps by pressing the joystick down");
+        private GUIContent ContentBackStepDistance                   { get; } = new GUIContent("Back Step Distance",                     "The distance of each back step");
+        private GUIContent ContentTurnType                           { get; } = new GUIContent("Turn Type",                              "Which turn method to use");
+        private GUIContent ContentTurnStepDegrees                    { get; } = new GUIContent("Turn Step Degrees",                      "The amount of degrees of each turn for Snap, Fade and Interpolate turns");
+        private GUIContent ContentFadeTurnColor                      { get; } = new GUIContent("Turn Fade Color",                        "The fade color when Fade turn is used");
+        private GUIContent ContentFadeTurnSeconds                    { get; } = new GUIContent("Turn Fade Seconds",                      "The fade transition in seconds when Fade turn is used");
+        private GUIContent ContentInterpolateTurnSeconds             { get; } = new GUIContent("Interpolate Turn Seconds",               "The turn duration in seconds when Interpolate turn is used");
+        private GUIContent ContentSmoothTurnSpeedDeg                 { get; } = new GUIContent("Turn Speed (Deg/Sec)",                   "The turn speed in degrees per second");
+        private GUIContent ContentReorientationType                  { get; } = new GUIContent("Reorient After Teleport",                "How to orient the view right after teleporting");
+        private GUIContent ContentTarget                             { get; } = new GUIContent("Target",                                 "A reference to the teleport target.");
+        private GUIContent ContentTargetPlacementAboveHit            { get; } = new GUIContent("Target Placement Above Floor",           "Offset applied to the teleport target to help placing it a little above the floor");
+        private GUIContent ContentShowTargetAlsoWhenInvalid          { get; } = new GUIContent("Show Target Also When Invalid",          "Whether to show the target object also when the destination is not valid");
+        private GUIContent ContentValidMaterialColorTargets          { get; } = new GUIContent("Target Color When Valid",                "Target color to use when the destination is valid");
+        private GUIContent ContentInvalidMaterialColorTargets        { get; } = new GUIContent("Target Color When Invalid",              "Target color to use when the destination is not valid");
+        private GUIContent ContentTriggerCollidersInteraction        { get; } = new GUIContent("Trigger Colliders Interaction",          "Whether colliders with the trigger property set will interact with the teleport raycasts");
+        private GUIContent ContentMaxAllowedDistance                 { get; } = new GUIContent("Max Allowed Distance Travel",            "Maximum allowed distance that can be travelled using each teleport");
+        private GUIContent ContentMaxAllowedHeightDifference         { get; } = new GUIContent("Max Allowed Height Difference",          "Maximum allowed height difference to be able to teleport");
+        private GUIContent ContentMaxAllowedSlopeDegrees             { get; } = new GUIContent("Max Allowed Slope Degrees",              "Maximum allowed slope degrees at destination");
+        private GUIContent ContentDestinationValidationRadius        { get; } = new GUIContent("Destination Validation Radius",          "Radius of a cylinder that will be used to validate the destination surroundings to allow teleporting");
+        private GUIContent ContentDestinationValidationMaxStepHeight { get; } = new GUIContent("Destination Validation Max Step Height", "The maximum step height when validating the surroundings of a teleport destination.");
+        private GUIContent ContentValidTargetLayers                  { get; } = new GUIContent("Valid Target Layers",                    "Valid layers for teleporting destination objects");
+        private GUIContent ContentBlockingTargetLayers               { get; } = new GUIContent("Blocking Target Layers",                 "Objects that will block teleporting raycasts");
 
         private SerializedProperty _propControllerHand;
         private SerializedProperty _propUseControllerForward;
@@ -209,14 +231,15 @@ namespace UltimateXR.Editor.Locomotion
         private SerializedProperty _propTranslationType;
         private SerializedProperty _propFadeTranslationColor;
         private SerializedProperty _propFadeTranslationSeconds;
-        private SerializedProperty _propSmoothTranslationSeconds;
+        private SerializedProperty _propInterpolateTranslationSeconds;
         private SerializedProperty _propAllowJoystickBackStep;
         private SerializedProperty _propBackStepDistance;
-        private SerializedProperty _propRotationType;
-        private SerializedProperty _propRotationStepDegrees;
-        private SerializedProperty _propFadeRotationColor;
-        private SerializedProperty _propFadeRotationSeconds;
-        private SerializedProperty _propSmoothRotationSeconds;
+        private SerializedProperty _propTurnType;
+        private SerializedProperty _propTurnStepDegrees;
+        private SerializedProperty _propFadeTurnColor;
+        private SerializedProperty _propFadeTurnSeconds;
+        private SerializedProperty _propInterpolateTurnSeconds;
+        private SerializedProperty _propSmoothTurnSpeedDeg;
         private SerializedProperty _propReorientationType;
 
         private SerializedProperty _propTarget;
@@ -230,12 +253,13 @@ namespace UltimateXR.Editor.Locomotion
         private SerializedProperty _propMaxAllowedHeightDifference;
         private SerializedProperty _propMaxAllowedSlopeDegrees;
         private SerializedProperty _propDestinationValidationRadius;
+        private SerializedProperty _propDestinationValidationMaxStepHeight;
         private SerializedProperty _propValidTargetLayers;
         private SerializedProperty _propBlockingTargetLayers;
 
         private bool _foldoutGeneral     = true;
         private bool _foldoutTranslation = true;
-        private bool _foldoutRotation    = true;
+        private bool _foldoutTurn        = true;
         private bool _foldoutTarget      = true;
         private bool _foldoutConstraints = true;
 

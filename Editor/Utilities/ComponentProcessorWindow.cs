@@ -24,7 +24,7 @@ namespace UltimateXR.Editor.Utilities
         [SerializeField] private T             _targetSingleObject  = null;
         [SerializeField] private string        _startPath           = "";
         [SerializeField] private bool          _ignoreUxrAssets     = true;
-        [SerializeField] private LogOptions    _logOptions          = LogOptions.Processed;
+        [SerializeField] private UxrLogOptions    _uxrLogOptions          = UxrLogOptions.Processed;
         [SerializeField] private bool          _onlyCheck           = false;
         [SerializeField] private bool          _recurseIntoChildren = true;
         [SerializeField] private bool          _recurseIntoPrefabs  = true;
@@ -115,7 +115,7 @@ namespace UltimateXR.Editor.Utilities
                 }
             }
 
-            _logOptions = (LogOptions)EditorGUILayout.EnumFlagsField(ContentLogOptions, _logOptions);
+            _uxrLogOptions = (UxrLogOptions)EditorGUILayout.EnumFlagsField(ContentLogOptions, _uxrLogOptions);
             _onlyCheck  = EditorGUILayout.Toggle(ContentOnlyCheck, _onlyCheck);
 
             // Draw processor GUI if necessary
@@ -286,7 +286,7 @@ namespace UltimateXR.Editor.Utilities
         {
             string action        = _onlyCheck ? "Found" : "Processed";
             string processAction = isChanged ? action : _onlyCheck ? "Found to ignore" : "Ignored";
-            bool   shouldLog     = (isChanged && _logOptions.HasFlag(LogOptions.Processed)) || (!isChanged && _logOptions.HasFlag(LogOptions.Ignored));
+            bool   shouldLog     = (isChanged && _uxrLogOptions.HasFlag(UxrLogOptions.Processed)) || (!isChanged && _uxrLogOptions.HasFlag(UxrLogOptions.Ignored));
 
             if (info.TargetPrefab != null)
             {

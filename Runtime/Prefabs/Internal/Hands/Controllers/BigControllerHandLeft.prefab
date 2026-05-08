@@ -5,6 +5,7 @@ PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Modification:
+    serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: 303550954584804986, guid: 4001752301e5ec64bba14436977a8eb5,
@@ -107,6 +108,11 @@ PrefabInstance:
       propertyPath: _manualUpdate
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 5252328346555985692, guid: 4001752301e5ec64bba14436977a8eb5,
+        type: 3}
+      propertyPath: _links.Array.data[0]._axis2AngleMax
+      value: 40
+      objectReference: {fileID: 0}
     - target: {fileID: 8095935523287476384, guid: 4001752301e5ec64bba14436977a8eb5,
         type: 3}
       propertyPath: __isInPrefab
@@ -128,6 +134,13 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 3195639109724457119, guid: 4001752301e5ec64bba14436977a8eb5,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 5474643347140066596}
   m_SourcePrefab: {fileID: 100100000, guid: 4001752301e5ec64bba14436977a8eb5, type: 3}
 --- !u!4 &145954230530673830 stripped
 Transform:

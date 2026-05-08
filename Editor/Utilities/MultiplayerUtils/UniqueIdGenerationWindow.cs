@@ -3,11 +3,10 @@
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
-using System;
 using System.Xml;
 using UltimateXR.Core;
 using UltimateXR.Core.Unique;
-using UltimateXR.Extensions.Unity;
+using UltimateXR.Editor.Core;
 using UnityEditor;
 using UnityEngine;
 
@@ -23,83 +22,18 @@ namespace UltimateXR.Editor.Utilities.MultiplayerUtils
 
         /// <summary>
         ///     Fixes the given component Unique ID information if necessary.
+        ///     Delegates to <see cref="UxrUniqueIdAutoFixer.FixComponent" /> which contains the centralized fix logic.
         /// </summary>
         /// <param name="info">Information about the component</param>
-        /// <param name="forceRegenerateId">Whether to force the regeneration of the unique Id.</param>
+        /// <param name="forceRegenerateId">Whether to force the regeneration of the unique ID.</param>
         /// <param name="onlyCheck">
-        ///     Whether to only check, and return a value telling if the component requires changes, but not
+        ///     Whether to only check and return a value telling if the component requires changes but not
         ///     perform any modifications on it
         /// </param>
         /// <returns>Whether the component required changes</returns>
         public static bool FixComponentUniqueIdInformation(UxrComponentInfo<Component> info, bool forceRegenerateId, bool onlyCheck)
         {
-            SerializedObject serializedObject = new SerializedObject(info.TargetComponent);
-            serializedObject.Update();
-            SerializedProperty uniqueIdProperty   = serializedObject.FindProperty(UxrEditorUtils.PropertyUniqueId);
-            SerializedProperty prefabGuidProperty = serializedObject.FindProperty(UxrEditorUtils.PropertyPrefabGuid);
-            SerializedProperty isInPrefabProperty = serializedObject.FindProperty(UxrEditorUtils.PropertyIsInPrefab);
-
-            if (!info.TargetComponent.GetPrefabGuid(out string prefabGuid))
-            {
-                return false;
-            }
-
-            if (uniqueIdProperty == null || prefabGuidProperty == null || isInPrefabProperty == null)
-            {
-                Debug.LogError($"Can't find one or more fields in {info.TargetComponent}. Target type ({info.TargetComponent.GetType().FullName}) is missing one or more of these required fields: {UxrEditorUtils.PropertyUniqueId}, {UxrEditorUtils.PropertyPrefabGuid}, {UxrEditorUtils.PropertyIsInPrefab}.");
-                return false;
-            }
-
-            bool isInPrefab  = info.TargetComponent.IsInPrefab();
-            bool needsChange = false;
-
-            if (prefabGuidProperty.stringValue != prefabGuid || (!info.IsOriginalSource && !prefabGuidProperty.prefabOverride))
-            {
-                if (!onlyCheck)
-                {
-                    // By changing values this way, we ensure that the property is marked as overriden.
-                    // We should be able to use prefabGuidProperty.prefabOverride = true, but it gives unknown errors in some cases.
-                    prefabGuidProperty.stringValue = "AA";
-                    serializedObject.ApplyModifiedProperties();
-                    prefabGuidProperty.stringValue = prefabGuid;
-                }
-
-                needsChange = true;
-            }
-
-            if (isInPrefabProperty.boolValue != isInPrefab || (!info.IsOriginalSource && !isInPrefabProperty.prefabOverride))
-            {
-                if (!onlyCheck)
-                {
-                    // By changing values this way, we ensure that the property is marked as overriden.
-                    // We should be able to use isInPrefabProperty.prefabOverride = true, but it gives unknown errors in some cases.
-                    isInPrefabProperty.boolValue = !isInPrefab;
-                    serializedObject.ApplyModifiedProperties();
-                    isInPrefabProperty.boolValue = isInPrefab;
-                }
-
-                needsChange = true;
-            }
-
-            if (forceRegenerateId || string.IsNullOrEmpty(uniqueIdProperty.stringValue) || (!info.IsOriginalSource && !uniqueIdProperty.prefabOverride))
-            {
-                if (!onlyCheck)
-                {
-                    Guid newUniqueID = UxrUniqueIdImplementer.GetNewUniqueId();
-                    uniqueIdProperty.stringValue = "AA";
-                    serializedObject.ApplyModifiedProperties();
-                    uniqueIdProperty.stringValue = newUniqueID.ToString();
-                }
-
-                needsChange = true;
-            }
-
-            if (!onlyCheck && needsChange)
-            {
-                serializedObject.ApplyModifiedProperties();
-            }
-
-            return needsChange;
+            return UxrUniqueIdAutoFixer.FixComponent(info.TargetComponent, forceRegenerateId, onlyCheck);
         }
 
         #endregion

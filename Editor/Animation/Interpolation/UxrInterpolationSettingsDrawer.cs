@@ -96,7 +96,10 @@ namespace UltimateXR.Editor.Animation.Interpolation
 
                 UxrEasing easing = (UxrEasing)property.FindPropertyRelative(PropertyEasing).enumValueIndex;
                 
-                UxrEasingDrawer.DrawGraph(graphRect, _lineMaterial, Color.green, easing, loopMode, 5);
+                if (Event.current.type == EventType.Repaint)
+                {
+                    UxrEasingDrawer.DrawGraph(graphRect, _lineMaterial, Color.green, easing, loopMode, 5);
+                }
 
                 position.y += UxrEasingDrawer.GraphHeight;
                 

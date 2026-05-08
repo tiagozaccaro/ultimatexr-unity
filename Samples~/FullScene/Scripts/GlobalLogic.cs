@@ -1,4 +1,4 @@
-﻿// --------------------------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 // <copyright file="GlobalLogic.cs" company="VRMADA">
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
@@ -122,7 +122,7 @@ namespace UltimateXR.Examples.FullScene
         /// <param name="e">Event parameters</param>
         private void UxrAvatar_GlobalAvatarMoved(object sender, UxrAvatarMoveEventArgs e)
         {
-            if (ReferenceEquals(sender, UxrAvatar.LocalAvatar))
+            if (ReferenceEquals(e.Avatar, UxrAvatar.LocalAvatar))
             {
                 UpdateVisibility();
             }
@@ -133,7 +133,7 @@ namespace UltimateXR.Examples.FullScene
         /// </summary>
         private void UxrManager_AvatarsUpdated()
         {
-            if (UxrAvatar.LocalAvatar == null || UxrCameraWallFade.IsAvatarPeekingThroughGeometry(UxrAvatar.LocalAvatar))
+            if (UxrAvatar.LocalAvatar == null || UxrCameraWallFade.IsAvatarInsideFade(UxrAvatar.LocalAvatar))
             {
                 return;
             }
@@ -151,7 +151,7 @@ namespace UltimateXR.Examples.FullScene
         /// </summary>
         private void UpdateVisibility()
         {
-            if (UxrAvatar.LocalAvatar == null || UxrCameraWallFade.IsAvatarPeekingThroughGeometry(UxrAvatar.LocalAvatar))
+            if (UxrAvatar.LocalAvatar == null || UxrCameraWallFade.IsAvatarInsideFade(UxrAvatar.LocalAvatar))
             {
                 return;
             }
@@ -192,7 +192,7 @@ namespace UltimateXR.Examples.FullScene
                 _rootLabElements.CheckSetActive(false);
             }
 
-            EndSyncMethod(new object[] { viewPosition });
+            EndSyncMethod(SyncParams(viewPosition));
         }
 
         #endregion

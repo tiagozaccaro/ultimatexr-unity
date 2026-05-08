@@ -6,6 +6,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEditor;
+using UnityEditor.Build;
 
 namespace UltimateXR.Editor.Sdks
 {
@@ -142,32 +143,34 @@ namespace UltimateXR.Editor.Sdks
                 string targetGroupName = targetGroupNames[targetGroupIndex];
                 targetGroupIndex++;
 
-                // Ignore target groups to avoid scripting errors (thank you Ludiq!)
+                // Ignore invalid / obsolete target groups
 
                 if (targetGroup == BuildTargetGroup.Unknown)
                 {
                     continue;
                 }
 
-                if (typeof(BuildTargetGroup).GetField(targetGroupName).IsDefined(typeof(ObsoleteAttribute), true))
+                var fieldInfo = typeof(BuildTargetGroup).GetField(targetGroupName);
+
+                if (fieldInfo != null && fieldInfo.IsDefined(typeof(ObsoleteAttribute), true))
                 {
                     continue;
                 }
 
-                // Get trimmed target symbol list
+                NamedBuildTarget namedBuildTarget = NamedBuildTarget.FromBuildTargetGroup(targetGroup);
 
-                List<string> currentSymbols = new List<string>(PlayerSettings.GetScriptingDefineSymbolsForGroup(targetGroup).Split(';'));
+                // Get trimmed target symbol list using the new API
+                PlayerSettings.GetScriptingDefineSymbols(namedBuildTarget, out string[] currentSymbols);
 
-                for (int currentSymbolIndex = 0; currentSymbolIndex < currentSymbols.Count; ++currentSymbolIndex)
+                for (int currentSymbolIndex = 0; currentSymbolIndex < currentSymbols.Length; ++currentSymbolIndex)
                 {
                     currentSymbols[currentSymbolIndex] = currentSymbols[currentSymbolIndex].Trim();
                 }
 
                 // Look for symbols
-
                 foreach (string sdkSymbolString in locator.AllSymbols)
                 {
-                    if (currentSymbols.IndexOf(sdkSymbolString) != -1)
+                    if (Array.IndexOf(currentSymbols, sdkSymbolString) != -1)
                     {
                         return true;
                     }
@@ -183,7 +186,7 @@ namespace UltimateXR.Editor.Sdks
 
         /// <summary>
         ///     Updates the project symbols adding the necessary symbols if the SDK is present or removing them if it is not. Also
-        ///     allows to remove the symbols if necessary.
+        ///     allows removing the symbols if necessary.
         /// </summary>
         /// <param name="locator">The SDK locator</param>
         /// <param name="setupSymbolsMode">
@@ -196,6 +199,9 @@ namespace UltimateXR.Editor.Sdks
             string[] targetGroupNames = Enum.GetNames(typeof(BuildTargetGroup));
             int      targetGroupIndex = 0;
 
+            HashSet<string> availableSymbols = new HashSet<string>(locator.AvailableSymbols);
+            HashSet<string> allSymbols       = new HashSet<string>(locator.AllSymbols);
+
             foreach (BuildTargetGroup targetGroup in Enum.GetValues(typeof(BuildTargetGroup)))
             {
                 // Get the BuildTargetGroup name through targetGroupNames. targetGroup.ToString() does not work because there are
@@ -204,71 +210,95 @@ namespace UltimateXR.Editor.Sdks
                 string targetGroupName = targetGroupNames[targetGroupIndex];
                 targetGroupIndex++;
 
-                // Ignore target groups to avoid scripting errors (thank you Ludiq!)
+                // Ignore invalid / obsolete target groups
 
                 if (targetGroup == BuildTargetGroup.Unknown)
                 {
                     continue;
                 }
 
-                if (typeof(BuildTargetGroup).GetField(targetGroupName).IsDefined(typeof(ObsoleteAttribute), true))
+                var fieldInfo = typeof(BuildTargetGroup).GetField(targetGroupName);
+
+                if (fieldInfo != null && fieldInfo.IsDefined(typeof(ObsoleteAttribute), true))
                 {
                     continue;
                 }
 
-                // Get trimmed target symbol list
+                NamedBuildTarget namedBuildTarget = NamedBuildTarget.FromBuildTargetGroup(targetGroup);
 
-                List<string> currentSymbols = new List<string>(PlayerSettings.GetScriptingDefineSymbolsForGroup(targetGroup).Split(';'));
+                // Get current target symbol list using the new API
+                PlayerSettings.GetScriptingDefineSymbols(namedBuildTarget, out string[] currentSymbolsArray);
 
-                for (int currentSymbolIndex = 0; currentSymbolIndex < currentSymbols.Count; ++currentSymbolIndex)
+                // Keep original order for non-target symbols, while trimming and removing duplicates/empties
+                List<string> currentSymbols = new List<string>(currentSymbolsArray.Length);
+                HashSet<string> seenSymbols = new HashSet<string>();
+
+                for (int i = 0; i < currentSymbolsArray.Length; ++i)
                 {
-                    currentSymbols[currentSymbolIndex].Trim();
-                }
+                    string symbol = currentSymbolsArray[i]?.Trim();
 
-                // Look for symbols, adding or removing if necessary
+                    if (string.IsNullOrEmpty(symbol))
+                    {
+                        continue;
+                    }
+
+                    if (seenSymbols.Add(symbol))
+                    {
+                        currentSymbols.Add(symbol);
+                    }
+                }
 
                 bool updated = false;
 
-                List<string> availableSymbols = new List<string>(locator.AvailableSymbols);
-
-                foreach (string sdkSymbolString in locator.AllSymbols)
+                if (setupSymbolsMode == SetupSymbolsMode.AddOrRemove)
                 {
-                    if (setupSymbolsMode == SetupSymbolsMode.AddOrRemove)
+                    // Remove any symbols managed by this locator that are no longer available
+                    for (int i = currentSymbols.Count - 1; i >= 0; --i)
                     {
-                        // Add
+                        string symbol = currentSymbols[i];
 
-                        if (availableSymbols.Contains(sdkSymbolString) && currentSymbols.IndexOf(sdkSymbolString) == -1)
+                        if (allSymbols.Contains(symbol) && !availableSymbols.Contains(symbol))
                         {
-                            currentSymbols.Add(sdkSymbolString);
+                            currentSymbols.RemoveAt(i);
                             updated = true;
                         }
-                        else
+                    }
+
+                    // Add missing available symbols
+                    for (int i = 0; i < locator.AvailableSymbols.Length; ++i)
+                    {
+                        string symbol = locator.AvailableSymbols[i];
+
+                        if (string.IsNullOrWhiteSpace(symbol))
                         {
-                            while (currentSymbols.IndexOf(sdkSymbolString) != currentSymbols.LastIndexOf(sdkSymbolString))
-                            {
-                                // Remove duplicates
-                                currentSymbols.Remove(sdkSymbolString);
-                                updated = true;
-                            }
+                            continue;
+                        }
+
+                        symbol = symbol.Trim();
+
+                        if (seenSymbols.Add(symbol))
+                        {
+                            currentSymbols.Add(symbol);
+                            updated = true;
                         }
                     }
-                    else
+                }
+                else
+                {
+                    // Remove all symbols linked to this locator
+                    for (int i = currentSymbols.Count - 1; i >= 0; --i)
                     {
-                        // Remove
-
-                        while (currentSymbols.IndexOf(sdkSymbolString) != -1)
+                        if (allSymbols.Contains(currentSymbols[i]))
                         {
-                            currentSymbols.Remove(sdkSymbolString);
+                            currentSymbols.RemoveAt(i);
                             updated = true;
                         }
                     }
                 }
 
-                // Update target symbol list
-
                 if (updated)
                 {
-                    PlayerSettings.SetScriptingDefineSymbolsForGroup(targetGroup, string.Join(";", currentSymbols.ToArray()));
+                    PlayerSettings.SetScriptingDefineSymbols(namedBuildTarget, currentSymbols.ToArray());
                 }
             }
         }

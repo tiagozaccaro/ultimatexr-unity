@@ -4,6 +4,7 @@
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
 using UltimateXR.Locomotion;
+using UltimateXR.Locomotion.Teleport;
 using UnityEditor;
 using UnityEngine;
 

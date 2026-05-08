@@ -38,10 +38,9 @@ namespace UltimateXR.Editor
         /// </param>
         /// <param name="canceled">Returns whether the user canceled the operation using the progress updater</param>
         /// <param name="onlyCheck">
-        ///     Whether to only check if components should be processed, without making any changes. This
+        ///     Whether to only check if components should be processed without making any changes. This
         ///     can be used to get how many elements would be changed without modifying any data
         /// </param>
-        /// <typeparam name="T">The component type</typeparam>
         /// <returns>Whether any modifications were made</returns>
         public static bool ModifyComponent<T>(Object                        componentOrGameObject,
                                               UxrComponentProcessingOptions options,
@@ -60,8 +59,8 @@ namespace UltimateXR.Editor
 
             // Gather component(s) to process
 
-            T[]  components     = null;
-            bool sourceIsPrefab = false;
+            T[]  components;
+            bool sourceIsPrefab;
 
             if (componentOrGameObject is GameObject sourceGameObject)
             {
@@ -169,10 +168,15 @@ namespace UltimateXR.Editor
 
                 // Filter out paths that are dependencies but are not included in the list that we built because they are not being processed
 
-                if (prefabComponents.ContainsKey(prefabPath))
+                if (prefabComponents.TryGetValue(prefabPath, out List<Component> componentList))
                 {
                     GameObject prefab    = AssetDatabase.LoadMainAssetAtPath(prefabPath) as GameObject;
                     bool       processed = false;
+
+                    if (prefab == null)
+                    {
+                        continue;
+                    }
 
                     if (progressUpdater != null)
                     {
@@ -184,8 +188,9 @@ namespace UltimateXR.Editor
                         }
                     }
 
-                    foreach (T component in prefabComponents[prefabPath])
+                    foreach (Component notCastedComponent in componentList)
                     {
+                        T    component        = (T)notCastedComponent;
                         bool isOriginalSource = PrefabUtility.GetCorrespondingObjectFromSource(component) == null;
 
                         if (componentProcessor != null && componentProcessor.Invoke(new UxrComponentInfo<T>(component, prefab, isOriginalSource, isOriginalSource), onlyCheck))
@@ -297,7 +302,6 @@ namespace UltimateXR.Editor
         ///     Whether to only check if components should be processed, without making any changes. This
         ///     can be used to get how many elements would be changed without modifying any data
         /// </param>
-        /// <typeparam name="T">The component type</typeparam>
         /// <returns>Whether any modifications were made</returns>
         public static bool ProcessAllProjectComponents<T>(string                   basePath,
                                                           UxrComponentProcessor<T> componentProcessor,
@@ -470,7 +474,7 @@ namespace UltimateXR.Editor
         /// </param>
         /// <typeparam name="T">The component type</typeparam>
         /// <returns>Whether any modifications were made</returns>
-        public static bool ProcessScenesAndProjectPathPrefabs<T>(IEnumerable<string>      scenePaths,
+        public static bool ProcessScenesAndProjectPathPrefabs<T>(List<string>             scenePaths,
                                                                  bool                     processBasePath,
                                                                  string                   basePath,
                                                                  UxrComponentProcessor<T> componentProcessor,

@@ -30,6 +30,14 @@ namespace UltimateXR.Editor.Manipulation
     [CanEditMultipleObjects]
     public class UxrGrabbableObjectEditor : UnityEditor.Editor
     {
+        static UxrGrabbableObjectEditor()
+        {
+            AssemblyReloadEvents.beforeAssemblyReload -= DestroyTemporarySceneAvatars;
+            AssemblyReloadEvents.beforeAssemblyReload += DestroyTemporarySceneAvatars;
+            EditorApplication.quitting                -= DestroyTemporarySceneAvatars;
+            EditorApplication.quitting                += DestroyTemporarySceneAvatars;
+        }
+
         #region Public Types & Data
 
         public const string PropertyIsDummyGrabbableParent          = "_isDummyGrabbableParent";
@@ -78,10 +86,11 @@ namespace UltimateXR.Editor.Manipulation
         #region Public Methods
 
         /// <summary>
-        ///     Tries to get an avatar in the scene that comes from the given prefab.
+        ///     Tries to get an avatar in the scene that comes from the given prefab. If none is found, a temporary hidden
+        ///     instance is created so that editor preview data can still be generated.
         /// </summary>
         /// <param name="avatarPrefab">Registered avatar prefab</param>
-        /// <returns>First avatar found that comes from the given prefab</returns>
+        /// <returns>First avatar found that comes from the given prefab, or a temporary hidden avatar instance</returns>
         public static UxrAvatar TryGetSceneAvatar(GameObject avatarPrefab)
         {
             if (avatarPrefab == null)
@@ -89,13 +98,19 @@ namespace UltimateXR.Editor.Manipulation
                 return null;
             }
 
-            UxrAvatar[] avatars = FindObjectsOfType<UxrAvatar>();
+            string      avatarPrefabGuid = UxrAvatarEditorExt.GetGuid(avatarPrefab);
+            UxrAvatar[] avatars = FindObjectsByType<UxrAvatar>(FindObjectsInactive.Include, FindObjectsSortMode.None);
 
             // Look first for the exact match
 
             foreach (UxrAvatar avatar in avatars)
             {
-                if (avatar.PrefabGuid == UxrAvatarEditorExt.GetGuid(avatarPrefab))
+                if (IsTemporarySceneAvatar(avatar))
+                {
+                    continue;
+                }
+
+                if (avatar.PrefabGuid == avatarPrefabGuid)
                 {
                     return avatar;
                 }
@@ -105,13 +120,18 @@ namespace UltimateXR.Editor.Manipulation
 
             foreach (UxrAvatar avatar in avatars)
             {
+                if (IsTemporarySceneAvatar(avatar))
+                {
+                    continue;
+                }
+
                 if (avatar.IsInPrefabChain(avatarPrefab))
                 {
                     return avatar;
                 }
             }
 
-            return null;
+            return GetOrCreateTemporarySceneAvatar(avatarPrefab, avatarPrefabGuid);
         }
 
         /// <summary>
@@ -1094,6 +1114,125 @@ namespace UltimateXR.Editor.Manipulation
         #region Private Methods
 
         /// <summary>
+        ///     Gets or creates a temporary hidden avatar instance used only to generate editor preview data.
+        /// </summary>
+        /// <param name="avatarPrefab">Registered avatar prefab</param>
+        /// <param name="avatarPrefabGuid">Registered avatar prefab GUID</param>
+        /// <returns>Temporary hidden avatar instance</returns>
+        private static UxrAvatar GetOrCreateTemporarySceneAvatar(GameObject avatarPrefab, string avatarPrefabGuid)
+        {
+            string cacheKey = !string.IsNullOrEmpty(avatarPrefabGuid) ? avatarPrefabGuid : avatarPrefab.GetInstanceID().ToString();
+
+            if (s_temporarySceneAvatars.TryGetValue(cacheKey, out UxrAvatar cachedAvatar) && cachedAvatar != null)
+            {
+                return cachedAvatar;
+            }
+
+            GameObject avatarObject = PrefabUtility.InstantiatePrefab(avatarPrefab) as GameObject;
+
+            if (avatarObject == null)
+            {
+                avatarObject = Object.Instantiate(avatarPrefab);
+            }
+
+            if (avatarObject == null)
+            {
+                return null;
+            }
+
+            UxrAvatar avatar = avatarObject.GetComponent<UxrAvatar>();
+
+            if (avatar == null)
+            {
+                Object.DestroyImmediate(avatarObject);
+                return null;
+            }
+
+            avatarObject.name = $"[UltimateXR Preview Avatar] {avatarPrefab.name}";
+            SetupTemporarySceneAvatar(avatarObject, avatar, avatarPrefabGuid);
+            s_temporarySceneAvatars[cacheKey] = avatar;
+
+            return avatar;
+        }
+
+        /// <summary>
+        ///     Configures a temporary avatar instance so that it is disabled, invisible and excluded from scene saving.
+        /// </summary>
+        /// <param name="avatarObject">Temporary avatar root</param>
+        /// <param name="avatar">Temporary avatar component</param>
+        /// <param name="avatarPrefabGuid">Registered avatar prefab GUID</param>
+        private static void SetupTemporarySceneAvatar(GameObject avatarObject, UxrAvatar avatar, string avatarPrefabGuid)
+        {
+            if (!string.IsNullOrEmpty(avatarPrefabGuid) && string.IsNullOrEmpty(avatar.PrefabGuid))
+            {
+                SerializedObject   serializedAvatar = new SerializedObject(avatar);
+                SerializedProperty prefabGuid       = serializedAvatar.FindProperty(UxrAvatarEditor.PropertyPrefabGuid);
+
+                if (prefabGuid != null)
+                {
+                    prefabGuid.stringValue = avatarPrefabGuid;
+                    serializedAvatar.ApplyModifiedPropertiesWithoutUndo();
+                }
+            }
+
+            foreach (Transform child in avatarObject.GetComponentsInChildren<Transform>(true))
+            {
+                child.gameObject.hideFlags = HideFlags.HideAndDontSave;
+
+                foreach (Component component in child.GetComponents<Component>())
+                {
+                    if (component != null)
+                    {
+                        component.hideFlags = HideFlags.HideAndDontSave;
+                    }
+                }
+            }
+
+            foreach (Renderer renderer in avatarObject.GetComponentsInChildren<Renderer>(true))
+            {
+                renderer.enabled = false;
+            }
+
+            foreach (Camera camera in avatarObject.GetComponentsInChildren<Camera>(true))
+            {
+                camera.enabled = false;
+            }
+
+            foreach (AudioListener audioListener in avatarObject.GetComponentsInChildren<AudioListener>(true))
+            {
+                audioListener.enabled = false;
+            }
+
+            avatarObject.SetActive(false);
+        }
+
+        /// <summary>
+        ///     Destroys all temporary hidden avatar instances used by editor previews.
+        /// </summary>
+        private static void DestroyTemporarySceneAvatars()
+        {
+            foreach (UxrAvatar avatar in s_temporarySceneAvatars.Values)
+            {
+                if (avatar != null)
+                {
+                    Object.DestroyImmediate(avatar.gameObject);
+                }
+            }
+
+            s_temporarySceneAvatars.Clear();
+        }
+
+        /// <summary>
+        ///     Checks whether the avatar is one of the temporary hidden instances used only for editor preview data.
+        /// </summary>
+        /// <param name="avatar">Avatar to check</param>
+        /// <returns>Whether the avatar is a temporary hidden preview instance</returns>
+        private static bool IsTemporarySceneAvatar(UxrAvatar avatar)
+        {
+            return avatar != null && s_temporarySceneAvatars.ContainsValue(avatar);
+        }
+
+        /// <summary>
         ///     Notifies that the preview grab pose meshes should be recomputed.
         /// </summary>
         /// <param name="regeneration">The required regeneration</param>
@@ -1263,7 +1402,7 @@ namespace UltimateXR.Editor.Manipulation
 
             // Get grabber renderers which will be used to know which materials to use when rendering grab poses
 
-            UxrGrabber[] grabbers             = avatar.GetComponentsInChildren<UxrGrabber>(false);
+            UxrGrabber[] grabbers             = avatar.GetComponentsInChildren<UxrGrabber>(true);
             Renderer     leftGrabberRenderer  = grabbers.FirstOrDefault(g => g.Side == UxrHandSide.Left && g.HandRenderer != null)?.HandRenderer;
             Renderer     rightGrabberRenderer = grabbers.FirstOrDefault(g => g.Side == UxrHandSide.Right && g.HandRenderer != null)?.HandRenderer;
 
@@ -1669,6 +1808,7 @@ namespace UltimateXR.Editor.Manipulation
         private static readonly string HasGrabbableModifiers            = $"Some of the parameters are controlled by the following components in this same {nameof(GameObject)}: ";
 
         private static readonly Dictionary<SerializedObject, UxrGrabbableObjectEditor> s_openEditors = new Dictionary<SerializedObject, UxrGrabbableObjectEditor>();
+        private static readonly Dictionary<string, UxrAvatar>                          s_temporarySceneAvatars = new Dictionary<string, UxrAvatar>();
 
         private bool _hideModifierParameters;
 

@@ -83,7 +83,7 @@ namespace UltimateXR.Editor.Sdks.InputTracking
         /// <inheritdoc />
         public override void TryGet()
         {
-            Application.OpenURL("https://developer.pico-interactive.com/sdk");
+            Application.OpenURL("https://developer.picoxr.com/document/unity/");
         }
 
         /// <inheritdoc />

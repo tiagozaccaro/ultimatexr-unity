@@ -255,7 +255,7 @@ namespace UltimateXR.Examples.FullScene.Doors
             _avatarScanning = avatarScanning;
             _audioScan.Play(transform.position);
 
-            EndSyncMethod(new object[] { avatarScanning, handSide });
+            EndSyncMethod(SyncParams(avatarScanning, handSide));
         }
 
         /// <summary>
@@ -319,7 +319,7 @@ namespace UltimateXR.Examples.FullScene.Doors
 
             HandScanned?.Invoke(avatar, handSide, isValid);
 
-            EndSyncMethod(new object[] { avatar, handSide, isValid });
+            EndSyncMethod(SyncParams(avatar, handSide, isValid));
         }
 
         #endregion

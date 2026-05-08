@@ -5,6 +5,7 @@
 // --------------------------------------------------------------------------------------------------------------------
 using System.Collections.Generic;
 using System.Linq;
+using UltimateXR.Core;
 using UnityEditor;
 using UnityEngine;
 
@@ -13,11 +14,6 @@ namespace UltimateXR.Editor
     public static partial class UxrEditorUtils
     {
         #region Public Types & Data
-
-        /// <summary>
-        ///     Default button width used in different inspectors.
-        /// </summary>
-        public const int ButtonWidth = 200;
 
         /// <summary>
         ///     Default <see cref="HandlesAlpha" /> value.
@@ -75,7 +71,7 @@ namespace UltimateXR.Editor
         /// <param name="content">Button text and tooltip</param>
         /// <param name="width">Width in pixels. A negative value will assign the required width for the label</param>
         /// <returns>Whether the button was pressed during the current frame</returns>
-        public static bool CenteredButton(GUIContent content, int width = ButtonWidth)
+        public static bool CenteredButton(GUIContent content, int width = UxrConstants.Editor.DefaultButtonWidth)
         {
             bool pressed = false;
 

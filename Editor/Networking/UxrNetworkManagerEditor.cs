@@ -51,7 +51,7 @@ namespace UltimateXR.Editor.Networking
 
             EditorGUILayout.HelpBox("The network manager automatically gives multi-user capabilities to the application using any of the available systems. Add it to the first scene in the project.", MessageType.Info);
 
-            IEnumerable<UxrAvatar> sceneMultiplayerAvatars = FindObjectsOfType<UxrAvatar>().Where(a => a.GetComponent<IUxrNetworkAvatar>() != null);
+            List<UxrAvatar> sceneMultiplayerAvatars = FindObjectsByType<UxrAvatar>(FindObjectsInactive.Exclude, FindObjectsSortMode.None).Where(a => a.GetComponent<IUxrNetworkAvatar>() != null).ToList();
 
             if (sceneMultiplayerAvatars.Any())
             {
@@ -75,20 +75,19 @@ namespace UltimateXR.Editor.Networking
 
                 List<string> availableNetworkSdks = GetAvailableNetworkSdks();
 
-                int newNetworkIndex      = _networkingIndex;
                 int newNetworkVoiceIndex = _networkingVoiceIndex;
 
-                // List Networking SDKs
+                // List the Networking SDKs
 
                 EditorGUI.BeginChangeCheck();
-                newNetworkIndex = EditorGUILayout.Popup(ContentNetworkSystem, _networkingIndex, UxrEditorUtils.ToGUIContentArray(availableNetworkSdks));
+                int newNetworkIndex = EditorGUILayout.Popup(ContentNetworkSystem, _networkingIndex, UxrEditorUtils.ToGUIContentArray(availableNetworkSdks));
                 if (EditorGUI.EndChangeCheck())
                 {
                     // Reset voice
                     newNetworkVoiceIndex = -1;
                 }
 
-                // List Networking Voice SDKs
+                // List the Networking Voice SDKs
 
                 GUI.enabled = true;
                 List<string> availableNetworkVoiceSdks = GetAvailableNetworkVoiceSdks(_networkImplementation);
@@ -142,14 +141,7 @@ namespace UltimateXR.Editor.Networking
                         _networkVoiceImplementation.SetEnabled(true);
                     }
 
-                    if (_networkVoiceImplementation != null)
-                    {
-                        Undo.SetCurrentGroupName($"Switch to {_networkVoiceImplementation.SdkName}");
-                    }
-                    else
-                    {
-                        Undo.SetCurrentGroupName($"Switch to {NoSdk}");
-                    }
+                    Undo.SetCurrentGroupName(_networkVoiceImplementation != null ? $"Switch to {_networkVoiceImplementation.SdkName}" : $"Switch to {NoSdk}");
                 }
 
                 // Now change networking SDK.
@@ -181,14 +173,7 @@ namespace UltimateXR.Editor.Networking
                         _networkImplementation.SetEnabled(true);
                     }
 
-                    if (_networkImplementation != null)
-                    {
-                        Undo.SetCurrentGroupName($"Switch to {_networkImplementation.SdkName}");
-                    }
-                    else
-                    {
-                        Undo.SetCurrentGroupName($"Switch to {NoSdk}");
-                    }
+                    Undo.SetCurrentGroupName(_networkImplementation != null ? $"Switch to {_networkImplementation.SdkName}" : $"Switch to {NoSdk}");
                 }
 
                 // Show messages if no SDKs are installed
@@ -339,6 +324,8 @@ namespace UltimateXR.Editor.Networking
 
                     if (avatarPrefab != null)
                     {
+                        EnsureAvatarPrefabRegisteredForInstantiation(avatarPrefab);
+
                         // First check if it was already registered
 
                         bool found = false;
@@ -407,8 +394,8 @@ namespace UltimateXR.Editor.Networking
                         {
                             UxrAvatar                       avatarPrefab              = PropRegisteredAvatars.GetArrayElementAtIndex(i).FindPropertyRelative(PropertyNameAvatarPrefab).objectReferenceValue as UxrAvatar;
                             UxrNetworkComponentReferences[] avatarComponentReferences = avatarPrefab.GetComponentsInChildren<UxrNetworkComponentReferences>(true);
-                            IEnumerable<GameObject>         addedGameObjects          = avatarComponentReferences.SelectMany(r => r.AddedGameObjects.Where(g => g != null));
-                            IEnumerable<Component>          addedComponents           = avatarComponentReferences.SelectMany(r => r.AddedComponents.Where(c => c != null));
+                            List<GameObject>                addedGameObjects          = avatarComponentReferences.SelectMany(r => r.AddedGameObjects.Where(g => g != null)).ToList();
+                            List<Component>                 addedComponents           = avatarComponentReferences.SelectMany(r => r.AddedComponents.Where(c => c != null)).ToList();
 
                             if (addedGameObjects.Any() || addedComponents.Any())
                             {
@@ -440,6 +427,17 @@ namespace UltimateXR.Editor.Networking
 
                     EditorGUI.indentLevel--;
                 }
+            }
+
+            if (UxrEditorUtils.CenteredButton(ContentBuildUniqueIDs))
+            {
+                UxrUniqueIdAutoFixer.FixAllProjectPrefabUniqueIds(out int processedPrefabCount, out int changedPrefabCount, out bool canceled);
+
+                string message = canceled
+                                     ? $"Unique ID generation was canceled.\n\nProcessed prefabs: {processedPrefabCount}\nChanged prefabs: {changedPrefabCount}"
+                                     : $"Unique ID generation finished.\n\nProcessed prefabs: {processedPrefabCount}\nChanged prefabs: {changedPrefabCount}";
+
+                EditorUtility.DisplayDialog("Build Unique IDs", message, UxrConstants.Editor.Ok);
             }
 
             // Physics-driven grabbable objects setup
@@ -495,7 +493,7 @@ namespace UltimateXR.Editor.Networking
                 {
                     RemoveGrabbablePhysicsComponents(PropPhysicsOnlyLog.boolValue);
 
-                    IEnumerable<string> enabledScenePaths = EditorBuildSettings.scenes.Where(s => !string.IsNullOrEmpty(s.path) && s.enabled).Select(s => s.path);
+                    List<string> enabledScenePaths = EditorBuildSettings.scenes.Where(s => !string.IsNullOrEmpty(s.path) && s.enabled).Select(s => s.path).ToList();
 
                     if (!PropPhysicsOnlyLog.boolValue)
                     {
@@ -509,10 +507,12 @@ namespace UltimateXR.Editor.Networking
                         }
                     }
 
-                    IEnumerable<string> scenePaths = PropPhysicsAddProjectScenes.boolValue ? enabledScenePaths : Enumerable.Empty<string>();
+                    List<string> scenePaths = PropPhysicsAddProjectScenes.boolValue ? enabledScenePaths : Enumerable.Empty<string>().ToList();
 
-                    _lastGrabbableObjectAdditionStats            = new GrabbableObjectStats();
-                    _lastGrabbableObjectAdditionStats.SceneCount = scenePaths.Count();
+                    _lastGrabbableObjectAdditionStats = new GrabbableObjectStats
+                                                        {
+                                                            SceneCount = scenePaths.Count()
+                                                        };
 
                     UxrEditorUtils.ProcessScenesAndProjectPathPrefabs<UxrGrabbableObject>(scenePaths,
                                                                                           PropPhysicsAddPathPrefabs.boolValue,
@@ -545,14 +545,7 @@ namespace UltimateXR.Editor.Networking
                 {
                     RemoveGrabbablePhysicsComponents(PropPhysicsOnlyLog.boolValue);
 
-                    if (!PropPhysicsOnlyLog.boolValue)
-                    {
-                        statsMessage = GetStatsMessage(null, _lastGrabbableObjectRemovalStats);
-                    }
-                    else
-                    {
-                        statsMessage = "Information has been written to the console to see which components would be removed";
-                    }
+                    statsMessage = !PropPhysicsOnlyLog.boolValue ? GetStatsMessage(null, _lastGrabbableObjectRemovalStats) : "Information has been written to the console to see which components would be removed";
 
                     Undo.SetCurrentGroupName($"{ContentPhysicsRemove.text}");
                 }
@@ -607,8 +600,8 @@ namespace UltimateXR.Editor.Networking
         [MenuItem(UxrConstants.Editor.MenuPathNetworking + "Create Network Manager", priority = UxrConstants.Editor.PriorityMenuPathNetworking)]
         private static void InstantiateManagerInScene()
         {
-            UxrNetworkManager  existingManager         = FindObjectOfType<UxrNetworkManager>();
-            UxrInstanceManager existingInstanceManager = FindObjectOfType<UxrInstanceManager>();
+            UxrNetworkManager  existingManager         = FindFirstObjectByType<UxrNetworkManager>();
+            UxrInstanceManager existingInstanceManager = FindFirstObjectByType<UxrInstanceManager>();
 
             if (existingManager != null)
             {
@@ -655,14 +648,232 @@ namespace UltimateXR.Editor.Networking
         }
 
         /// <summary>
+        ///     Ensures that the given avatar prefab is registered in an <see cref="UxrInstanceManager" /> prefab list.
+        /// </summary>
+        /// <param name="avatarPrefab">Avatar prefab to register for instantiation.</param>
+        private void EnsureAvatarPrefabRegisteredForInstantiation(UxrAvatar avatarPrefab)
+        {
+            if (avatarPrefab == null)
+            {
+                return;
+            }
+
+            UxrInstanceManager instanceManager = FindFirstObjectByType<UxrInstanceManager>();
+
+            if (instanceManager == null && _networkManager != null)
+            {
+                instanceManager = Undo.AddComponent<UxrInstanceManager>(_networkManager.gameObject);
+            }
+
+            if (instanceManager == null)
+            {
+                return;
+            }
+
+            SerializedObject   serializedInstanceManager = new SerializedObject(instanceManager);
+            SerializedProperty propertyPrefabLists       = serializedInstanceManager.FindProperty(PropertyNameInstanceManagerUserDefinedPrefabs);
+
+            if (propertyPrefabLists == null)
+            {
+                return;
+            }
+
+            Undo.RecordObject(instanceManager, "Register Avatar For Instantiation");
+
+            bool avatarFound = false;
+
+            serializedInstanceManager.Update();
+
+            for (int i = propertyPrefabLists.arraySize - 1; i >= 0; --i)
+            {
+                UxrPrefabList prefabList = propertyPrefabLists.GetArrayElementAtIndex(i).objectReferenceValue as UxrPrefabList;
+
+                if (prefabList == null)
+                {
+                    propertyPrefabLists.DeleteArrayElementAtIndex(i);
+                    continue;
+                }
+
+                avatarFound |= CleanupPrefabListAndContains(prefabList, avatarPrefab.gameObject);
+            }
+
+            if (!avatarFound)
+            {
+                UxrPrefabList avatarPrefabList = GetOrCreateAvatarPrefabList();
+
+                if (avatarPrefabList != null)
+                {
+                    AddPrefabListIfMissing(propertyPrefabLists, avatarPrefabList);
+                    AddPrefabToListIfMissing(avatarPrefabList, avatarPrefab.gameObject);
+                }
+            }
+
+            serializedInstanceManager.ApplyModifiedProperties();
+            EditorUtility.SetDirty(instanceManager);
+            AssetDatabase.SaveAssets();
+        }
+
+        /// <summary>
+        ///     Gets the avatar prefab list asset, creating it under Resources if necessary.
+        /// </summary>
+        /// <returns>The avatar prefab list asset, or null if it could not be created.</returns>
+        private static UxrPrefabList GetOrCreateAvatarPrefabList()
+        {
+            UxrPrefabList prefabList = AssetDatabase.LoadAssetAtPath<UxrPrefabList>(AvatarPrefabListAssetPath);
+
+            if (prefabList != null)
+            {
+                return prefabList;
+            }
+
+            UnityEngine.Object existingAsset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(AvatarPrefabListAssetPath);
+
+            if (existingAsset != null)
+            {
+                Debug.LogError($"{UxrConstants.NetworkingModule} Asset {AvatarPrefabListAssetPath} already exists but it is not a {nameof(UxrPrefabList)}.");
+                return null;
+            }
+
+            if (!AssetDatabase.IsValidFolder(ResourcesFolderPath))
+            {
+                AssetDatabase.CreateFolder("Assets", "Resources");
+            }
+
+            prefabList = CreateInstance<UxrPrefabList>();
+            prefabList.name = AvatarPrefabListAssetName;
+
+            AssetDatabase.CreateAsset(prefabList, AvatarPrefabListAssetPath);
+            AssetDatabase.SaveAssets();
+
+            return prefabList;
+        }
+
+        /// <summary>
+        ///     Adds the given prefab list to a serialized list property if it is not already present.
+        /// </summary>
+        /// <param name="propertyPrefabLists">Serialized list of <see cref="UxrPrefabList" /> references.</param>
+        /// <param name="prefabList">Prefab list to add.</param>
+        private static void AddPrefabListIfMissing(SerializedProperty propertyPrefabLists, UxrPrefabList prefabList)
+        {
+            for (int i = 0; i < propertyPrefabLists.arraySize; ++i)
+            {
+                if (propertyPrefabLists.GetArrayElementAtIndex(i).objectReferenceValue == prefabList)
+                {
+                    return;
+                }
+            }
+
+            int newIndex = propertyPrefabLists.arraySize;
+            propertyPrefabLists.InsertArrayElementAtIndex(newIndex);
+            propertyPrefabLists.GetArrayElementAtIndex(newIndex).objectReferenceValue = prefabList;
+        }
+
+        /// <summary>
+        ///     Cleans null entries from the given prefab list and checks if it contains a prefab.
+        /// </summary>
+        /// <param name="prefabList">Prefab list to clean and inspect.</param>
+        /// <param name="prefab">Prefab to look for.</param>
+        /// <returns>Whether the prefab list contains the prefab.</returns>
+        private static bool CleanupPrefabListAndContains(UxrPrefabList prefabList, GameObject prefab)
+        {
+            SerializedObject   serializedPrefabList = new SerializedObject(prefabList);
+            SerializedProperty propertyPrefabList   = serializedPrefabList.FindProperty(PropertyNamePrefabList);
+
+            if (propertyPrefabList == null)
+            {
+                return false;
+            }
+
+            bool containsPrefab = false;
+            bool changed        = false;
+
+            serializedPrefabList.Update();
+
+            for (int i = propertyPrefabList.arraySize - 1; i >= 0; --i)
+            {
+                SerializedProperty propertyElement = propertyPrefabList.GetArrayElementAtIndex(i);
+                GameObject         listPrefab      = propertyElement.objectReferenceValue as GameObject;
+
+                if (listPrefab == null)
+                {
+                    Undo.RecordObject(prefabList, "Clean Prefab List");
+                    propertyPrefabList.DeleteArrayElementAtIndex(i);
+                    changed = true;
+                    continue;
+                }
+
+                if (listPrefab == prefab)
+                {
+                    containsPrefab = true;
+                }
+            }
+
+            if (changed)
+            {
+                serializedPrefabList.ApplyModifiedProperties();
+                EditorUtility.SetDirty(prefabList);
+            }
+
+            return containsPrefab;
+        }
+
+        /// <summary>
+        ///     Adds a prefab to the given prefab list if it is not already present, removing null entries first.
+        /// </summary>
+        /// <param name="prefabList">Prefab list to update.</param>
+        /// <param name="prefab">Prefab to add.</param>
+        private static void AddPrefabToListIfMissing(UxrPrefabList prefabList, GameObject prefab)
+        {
+            SerializedObject   serializedPrefabList = new SerializedObject(prefabList);
+            SerializedProperty propertyPrefabList   = serializedPrefabList.FindProperty(PropertyNamePrefabList);
+
+            if (propertyPrefabList == null)
+            {
+                return;
+            }
+
+            bool containsPrefab = false;
+
+            Undo.RecordObject(prefabList, "Register Avatar For Instantiation");
+            serializedPrefabList.Update();
+
+            for (int i = propertyPrefabList.arraySize - 1; i >= 0; --i)
+            {
+                SerializedProperty propertyElement = propertyPrefabList.GetArrayElementAtIndex(i);
+                GameObject         listPrefab      = propertyElement.objectReferenceValue as GameObject;
+
+                if (listPrefab == null)
+                {
+                    propertyPrefabList.DeleteArrayElementAtIndex(i);
+                    continue;
+                }
+
+                if (listPrefab == prefab)
+                {
+                    containsPrefab = true;
+                }
+            }
+
+            if (!containsPrefab)
+            {
+                int newIndex = propertyPrefabList.arraySize;
+                propertyPrefabList.InsertArrayElementAtIndex(newIndex);
+                propertyPrefabList.GetArrayElementAtIndex(newIndex).objectReferenceValue = prefab;
+            }
+
+            serializedPrefabList.ApplyModifiedProperties();
+            EditorUtility.SetDirty(prefabList);
+        }
+
+        /// <summary>
         ///     Gets a formatted stats string describing the a Grabbable Object processing.
         /// </summary>
-        /// <param name="stats">The result stats of added components</param>
-        /// <param name="stats">The result stats of removed components</param>
+        /// <param name="additionStats">The result stats of added components</param>
+        /// <param name="removalStats">The result stats of removed components</param>
         /// <returns>A formatted message string</returns>
         private static string GetStatsMessage(GrabbableObjectStats additionStats, GrabbableObjectStats removalStats)
         {
-            string stats = string.Empty;
+            string statsMessage = string.Empty;
 
             string GetPlural(int number)
             {
@@ -680,16 +891,16 @@ namespace UltimateXR.Editor.Networking
 
             if (removalStats != null && removalStats.HasAny)
             {
-                stats =  GetMessage("Removed", removalStats, false);
-                stats += "\n\n";
+                statsMessage =  GetMessage("Removed", removalStats, false);
+                statsMessage += "\n\n";
             }
 
             if (additionStats != null && additionStats.HasAny)
             {
-                stats += GetMessage("Added", additionStats, true);
+                statsMessage += GetMessage("Added", additionStats, true);
             }
 
-            return stats;
+            return statsMessage;
         }
 
         /// <summary>
@@ -711,10 +922,12 @@ namespace UltimateXR.Editor.Networking
         /// <param name="onlyLog">Whether to only log which components would be removed, but do not perform any actual removal</param>
         private void RemoveGrabbablePhysicsComponents(bool onlyLog)
         {
-            IEnumerable<string> scenePaths = UxrEditorUtils.GetSerializedArrayAsEnumerable(PropPhysicsSetupInfo.FindPropertyRelative(PropertyNamePhysicsInfoProcessedScenePaths), p => p.stringValue);
+            List<string> scenePaths = UxrEditorUtils.GetSerializedArrayAsEnumerable(PropPhysicsSetupInfo.FindPropertyRelative(PropertyNamePhysicsInfoProcessedScenePaths), p => p.stringValue).ToList();
 
-            _lastGrabbableObjectRemovalStats            = new GrabbableObjectStats();
-            _lastGrabbableObjectRemovalStats.SceneCount = scenePaths.Count();
+            _lastGrabbableObjectRemovalStats = new GrabbableObjectStats
+                                               {
+                                                   SceneCount = scenePaths.Count()
+                                               };
 
             UxrEditorUtils.ProcessScenesAndProjectPathPrefabs<UxrGrabbableObject>(scenePaths,
                                                                                   PropPhysicsSetupInfo.FindPropertyRelative(PropertyNamePhysicsInfoProcessedPathPrefabs).boolValue,
@@ -736,9 +949,9 @@ namespace UltimateXR.Editor.Networking
         /// <summary>
         ///     Component processor to remove networking components to grabbable objects for physics synchronization.
         /// </summary>
-        /// <param name="info">Contains the component to process</param>
+        /// <param name="info">Contains the component to be processed</param>
         /// <param name="onlyCheck">
-        ///     Whether to only check if components should be processed, without making any changes. This
+        ///     Whether to only check if components should be processed without making any changes. This
         ///     can be used to get how many elements would be changed without modifying any data
         /// </param>
         /// <returns>Whether the component required to be changed</returns>
@@ -823,7 +1036,7 @@ namespace UltimateXR.Editor.Networking
             string parentPrefabName     = componentInParentPrefab != null ? componentInParentPrefab.transform.root.name : string.Empty;
             bool   parentIsInUltimateXR = componentInParentPrefab != null && UxrEditorUtils.PathIsInUltimateXR(AssetDatabase.GetAssetPath(componentInParentPrefab));
             string scenePath            = info.TargetComponent.gameObject.scene.path;
-            string logLine              = string.Empty;
+            string logLine;
 
             if (isChanged)
             {
@@ -924,7 +1137,7 @@ namespace UltimateXR.Editor.Networking
         /// </summary>
         private void RegisterNetworkingSystems()
         {
-            // First remove missing components
+            // First, remove missing components
 
             Component[] components   = _networkManager.GetComponents<Component>();
             int         removedCount = 0;
@@ -959,24 +1172,30 @@ namespace UltimateXR.Editor.Networking
                         if (implementationSdk == null)
                         {
                             // If it's not on the manager, add but have it disabled.
-                            implementationSdk = Undo.AddComponent(_networkManager.gameObject, t) as IUxrNetworkSdk;
+                            implementationSdk       = Undo.AddComponent(_networkManager.gameObject, t) as IUxrNetworkSdk;
+                            implementationComponent = implementationSdk as UxrComponent;
 
-                            implementationComponent         = implementationSdk as UxrComponent;
-                            implementationComponent.enabled = false;
-                            implementationComponent.ShowInInspector(false);
+                            if (implementationComponent != null)
+                            {
+                                implementationComponent.enabled = false;
+                                implementationComponent.ShowInInspector(false);
 
-                            Undo.RegisterFullObjectHierarchyUndo(_networkManager, $"Add {implementationSdk.SdkName} support");
+                                Undo.RegisterFullObjectHierarchyUndo(_networkManager, $"Add {implementationSdk.SdkName} support");
+                            }
                         }
 
-                        availableSdkNames.Add(implementationSdk.SdkName);
+                        if (implementationSdk != null)
+                        {
+                            availableSdkNames.Add(implementationSdk.SdkName);
 
-                        if (cachedImplementations.ContainsKey(implementationSdk.SdkName))
-                        {
-                            EditorUtility.DisplayDialog(UxrConstants.Editor.Error, $"SDK implementation for {implementationSdk.SdkName} is duplicated", UxrConstants.Editor.Ok);
-                        }
-                        else
-                        {
-                            cachedImplementations.Add(implementationSdk.SdkName, implementationComponent as T);
+                            if (cachedImplementations.ContainsKey(implementationSdk.SdkName))
+                            {
+                                EditorUtility.DisplayDialog(UxrConstants.Editor.Error, $"SDK implementation for {implementationSdk.SdkName} is duplicated", UxrConstants.Editor.Ok);
+                            }
+                            else
+                            {
+                                cachedImplementations.Add(implementationSdk.SdkName, implementationComponent as T);
+                            }
                         }
                     }
                 }
@@ -1101,14 +1320,14 @@ namespace UltimateXR.Editor.Networking
                 if (newGameObjects != null && newGameObjects.Any())
                 {
                     UxrEditorUtils.AssignSerializedPropertyArray(PropCreatedGlobalGameObjects, newGameObjects);
-                    UxrEditorUtils.AssignSerializedPropertySimpleTypeArray(PropCreatedGlobalGameObjectPaths, newGameObjects.Select(go => go != null ? go.GetPathUnderScene() : "null"));
+                    UxrEditorUtils.AssignSerializedPropertySimpleTypeArray(PropCreatedGlobalGameObjectPaths, newGameObjects.Select(go => go != null ? go.GetPathUnderScene() : "null").ToList());
                     serializedObject.ApplyModifiedProperties();
                 }
 
                 if (newComponents != null && newComponents.Any())
                 {
                     UxrEditorUtils.AssignSerializedPropertyArray(PropCreatedGlobalComponents, newComponents);
-                    UxrEditorUtils.AssignSerializedPropertySimpleTypeArray(PropCreatedGlobalComponentPaths, newComponents.Select(c => c != null ? c.GetPathUnderScene() : "null"));
+                    UxrEditorUtils.AssignSerializedPropertySimpleTypeArray(PropCreatedGlobalComponentPaths, newComponents.Select(c => c != null ? c.GetPathUnderScene() : "null").ToList());
                     serializedObject.ApplyModifiedProperties();
                 }
             }
@@ -1200,14 +1419,14 @@ namespace UltimateXR.Editor.Networking
                 if (newGameObjects != null && newGameObjects.Any())
                 {
                     UxrEditorUtils.AssignSerializedPropertyArray(PropCreatedGlobalVoiceGameObjects, newGameObjects);
-                    UxrEditorUtils.AssignSerializedPropertySimpleTypeArray(PropCreatedGlobalVoiceGameObjectPaths, newGameObjects.Select(go => go != null ? go.GetPathUnderScene() : "null"));
+                    UxrEditorUtils.AssignSerializedPropertySimpleTypeArray(PropCreatedGlobalVoiceGameObjectPaths, newGameObjects.Select(go => go != null ? go.GetPathUnderScene() : "null").ToList());
                     serializedObject.ApplyModifiedProperties();
                 }
 
                 if (newComponents != null && newComponents.Any())
                 {
                     UxrEditorUtils.AssignSerializedPropertyArray(PropCreatedGlobalVoiceComponents, newComponents);
-                    UxrEditorUtils.AssignSerializedPropertySimpleTypeArray(PropCreatedGlobalVoiceComponentPaths, newComponents.Select(c => c != null ? c.GetPathUnderScene() : "null"));
+                    UxrEditorUtils.AssignSerializedPropertySimpleTypeArray(PropCreatedGlobalVoiceComponentPaths, newComponents.Select(c => c != null ? c.GetPathUnderScene() : "null").ToList());
                     serializedObject.ApplyModifiedProperties();
                 }
             }
@@ -1290,6 +1509,11 @@ namespace UltimateXR.Editor.Networking
         {
             UxrAvatar avatarPrefab = PropRegisteredAvatars.GetArrayElementAtIndex(avatarIndex).FindPropertyRelative(PropertyNameAvatarPrefab).objectReferenceValue as UxrAvatar;
 
+            if (avatarPrefab == null)
+            {
+                return;
+            }
+            
             UxrNetworkComponentReferences.DestroyNetworkComponentsRecursively(avatarPrefab.gameObject, UxrNetworkComponentReferences.Origin.Network);
 
             PrefabUtility.SavePrefabAsset(avatarPrefab.gameObject);
@@ -1301,6 +1525,12 @@ namespace UltimateXR.Editor.Networking
                 try
                 {
                     avatarInstance = PrefabUtility.InstantiatePrefab(avatarPrefab) as UxrAvatar;
+
+                    if (avatarInstance == null)
+                    {
+                        return;
+                    }
+                    
                     networkImplementation.SetupAvatar(avatarInstance, out List<GameObject> addedGameObjects, out List<Component> addedComponents);
                     UxrNetworkComponentReferences.RegisterNetworkComponents(avatarInstance.gameObject, addedGameObjects, addedComponents, UxrNetworkComponentReferences.Origin.Network);
 
@@ -1312,7 +1542,10 @@ namespace UltimateXR.Editor.Networking
                 }
                 finally
                 {
-                    DestroyImmediate(avatarInstance.gameObject);
+                    if (avatarInstance != null)
+                    {
+                        DestroyImmediate(avatarInstance.gameObject);
+                    }
                 }
             }
         }
@@ -1321,10 +1554,15 @@ namespace UltimateXR.Editor.Networking
         ///     Sets up an avatar prefab using a given network voice implementation.
         /// </summary>
         /// <param name="avatarIndex">The registered avatar index</param>
-        /// <param name="networkImplementation">The network voice implementation to use</param>
+        /// <param name="networkVoiceImplementation">The network voice implementation to use</param>
         private void SetupRegisteredAvatar(int avatarIndex, IUxrNetworkVoiceImplementation networkVoiceImplementation)
         {
             UxrAvatar avatarPrefab = PropRegisteredAvatars.GetArrayElementAtIndex(avatarIndex).FindPropertyRelative(PropertyNameAvatarPrefab).objectReferenceValue as UxrAvatar;
+
+            if (avatarPrefab == null)
+            {
+                return;
+            }
 
             UxrNetworkComponentReferences.DestroyNetworkComponentsRecursively(avatarPrefab.gameObject, UxrNetworkComponentReferences.Origin.NetworkVoice);
 
@@ -1337,13 +1575,22 @@ namespace UltimateXR.Editor.Networking
                 try
                 {
                     avatarInstance = PrefabUtility.InstantiatePrefab(avatarPrefab) as UxrAvatar;
+
+                    if (avatarInstance == null)
+                    {
+                        return;
+                    }
+                    
                     networkVoiceImplementation.SetupAvatar(_networkImplementation?.SdkName, avatarInstance, out List<GameObject> addedGameObjects, out List<Component> addedComponents);
                     UxrNetworkComponentReferences.RegisterNetworkComponents(avatarInstance.gameObject, addedGameObjects, addedComponents, UxrNetworkComponentReferences.Origin.NetworkVoice);
                     PrefabUtility.ApplyPrefabInstance(avatarInstance.gameObject, InteractionMode.AutomatedAction);
                 }
                 finally
                 {
-                    DestroyImmediate(avatarInstance.gameObject);
+                    if (avatarInstance != null)
+                    {
+                        DestroyImmediate(avatarInstance.gameObject);                        
+                    }
                 }
             }
         }
@@ -1381,6 +1628,7 @@ namespace UltimateXR.Editor.Networking
         private static GUIContent ContentShowAvatarInfo          { get; } = new GUIContent("View Info",                    "Lists the components that were added to the avatar to set it up using the current networking SDK");
         private static GUIContent ContentSelectAvatar            { get; } = new GUIContent("Select",                       "Selects the avatar prefab in the project window");
         private static GUIContent ContentRemoveAvatar            { get; } = new GUIContent("Remove",                       "Removes the avatar from the list and deletes all added network components");
+        private static GUIContent ContentBuildUniqueIDs          { get; } = new GUIContent("Build Unique IDs",             "Ensures all UltimateXR components have unique IDs and fixes any missing or duplicated IDs.");
         private static GUIContent ContentPhysicsAddProjectScenes { get; } = new GUIContent("Set Up Scenes In Build",       $"Will add network components to all {nameof(UxrGrabbableObject)} objects and prefabs with rigidbodies referenced by the scenes in the build.");
         private static GUIContent ContentPhysicsAddPathPrefabs   { get; } = new GUIContent("Set Up Project Prefabs",       $"Will also process all {nameof(UxrGrabbableObject)} prefabs that have a rigidbody, located under the path below, that might not be in the build scenes but might be instantiated at runtime.");
         private static GUIContent ContentPhysicsAddPathRoot      { get; } = new GUIContent("Prefab Root Path",             $"Root project path where to look for the {nameof(UxrGrabbableObject)} object prefabs that have a rigidbody. It allows to avoid unwanted modification of prefabs from other folders. All subdirectories will be processed. Leave empty to process the whole project.");
@@ -1391,9 +1639,15 @@ namespace UltimateXR.Editor.Networking
         private static GUIContent ContentPhysicsRemove           { get; } = new GUIContent("Remove Components",            $"Removes added network components from the selected {nameof(UxrGrabbableObject)} objects that have a rigidbody");
         private static GUIContent ContentPhysicsShowCurrentSetup { get; } = new GUIContent("View Component Info",          $"Shows a log window with the current {nameof(UxrGrabbableObject)} objects that have been set up");
 
-        private bool SceneIsInUltimateXR => UxrEditorUtils.PathIsInUltimateXR((serializedObject.targetObject as UxrNetworkManager).gameObject.scene.path);
+        private bool SceneIsInUltimateXR => UxrEditorUtils.PathIsInUltimateXR((serializedObject.targetObject as UxrNetworkManager)?.gameObject.scene.path);
 
         private const string NoSdk = "None";
+
+        private const string ResourcesFolderPath                           = "Assets/Resources";
+        private const string AvatarPrefabListAssetName                     = "UxrNetworkAvatars";
+        private const string AvatarPrefabListAssetPath                     = ResourcesFolderPath + "/" + AvatarPrefabListAssetName + ".asset";
+        private const string PropertyNameInstanceManagerUserDefinedPrefabs = "_userDefinedPrefabs";
+        private const string PropertyNamePrefabList                        = "_prefabList";
 
         private const string PropertyNameNetworkImplementation             = "_networkImplementation";
         private const string PropertyNameNetworkVoiceImplementation        = "_networkVoiceImplementation";
@@ -1451,7 +1705,7 @@ namespace UltimateXR.Editor.Networking
 
         private bool _showNetworking        = true;
         private bool _showAvatars           = true;
-        private bool _showPhysicsGrabbables = true;
+        private bool _showPhysicsGrabbables = false;
 
         private GrabbableObjectStats _lastGrabbableObjectAdditionStats = new GrabbableObjectStats();
         private GrabbableObjectStats _lastGrabbableObjectRemovalStats  = new GrabbableObjectStats();

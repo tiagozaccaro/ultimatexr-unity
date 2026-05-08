@@ -68,7 +68,7 @@ namespace UltimateXR.Examples.FullScene.Doors
                 _audioOpen.Play(FloorCenter.position);
             }
 
-            EndSyncMethod(new object[] { playSound });
+            EndSyncMethod(SyncParams(playSound));
         }
 
         /// <summary>
@@ -88,7 +88,7 @@ namespace UltimateXR.Examples.FullScene.Doors
                 _audioClose.Play(FloorCenter.position);
             }
 
-            EndSyncMethod(new object[] { playSound });
+            EndSyncMethod(SyncParams(playSound));
         }
 
         #endregion
@@ -113,11 +113,27 @@ namespace UltimateXR.Examples.FullScene.Doors
         {
             if (UxrAvatar.LocalAvatar != null)
             {
-                // Check distance to door
+                // Check distance to the door
 
-                UxrAvatar closestAvatar = UxrAvatar.EnabledComponents.OrderBy(a => Vector3.Distance(a.CameraFloorPosition, FloorCenter.position)).FirstOrDefault();
+                UxrAvatar closestAvatar   = null;
+                float     closestDistance = float.MaxValue;
 
-                if (closestAvatar == UxrAvatar.LocalAvatar)
+                for (int i = 0; i < UxrAvatar.AllComponents.Count; i++)
+                {
+                    UxrAvatar avatar = UxrAvatar.AllComponents[i];
+                    if (avatar.isActiveAndEnabled)
+                    {
+                        float distance = Vector3.Distance(avatar.CameraFloorPosition, FloorCenter.position);
+
+                        if (distance < closestDistance)
+                        {
+                            closestAvatar   = avatar;
+                            closestDistance = distance;
+                        }
+                    }
+                }
+
+                if (closestAvatar == UxrAvatar.LocalAvatar && closestAvatar != null)
                 {
                     // The closest avatar will determine the door state.
 

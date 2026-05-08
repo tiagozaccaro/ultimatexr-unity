@@ -76,22 +76,25 @@ namespace UltimateXR.Editor
         }
 
         /// <summary>
-        ///     Gets a serialized array as an IEnumerable.
+        ///     Gets a serialized array as a List.
         /// </summary>
         /// <param name="arrayProperty">Serialized array property</param>
         /// <param name="assigner">Function that given the array element as a serialized property returns the given target object</param>
         /// <example>
         ///     <code>
-        ///         IEnumerable&lt;string&gt; scenePaths = UxrEditorUtils.GetSerializedArrayAsEnumerable(propertyScenePathsArray, p => p.stringValue);
+        ///         List&lt;string&gt; scenePaths = UxrEditorUtils.GetSerializedArrayAsEnumerable(propertyScenePathsArray, p => p.stringValue);
         ///     </code>
         /// </example>
-        public static IEnumerable<T> GetSerializedArrayAsEnumerable<T>(SerializedProperty arrayProperty, Func<SerializedProperty, T> assigner)
+        public static List<T> GetSerializedArrayAsEnumerable<T>(SerializedProperty arrayProperty, Func<SerializedProperty, T> assigner)
         {
+            List<T> elements = new List<T>(arrayProperty.arraySize);
             for (int i = 0; i < arrayProperty.arraySize; ++i)
             {
                 T element = assigner(arrayProperty.GetArrayElementAtIndex(i));
-                yield return element;
+                elements.Add(element);
             }
+
+            return elements;
         }
 
         /// <summary>
@@ -101,7 +104,7 @@ namespace UltimateXR.Editor
         /// <typeparam name="T">Type of elements to store</typeparam>
         /// <param name="propertyArray">The <see cref="SerializedProperty" /> to assign</param>
         /// <param name="elements">The elements to store</param>
-        public static void AssignSerializedPropertyArray<T>(SerializedProperty propertyArray, IEnumerable<T> elements) where T : Object
+        public static void AssignSerializedPropertyArray<T>(SerializedProperty propertyArray, List<T> elements) where T : Object
         {
             propertyArray.ClearArray();
             propertyArray.arraySize = elements.Count();
@@ -122,7 +125,7 @@ namespace UltimateXR.Editor
         /// <typeparam name="T">Type of elements to store</typeparam>
         /// <param name="propertyArray">The <see cref="SerializedProperty" /> to assign</param>
         /// <param name="elements">The elements to store</param>
-        public static void AssignSerializedPropertySimpleTypeArray<T>(SerializedProperty propertyArray, IEnumerable<T> elements)
+        public static void AssignSerializedPropertySimpleTypeArray<T>(SerializedProperty propertyArray, List<T> elements)
         {
             propertyArray.ClearArray();
             propertyArray.arraySize = elements.Count();
