@@ -114,10 +114,10 @@ namespace UltimateXR.Networking.Integrations.Net.UnityNetCode
             UxrUnityNetCodeAvatar netCodeAvatar = avatar.GetOrAddComponent<UxrUnityNetCodeAvatar>();
             newComponents.Add(netCodeAvatar);
 
-            IEnumerable<Behaviour> avatarComponents    = SetupClientNetworkTransform(avatar.gameObject,                                  true, UxrNetworkTransformFlags.All);
-            IEnumerable<Behaviour> cameraComponents    = SetupClientNetworkTransform(avatar.CameraComponent.gameObject,                  true, UxrNetworkTransformFlags.ChildPositionAndRotation);
-            IEnumerable<Behaviour> leftHandComponents  = SetupClientNetworkTransform(avatar.GetHand(UxrHandSide.Left).Wrist.gameObject,  true, UxrNetworkTransformFlags.ChildPositionAndRotation);
-            IEnumerable<Behaviour> rightHandComponents = SetupClientNetworkTransform(avatar.GetHand(UxrHandSide.Right).Wrist.gameObject, true, UxrNetworkTransformFlags.ChildPositionAndRotation);
+            List<Behaviour> avatarComponents    = SetupClientNetworkTransform(avatar.gameObject,                                  true, UxrNetworkTransformFlags.All);
+            List<Behaviour> cameraComponents    = SetupClientNetworkTransform(avatar.CameraComponent.gameObject,                  true, UxrNetworkTransformFlags.ChildPositionAndRotation);
+            List<Behaviour> leftHandComponents  = SetupClientNetworkTransform(avatar.GetHand(UxrHandSide.Left).Wrist.gameObject,  true, UxrNetworkTransformFlags.ChildPositionAndRotation);
+            List<Behaviour> rightHandComponents = SetupClientNetworkTransform(avatar.GetHand(UxrHandSide.Right).Wrist.gameObject, true, UxrNetworkTransformFlags.ChildPositionAndRotation);
 
             newComponents.AddRange(avatarComponents.ToList().Concat(cameraComponents).Concat(leftHandComponents).Concat(rightHandComponents));
             Undo.RegisterFullObjectHierarchyUndo(avatar.gameObject, "Setup NetCode Avatar");
@@ -125,7 +125,7 @@ namespace UltimateXR.Networking.Integrations.Net.UnityNetCode
         }
 
         /// <inheritdoc />
-        public override void SetupPostProcess(IEnumerable<UxrAvatar> avatarPrefabs)
+        public override void SetupPostProcess(List<UxrAvatar> avatarPrefabs)
         {
 #if ULTIMATEXR_USE_UNITY_NETCODE && UNITY_EDITOR
             NetworkManager netCodeNetworkManager = FindObjectOfType<NetworkManager>();
@@ -139,13 +139,15 @@ namespace UltimateXR.Networking.Integrations.Net.UnityNetCode
         }
 
         /// <inheritdoc />
-        public override IEnumerable<Behaviour> AddNetworkTransform(GameObject gameObject, bool worldSpace, UxrNetworkTransformFlags networkTransformFlags)
+        public override List<Behaviour> AddNetworkTransform(GameObject gameObject, bool worldSpace, UxrNetworkTransformFlags networkTransformFlags)
         {
+            List<Behaviour> newComponents = new List<Behaviour>();
+
 #if ULTIMATEXR_USE_UNITY_NETCODE && UNITY_EDITOR
             if (networkTransformFlags.HasFlag(UxrNetworkTransformFlags.ChildTransform) == false)
             {
                 NetworkObject networkObject = gameObject.GetOrAddComponent<NetworkObject>();
-                yield return networkObject;
+                newComponents.Add(networkObject);
             }
 
             NetworkTransform networkTransform = gameObject.GetOrAddComponent<NetworkTransform>();
@@ -159,33 +161,29 @@ namespace UltimateXR.Networking.Integrations.Net.UnityNetCode
             networkTransform.SyncScaleX    = networkTransformFlags.HasFlag(UxrNetworkTransformFlags.ScaleX);
             networkTransform.SyncScaleY    = networkTransformFlags.HasFlag(UxrNetworkTransformFlags.ScaleY);
             networkTransform.SyncScaleZ    = networkTransformFlags.HasFlag(UxrNetworkTransformFlags.ScaleZ);
-            yield return networkTransform;
-
-#else
-            yield break;
+            newComponents.Add(networkTransform);
 #endif
+
+            return newComponents;
         }
 
         /// <inheritdoc />
-        public override IEnumerable<Behaviour> AddNetworkRigidbody(GameObject gameObject, bool worldSpace, UxrNetworkRigidbodyFlags networkRigidbodyFlags)
+        public override List<Behaviour> AddNetworkRigidbody(GameObject gameObject, bool worldSpace, UxrNetworkRigidbodyFlags networkRigidbodyFlags)
         {
+            List<Behaviour> newComponents = new List<Behaviour>();
+
 #if ULTIMATEXR_USE_UNITY_NETCODE && UNITY_EDITOR
-            // Building list forces evaluation of AddNetworkTransform IEnumerable and creates the components
-            List<Behaviour> networkTransformComponents = new List<Behaviour>(AddNetworkTransform(gameObject, worldSpace, UxrNetworkTransformFlags.All));
+            List<Behaviour> networkTransformComponents = AddNetworkTransform(gameObject, worldSpace, UxrNetworkTransformFlags.All);
 
             NetworkRigidbody networkRigidbody = gameObject.GetOrAddComponent<NetworkRigidbody>();
-            yield return networkRigidbody;
+            newComponents.Add(networkRigidbody);
 
-            // Return transform components after, so that when removing the components the NetworkRigidbody is removed before the identity. Otherwise Mirror will complain.
+            // Return transform components after, so that when removing the components the NetworkRigidbody is removed before the identity.
 
-            foreach (Behaviour newBehaviour in networkTransformComponents)
-            {
-                yield return newBehaviour;
-            }
-
-#else
-            yield break;
+            newComponents.AddRange(networkTransformComponents);
 #endif
+
+            return newComponents;
         }
 
         /// <inheritdoc />
@@ -398,16 +396,18 @@ namespace UltimateXR.Networking.Integrations.Net.UnityNetCode
         /// </summary>
         /// <param name="go">The GameObject to set up</param>
         /// <param name="worldSpace">Whether to use world-space coordinates or local-space coordinates</param>
-        /// <param name="flags">Option flags</param>
+        /// <param name="networkTransformFlags">Option flags</param>
         /// <returns>List of components that were added: an UxrClientNetworkTransform and NetworkObject</returns>
-        private IEnumerable<Behaviour> SetupClientNetworkTransform(GameObject go, bool worldSpace, UxrNetworkTransformFlags networkTransformFlags)
+        private List<Behaviour> SetupClientNetworkTransform(GameObject go, bool worldSpace, UxrNetworkTransformFlags networkTransformFlags)
         {
+            List<Behaviour> newComponents = new List<Behaviour>();
+
             if (go != null)
             {
                 if (networkTransformFlags.HasFlag(UxrNetworkTransformFlags.ChildTransform) == false)
                 {
                     NetworkObject networkObject = go.GetOrAddComponent<NetworkObject>();
-                    yield return networkObject;
+                    newComponents.Add(networkObject);
                 }
 
                 UxrClientNetworkTransform clientNetworkTransform = go.GetOrAddComponent<UxrClientNetworkTransform>();
@@ -421,8 +421,10 @@ namespace UltimateXR.Networking.Integrations.Net.UnityNetCode
                 clientNetworkTransform.SyncScaleX    = networkTransformFlags.HasFlag(UxrNetworkTransformFlags.ScaleX);
                 clientNetworkTransform.SyncScaleY    = networkTransformFlags.HasFlag(UxrNetworkTransformFlags.ScaleY);
                 clientNetworkTransform.SyncScaleZ    = networkTransformFlags.HasFlag(UxrNetworkTransformFlags.ScaleZ);
-                yield return clientNetworkTransform;
+                newComponents.Add(clientNetworkTransform);
             }
+
+            return newComponents;
         }
 
         #endregion

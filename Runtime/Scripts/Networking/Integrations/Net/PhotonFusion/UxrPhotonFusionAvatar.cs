@@ -6,16 +6,10 @@
 using UnityEngine;
 #if ULTIMATEXR_USE_PHOTONFUSION_SDK
 using System;
-using System.Collections.Generic;
 using UltimateXR.Attributes;
 using UltimateXR.Avatar;
 using UltimateXR.Core;
-using UltimateXR.Core.Settings;
-using UltimateXR.Core.StateSave;
 using UltimateXR.Core.StateSync;
-using UltimateXR.Extensions.System;
-using UltimateXR.Extensions.System.Collections;
-using UltimateXR.Core.Instantiation;
 using Fusion;
 #endif
 
@@ -28,59 +22,60 @@ namespace UltimateXR.Networking.Integrations.Net.PhotonFusion
     {
         #region Inspector Properties/Serialized Fields
 
-        [Tooltip("List of objects that will be disabled when the avatar is in local mode, to avoid intersections with the camera for example")] [SerializeField] private List<GameObject> _localDisabledGameObjects;
-        [SerializeField] [ReadOnly]                                                                                                                              private NetworkTransform _networkTransformRigAvatar;
-        [SerializeField] [ReadOnly]                                                                                                                              private NetworkTransform _networkTransformRigCamera;
-        [SerializeField] [ReadOnly]                                                                                                                              private NetworkTransform _networkTransformRigHandLeft;
-        [SerializeField] [ReadOnly]                                                                                                                              private NetworkTransform _networkTransformRigHandRight;
+        [SerializeField] [ReadOnly] private NetworkTransform _networkTransformRigAvatar;
+        [SerializeField] [ReadOnly] private NetworkTransform _networkTransformRigCamera;
+        [SerializeField] [ReadOnly] private NetworkTransform _networkTransformRigHandLeft;
+        [SerializeField] [ReadOnly] private NetworkTransform _networkTransformRigHandRight;
 
         #endregion
 
         #region Implicit IUxrNetworkAvatar
 
         /// <inheritdoc />
-        public IList<GameObject> LocalDisabledGameObjects => _localDisabledGameObjects;
+        public bool IsInitialized => _implementer.IsInitialized;
 
         /// <inheritdoc />
-        public bool IsLocal { get; private set; }
+        public bool IsLocal => _implementer.IsLocal;
 
         /// <inheritdoc />
-        public UxrAvatar Avatar { get; private set; }
+        public UxrAvatar Avatar => _implementer.Avatar;
 
         /// <inheritdoc />
         public string AvatarName
         {
-            get => _avatarName;
-            set
-            {
-                _avatarName = value;
-
-                if (Avatar != null)
-                {
-                    Avatar.name = value;
-                }
-            }
+            get => _implementer.AvatarName;
+            set => _implementer.AvatarName = value;
         }
 
         /// <inheritdoc />
-        public event Action AvatarSpawned;
+        public bool UsesDummyNetworkTransforms => false;
 
         /// <inheritdoc />
-        public event Action AvatarDespawned;
-
-        /// <inheritdoc />
-        public void InitializeNetworkAvatar(UxrAvatar avatar, bool isLocal, string uniqueId, string avatarName)
+        public event Action AvatarSpawned
         {
-            IsLocal           = isLocal;
-            AvatarName        = avatarName;
-            avatar.AvatarMode = isLocal ? UxrAvatarMode.Local : UxrAvatarMode.UpdateExternally;
+            add => _implementer.AvatarSpawned += value;
+            remove => _implementer.AvatarSpawned -= value;
+        }
 
-            if (isLocal)
+        /// <inheritdoc />
+        public event Action AvatarDespawned
+        {
+            add => _implementer.AvatarDespawned += value;
+            remove => _implementer.AvatarDespawned -= value;
+        }
+
+        /// <inheritdoc />
+        public bool ChangeParent(Transform child, Transform parent)
+        {
+            // TODO: Check specific network implementation.
+
+            if (child == null)
             {
-                LocalDisabledGameObjects.ForEach(o => o.SetActive(false));
+                return false;
             }
 
-            avatar.CombineUniqueId(uniqueId.GetGuid(), true);
+            child.SetParent(parent);
+            return true;
         }
 
         #endregion
@@ -92,39 +87,13 @@ namespace UltimateXR.Networking.Integrations.Net.PhotonFusion
         {
             base.Spawned();
 
-            Avatar = GetComponent<UxrAvatar>();
-
-            InitializeNetworkAvatar(Avatar, Object.HasInputAuthority, Object.Id.ToString(), $"Player {Object.InputAuthority.PlayerId} ({(Object.HasInputAuthority ? "Local" : "External")})");
-
-            if (Object.HasInputAuthority)
-            {
-                UxrManager.ComponentStateChanged += UxrManager_ComponentStateChanged;
-            }
-
-            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Relevant)
-            {
-                Debug.Log($"{UxrConstants.NetworkingModule} {nameof(UxrPhotonFusionAvatar)}.{nameof(Spawned)}: Is Local? {IsLocal}, Name: {AvatarName}. ObjectId: {Object.Id.ToString()}, UniqueId: {Avatar.UniqueId}.");
-            }
-
-            AvatarSpawned?.Invoke();
-
-            if (UxrInstanceManager.HasInstance)
-            {
-                UxrInstanceManager.Instance.NotifyNetworkSpawn(Avatar.gameObject);
-            }
-
-            if (Object.HasInputAuthority)
-            {
-                byte[] localAvatarState = UxrManager.Instance.SaveStateChanges(new List<GameObject> { Avatar.gameObject }, null, UxrStateSaveLevel.ChangesSinceBeginning, UxrGlobalSettings.Instance.NetFormatInitialState);
-
-                if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Relevant)
-                {
-                    Debug.Log($"{UxrConstants.NetworkingModule} Requesting global state and sending local avatar state in {localAvatarState.Length} bytes.");
-                }
-
-                // Call after AvatarSpawned() in case any event handler changes the avatar state
-                RPC_NewAvatarJoined(localAvatarState);
-            }
+            _implementer.HandleSpawn(Object.HasInputAuthority,
+                                     UxrNetworkManager.IsServer,
+                                     Object.Id.ToString(),
+                                     $"Player {Object.InputAuthority.PlayerId} ({(Object.HasInputAuthority ? "Local" : "External")})",
+                                     $"{nameof(UxrPhotonFusionAvatar)}.{nameof(Spawned)}",
+                                     sendNewAvatarJoined: data => RPC_NewAvatarJoined(data),
+                                     componentStateChangedHandler: UxrManager_ComponentStateChanged);
         }
 
         /// <inheritdoc />
@@ -132,17 +101,7 @@ namespace UltimateXR.Networking.Integrations.Net.PhotonFusion
         {
             base.Despawned(runner, hasState);
 
-            if (Avatar && Object.HasInputAuthority)
-            {
-                UxrManager.ComponentStateChanged -= UxrManager_ComponentStateChanged;
-            }
-            
-            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Relevant)
-            {
-                Debug.Log($"{UxrConstants.NetworkingModule} {nameof(UxrPhotonFusionAvatar)}.{nameof(Despawned)}: Is Local? {IsLocal}, Name: {AvatarName}");
-            }
-            
-            AvatarDespawned?.Invoke();
+            _implementer.HandleDespawn($"{nameof(UxrPhotonFusionAvatar)}.{nameof(Despawned)}");
         }
 
         /// <inheritdoc />
@@ -230,6 +189,14 @@ namespace UltimateXR.Networking.Integrations.Net.PhotonFusion
         #region Unity
 
         /// <summary>
+        ///     Initializes the network avatar implementer.
+        /// </summary>
+        private void Awake()
+        {
+            _implementer = new UxrNetworkAvatarImplementer(this);
+        }
+
+        /// <summary>
         ///     Subscribes to events.
         /// </summary>
         private void OnEnable()
@@ -256,25 +223,7 @@ namespace UltimateXR.Networking.Integrations.Net.PhotonFusion
         /// <param name="eventArgs">Event parameters</param>
         private void UxrManager_ComponentStateChanged(IUxrStateSync component, UxrSyncEventArgs eventArgs)
         {
-            if (!Object.HasInputAuthority)
-            {
-                return;
-            }
-
-            if (eventArgs.Options.HasFlag(UxrStateSyncOptions.Network))
-            {
-                byte[] serializedEvent = eventArgs.SerializeEventBinary(component);
-
-                if (serializedEvent != null)
-                {
-                    if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Verbose)
-                    {
-                        Debug.Log($"{UxrConstants.NetworkingModule} Sending {serializedEvent.Length} bytes from {component.Component.name} ({component.UniqueId}) {eventArgs}");
-                    }
-
-                    RPC_ComponentStateChanged(serializedEvent);
-                }
-            }
+            _implementer.HandleComponentStateChanged(component, eventArgs, Object.HasInputAuthority, sendRpc: data => RPC_ComponentStateChanged(data));
         }
 
         /// <summary>
@@ -284,7 +233,7 @@ namespace UltimateXR.Networking.Integrations.Net.PhotonFusion
         /// <param name="e">Event parameters</param>
         private void Avatar_GlobalAvatarMoved(object sender, UxrAvatarMoveEventArgs e)
         {
-            if (Object && Object.HasInputAuthority && ReferenceEquals(sender, UxrAvatar.LocalAvatar))
+            if (Object && Object.HasInputAuthority && ReferenceEquals(e.Avatar, UxrAvatar.LocalAvatar))
             {
                 _actualAvatarPosition = e.NewPosition;
                 _actualAvatarRotation = e.NewRotation;
@@ -301,21 +250,7 @@ namespace UltimateXR.Networking.Integrations.Net.PhotonFusion
         {
             if (info.Source != PlayerRef.None)
             {
-                if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Verbose)
-                {
-                    Debug.Log($"{UxrConstants.NetworkingModule} Received request for global state from {info.Source}. Loading avatar state from {avatarState.Length} bytes.");
-                }
-
-                // First load the avatar state
-                UxrManager.Instance.LoadStateChanges(avatarState);
-
-                // Now export the scenario state, except for the new avatar, and send it back
-                byte[] serializedState = UxrManager.Instance.SaveStateChanges(null, new List<GameObject> { gameObject }, UxrStateSaveLevel.ChangesSinceBeginning, UxrGlobalSettings.Instance.NetFormatInitialState);
-
-                if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Verbose)
-                {
-                    Debug.Log($"{UxrConstants.NetworkingModule} Sending global state in {serializedState.Length} bytes to {info.Source}. Broadcasting {avatarState.Length} bytes to sync new avatar.");
-                }
+                byte[] serializedState = _implementer.HandleNewAvatarJoined(avatarState, info.Source.ToString(), gameObject);
 
                 // Send global state to new user.
                 RPC_LoadGlobalState(serializedState);
@@ -326,8 +261,7 @@ namespace UltimateXR.Networking.Integrations.Net.PhotonFusion
             else
             {
                 // When using RpcHostMode.SourceIsServer, Source is None.
-                // Start the host as initialized since it doesn't require a request for the current state.
-                s_initialStateLoaded = true;
+                // This means it is the host, and it doesn't require a request for the current state.
             }
         }
 
@@ -338,13 +272,7 @@ namespace UltimateXR.Networking.Integrations.Net.PhotonFusion
         [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
         private void RPC_LoadGlobalState(byte[] serializedStateData)
         {
-            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Verbose)
-            {
-                Debug.Log($"{UxrConstants.NetworkingModule} Receiving {serializedStateData.Length} bytes of global state data.");
-            }
-
-            UxrManager.Instance.LoadStateChanges(serializedStateData);
-            s_initialStateLoaded = true;
+            _implementer.LoadSyncOnJoinState(serializedStateData);
         }
 
         /// <summary>
@@ -354,18 +282,7 @@ namespace UltimateXR.Networking.Integrations.Net.PhotonFusion
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
         private void RPC_LoadAvatarState(byte[] serializedStateData)
         {
-            if (Object.HasInputAuthority)
-            {
-                // Don't execute on the source of the event, we don't want to load our own avatar data.
-                return;
-            }
-
-            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Verbose)
-            {
-                Debug.Log($"{UxrConstants.NetworkingModule} Receiving {serializedStateData.Length} bytes of avatar state data.");
-            }
-
-            UxrManager.Instance.LoadStateChanges(serializedStateData);
+            _implementer.LoadJoinedAvatarState(serializedStateData);
         }
 
         /// <summary>
@@ -375,39 +292,14 @@ namespace UltimateXR.Networking.Integrations.Net.PhotonFusion
         [Rpc(RpcSources.InputAuthority, RpcTargets.All)]
         private void RPC_ComponentStateChanged(byte[] serializedEventData)
         {
-            if (Object.HasInputAuthority)
-            {
-                // Don't execute on the source of the event
-                return;
-            }
-
-            if (s_initialStateLoaded == false)
-            {
-                // Ignore sync events until the initial state is sent, to make sure the syncs are only processed after the initial state.
-                return;
-            }
-
-            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Verbose)
-            {
-                Debug.Log($"{UxrConstants.NetworkingModule} Receiving {serializedEventData.Length} bytes of event data. Base64: {Convert.ToBase64String(serializedEventData)}");
-            }
-
-            UxrStateSyncResult result = UxrManager.Instance.ExecuteStateSyncEvent(serializedEventData);
-
-            if (!result.IsError)
-            {
-                if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Verbose)
-                {
-                    Debug.Log($"{UxrConstants.NetworkingModule} Processed {serializedEventData.Length} bytes of data: {result}");
-                }
-            }
+            _implementer.LoadRemoteComponentStateChanged(serializedEventData);
         }
 
         #endregion
 
         #region Private Types & Data
 
-        private static bool s_initialStateLoaded;
+        private UxrNetworkAvatarImplementer _implementer;
 
         private Vector3    _actualAvatarPosition;
         private Quaternion _actualAvatarRotation;
@@ -417,8 +309,6 @@ namespace UltimateXR.Networking.Integrations.Net.PhotonFusion
         private Quaternion _actualAvatarLeftHandRotation;
         private Vector3    _actualAvatarRightHandPosition;
         private Quaternion _actualAvatarRightHandRotation;
-
-        private string _avatarName;
 
         #endregion
     }

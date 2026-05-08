@@ -6,15 +6,8 @@
 using UnityEngine;
 #if ULTIMATEXR_USE_MIRROR_SDK
 using System;
-using System.Collections.Generic;
 using UltimateXR.Avatar;
-using UltimateXR.Core;
-using UltimateXR.Core.Settings;
-using UltimateXR.Core.StateSave;
 using UltimateXR.Core.StateSync;
-using UltimateXR.Extensions.System;
-using UltimateXR.Extensions.System.Collections;
-using UltimateXR.Core.Instantiation;
 using Mirror;
 #endif
 
@@ -23,57 +16,53 @@ namespace UltimateXR.Networking.Integrations.Net.Mirror
 #if ULTIMATEXR_USE_MIRROR_SDK
     public class UxrMirrorAvatar : NetworkBehaviour, IUxrNetworkAvatar
     {
-        #region Inspector Properties/Serialized Fields
-
-        [Tooltip("List of objects that will be disabled when the avatar is in local mode, to avoid intersections with the camera for example")] [SerializeField] private List<GameObject> _localDisabledGameObjects;
-
-        #endregion
-
         #region Implicit IUxrNetworkAvatar
 
         /// <inheritdoc />
-        public IList<GameObject> LocalDisabledGameObjects => _localDisabledGameObjects;
+        public bool IsInitialized => _implementer.IsInitialized;
 
         /// <inheritdoc />
-        public bool IsLocal { get; private set; }
+        public bool IsLocal => _implementer.IsLocal;
 
         /// <inheritdoc />
-        public UxrAvatar Avatar { get; private set; }
+        public UxrAvatar Avatar => _implementer.Avatar;
 
         /// <inheritdoc />
         public string AvatarName
         {
-            get => _avatarName;
-            set
-            {
-                _avatarName = value;
-
-                if (Avatar != null)
-                {
-                    Avatar.name = value;
-                }
-            }
+            get => _implementer.AvatarName;
+            set => _implementer.AvatarName = value;
         }
 
         /// <inheritdoc />
-        public event Action AvatarSpawned;
+        public bool UsesDummyNetworkTransforms => false;
 
         /// <inheritdoc />
-        public event Action AvatarDespawned;
-
-        /// <inheritdoc />
-        public void InitializeNetworkAvatar(UxrAvatar avatar, bool isLocal, string uniqueId, string avatarName)
+        public event Action AvatarSpawned
         {
-            IsLocal           = isLocal;
-            AvatarName        = avatarName;
-            avatar.AvatarMode = isLocal ? UxrAvatarMode.Local : UxrAvatarMode.UpdateExternally;
+            add => _implementer.AvatarSpawned += value;
+            remove => _implementer.AvatarSpawned -= value;
+        }
 
-            if (isLocal)
+        /// <inheritdoc />
+        public event Action AvatarDespawned
+        {
+            add => _implementer.AvatarDespawned += value;
+            remove => _implementer.AvatarDespawned -= value;
+        }
+
+        /// <inheritdoc />
+        public bool ChangeParent(Transform child, Transform parent)
+        {
+            // TODO: Check specific network implementation.
+
+            if (child == null)
             {
-                LocalDisabledGameObjects.ForEach(o => o.SetActive(false));
+                return false;
             }
 
-            avatar.CombineUniqueId(uniqueId.GetGuid(), true);
+            child.SetParent(parent);
+            return true;
         }
 
         #endregion
@@ -100,25 +89,7 @@ namespace UltimateXR.Networking.Integrations.Net.Mirror
         /// <param name="eventArgs">Event parameters</param>
         private void UxrManager_ComponentStateChanged(IUxrStateSync component, UxrSyncEventArgs eventArgs)
         {
-            if (!netIdentity.isOwned)
-            {
-                return;
-            }
-
-            if (eventArgs.Options.HasFlag(UxrStateSyncOptions.Network))
-            {
-                byte[] serializedEvent = eventArgs.SerializeEventBinary(component);
-
-                if (serializedEvent != null)
-                {
-                    if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Verbose)
-                    {
-                        Debug.Log($"{UxrConstants.NetworkingModule} Sending {serializedEvent.Length} bytes from {component.Component.name} ({component.UniqueId}) {eventArgs}");
-                    }
-
-                    CmdComponentStateChanged(serializedEvent);
-                }
-            }
+            _implementer.HandleComponentStateChanged(component, eventArgs, netIdentity.isOwned, sendRpc: data => CmdComponentStateChanged(data));
         }
 
         #endregion
@@ -128,64 +99,19 @@ namespace UltimateXR.Networking.Integrations.Net.Mirror
         /// <inheritdoc />
         public override void OnStartClient()
         {
-            Avatar = GetComponent<UxrAvatar>();
-
-            InitializeNetworkAvatar(Avatar, netIdentity.isOwned, netId.ToString(), $"Player {netId} ({(netIdentity.isOwned ? "Local" : "External")})");
-
-            if (netIdentity.isOwned)
-            {
-                UxrManager.ComponentStateChanged += UxrManager_ComponentStateChanged;
-            }
-
-            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Relevant)
-            {
-                Debug.Log($"{UxrConstants.NetworkingModule} {nameof(UxrMirrorAvatar)}.{nameof(OnStartClient)}: Is Local? {IsLocal}, Name: {AvatarName}. NetId: {netId}, UniqueId: {Avatar.UniqueId}.");
-            }
-
-            AvatarSpawned?.Invoke();
-
-            if (UxrInstanceManager.HasInstance)
-            {
-                UxrInstanceManager.Instance.NotifyNetworkSpawn(Avatar.gameObject);
-            }
-
-            if (netIdentity.isOwned)
-            {
-                if (!netIdentity.isServer)
-                {
-                    byte[] localAvatarState = UxrManager.Instance.SaveStateChanges(new List<GameObject> { Avatar.gameObject }, null, UxrStateSaveLevel.ChangesSinceBeginning, UxrGlobalSettings.Instance.NetFormatInitialState);
-
-                    if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Relevant)
-                    {
-                        Debug.Log($"{UxrConstants.NetworkingModule} Requesting global state and sending local avatar state in {localAvatarState.Length} bytes.");
-                    }
-
-                    // Send the initial avatar state to the server and request the current scene state.  
-                    // Call after AvatarSpawned() in case any event handler changes the avatar state.
-                    CmdNewAvatarJoined(localAvatarState);
-                }
-                else
-                {
-                    // Server creates the session and doesn't need to send the initial state.
-                    s_initialStateLoaded = true;
-                }
-            }
+            _implementer.HandleSpawn(netIdentity.isOwned,
+                                     netIdentity.isServer,
+                                     netId.ToString(),
+                                     $"Player {netId} ({(netIdentity.isOwned ? "Local" : "External")})",
+                                     $"{nameof(UxrMirrorAvatar)}.{nameof(OnStartClient)}",
+                                     sendNewAvatarJoined: data => CmdNewAvatarJoined(data),
+                                     componentStateChangedHandler: UxrManager_ComponentStateChanged);
         }
 
         /// <inheritdoc />
         public override void OnStopClient()
         {
-            if (Avatar && netIdentity.isOwned)
-            {
-                UxrManager.ComponentStateChanged -= UxrManager_ComponentStateChanged;
-            }
-
-            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Relevant)
-            {
-                Debug.Log($"{UxrConstants.NetworkingModule} {nameof(UxrMirrorAvatar)}.{nameof(OnStopClient)}: Is Local? {IsLocal}, Name: {AvatarName}");
-            }
-
-            AvatarDespawned?.Invoke();
+            _implementer.HandleDespawn($"{nameof(UxrMirrorAvatar)}.{nameof(OnStopClient)}");
         }
 
         #endregion
@@ -200,21 +126,7 @@ namespace UltimateXR.Networking.Integrations.Net.Mirror
         [Command]
         private void CmdNewAvatarJoined(byte[] avatarState, NetworkConnectionToClient sender = null)
         {
-            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Verbose)
-            {
-                Debug.Log($"{UxrConstants.NetworkingModule} Received request for global state from client {sender.identity.netId.ToString()}.");
-            }
-
-            // First load the avatar state
-            UxrManager.Instance.LoadStateChanges(avatarState);
-
-            // Now export the scenario state, except for the new avatar, and send it back
-            byte[] serializedState = UxrManager.Instance.SaveStateChanges(null, new List<GameObject> { gameObject }, UxrStateSaveLevel.ChangesSinceBeginning, UxrGlobalSettings.Instance.NetFormatInitialState);
-
-            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Verbose)
-            {
-                Debug.Log($"{UxrConstants.NetworkingModule} Sending global state in {serializedState.Length} bytes to client {sender.identity.netId.ToString()}. Broadcasting {avatarState.Length} bytes to sync new avatar.");
-            }
+            byte[] serializedState = _implementer.HandleNewAvatarJoined(avatarState, sender.identity.netId.ToString(), gameObject);
 
             // Send global state to new user.
             TargetLoadGlobalState(sender, serializedState);
@@ -251,13 +163,7 @@ namespace UltimateXR.Networking.Integrations.Net.Mirror
         [TargetRpc]
         private void TargetLoadGlobalState(NetworkConnectionToClient target, byte[] serializedStateData)
         {
-            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Verbose)
-            {
-                Debug.Log($"{UxrConstants.NetworkingModule} Receiving {serializedStateData.Length} bytes of global state data.");
-            }
-
-            UxrManager.Instance.LoadStateChanges(serializedStateData);
-            s_initialStateLoaded = true;
+            _implementer.LoadSyncOnJoinState(serializedStateData);
         }
 
         /// <summary>
@@ -267,18 +173,7 @@ namespace UltimateXR.Networking.Integrations.Net.Mirror
         [ClientRpc]
         private void RpcLoadAvatarState(byte[] serializedStateData)
         {
-            if (netIdentity.isOwned)
-            {
-                // Don't execute on the source of the event, we don't want to load our own avatar data.
-                return;
-            }
-
-            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Verbose)
-            {
-                Debug.Log($"{UxrConstants.NetworkingModule} Receiving {serializedStateData.Length} bytes of avatar state data.");
-            }
-
-            UxrManager.Instance.LoadStateChanges(serializedStateData);
+            _implementer.LoadJoinedAvatarState(serializedStateData);
         }
 
         /// <summary>
@@ -289,33 +184,26 @@ namespace UltimateXR.Networking.Integrations.Net.Mirror
         [ClientRpc]
         private void RpcComponentStateChanged(byte[] serializedEventData)
         {
-            if (netIdentity.isOwned)
-            {
-                // Don't execute on the source of the event.
-                return;
-            }
+            _implementer.LoadRemoteComponentStateChanged(serializedEventData);
+        }
 
-            if (s_initialStateLoaded == false)
-            {
-                // Ignore sync events until the initial state is sent, to make sure the syncs are only processed after the initial state.
-                return;
-            }
+        #endregion
 
-            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Verbose)
-            {
-                Debug.Log($"{UxrConstants.NetworkingModule} Receiving {serializedEventData.Length} bytes of data. Base64: {Convert.ToBase64String(serializedEventData)}");
-            }
+        #region Unity
 
-            UxrManager.Instance.ExecuteStateSyncEvent(serializedEventData);
+        /// <summary>
+        ///     Initializes the network avatar implementer.
+        /// </summary>
+        private void Awake()
+        {
+            _implementer = new UxrNetworkAvatarImplementer(this);
         }
 
         #endregion
 
         #region Private Types & Data
 
-        private static bool s_initialStateLoaded;
-
-        private string _avatarName;
+        private UxrNetworkAvatarImplementer _implementer;
 
         #endregion
     }

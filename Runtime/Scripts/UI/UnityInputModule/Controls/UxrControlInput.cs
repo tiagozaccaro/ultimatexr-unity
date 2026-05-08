@@ -183,6 +183,16 @@ namespace UltimateXR.UI.UnityInputModule.Controls
         public bool IsBeingDestroyed { get; private set; }
 
         /// <summary>
+        ///     Gets whether the pointer is currently over the control. 
+        /// </summary>
+        public bool IsPointerOver { get; private set; }
+
+        /// <summary>
+        ///     Gets whether the control is being pressed.
+        /// </summary>
+        public bool IsBeingPressed { get; private set; }
+
+        /// <summary>
         ///     Gets or sets whether the object can be interacted with and will send any events.
         /// </summary>
         public bool Enabled
@@ -364,6 +374,7 @@ namespace UltimateXR.UI.UnityInputModule.Controls
         /// </summary>
         protected virtual void OnDisable()
         {
+            IsPointerOver = false;
         }
 
         /// <summary>
@@ -665,6 +676,8 @@ namespace UltimateXR.UI.UnityInputModule.Controls
 
                 GlobalPressed?.Invoke(this, eventData);
                 Pressed?.Invoke(this, eventData);
+
+                IsBeingPressed = true;
             }
         }
 
@@ -679,6 +692,8 @@ namespace UltimateXR.UI.UnityInputModule.Controls
                 GlobalReleased?.Invoke(this, eventData);
                 Released?.Invoke(this, eventData);
             }
+
+            IsBeingPressed = false;
 
             ResetTapAndHoldEventInfo();
         }
@@ -703,6 +718,8 @@ namespace UltimateXR.UI.UnityInputModule.Controls
         /// <param name="eventData">Event parameters</param>
         protected virtual void OnCursorEntered(PointerEventData eventData)
         {
+            IsPointerOver = true;
+            
             if (enabled)
             {
                 CursorEntered?.Invoke(this, eventData);
@@ -715,6 +732,8 @@ namespace UltimateXR.UI.UnityInputModule.Controls
         /// <param name="eventData">Event parameters</param>
         protected virtual void OnCursorExited(PointerEventData eventData)
         {
+            IsPointerOver = false;
+            
             if (enabled)
             {
                 CursorExited?.Invoke(this, eventData);
@@ -747,7 +766,7 @@ namespace UltimateXR.UI.UnityInputModule.Controls
                 _pressAndHoldTimer += Time.deltaTime;
                 if (_pressAndHoldTimer > _pressAndHoldDuration)
                 {
-                    PressHeld(this, _pressAndHoldEventData);
+                    PressHeld.Invoke(this, _pressAndHoldEventData);
                     ResetTapAndHoldEventInfo();
                 }
             }

@@ -7,17 +7,19 @@ using System.Collections.Generic;
 using System.Linq;
 using UltimateXR.Avatar;
 using UltimateXR.Core;
-using UltimateXR.Core.Settings;
-using UltimateXR.Extensions.Unity;
 using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
-#if ULTIMATEXR_USE_PHOTONFUSION_SDK || ULTIMATEXR_USE_PHOTONFUSION2_SDK 
+#if ULTIMATEXR_USE_PHOTONFUSION_SDK || ULTIMATEXR_USE_PHOTONFUSION2_SDK
+using System;
+using System.Collections;
+using UltimateXR.Core.Settings;
+using UltimateXR.Extensions.Unity;
 using Fusion;
-using Photon.Voice.Fusion;
 #endif
 #if ULTIMATEXR_USE_PHOTONVOICE_SDK
+using Photon.Voice.Fusion;
 using Photon.Voice.Unity;
 #endif
 
@@ -42,6 +44,14 @@ namespace UltimateXR.Networking.Integrations.Voice.PhotonVoice
                 yield return UxrConstants.SdkPhotonFusion2;
             }
         }
+
+        /// <inheritdoc />
+        public override bool IsLocalMicSubscribed =>
+#if ULTIMATEXR_USE_PHOTONVOICE_SDK
+            _isLocalMicSubscribed;
+#else
+            false;
+#endif
 
         /// <inheritdoc />
         public override void SetupGlobal(string networkingSdk, UxrNetworkManager networkManager, out List<GameObject> newGameObjects, out List<Component> newComponents)
@@ -104,7 +114,7 @@ namespace UltimateXR.Networking.Integrations.Voice.PhotonVoice
 
                 Undo.RegisterCompleteObjectUndo(avatar.gameObject, "Setup Photon Voice");
                 Undo.RegisterFullObjectHierarchyUndo(cameraComponent.gameObject, "Setup Photon Voice");
-                
+
                 newGameObjects.Add(photonVoice);
 
                 newComponents.Add(voiceNetworkObjectComponent);
@@ -118,7 +128,198 @@ namespace UltimateXR.Networking.Integrations.Voice.PhotonVoice
 
 #endif
         }
-        
+
+        /// <inheritdoc />
+        public override void SubscribeLocalMic()
+        {
+#if ULTIMATEXR_USE_PHOTONVOICE_SDK
+            if (_isLocalMicSubscribed)
+            {
+                return;
+            }
+
+            _micDeviceName = null;
+            _micSampleRate = AudioSettings.outputSampleRate;
+            _micClip       = Microphone.Start(_micDeviceName, true, 1, _micSampleRate);
+
+            if (_micClip == null)
+            {
+                Debug.LogWarning($"{nameof(UxrPhotonVoiceNetwork)}: Microphone.Start returned null.");
+                return;
+            }
+
+            _micLastSamplePos     = 0;
+            _micReadBuffer        = new float[_micSampleRate];
+            _isLocalMicSubscribed = true;
+            _micPollCoroutine     = StartCoroutine(PollMicrophoneCoroutine());
+#endif
+        }
+
+        /// <inheritdoc />
+        public override void UnsubscribeLocalMic()
+        {
+#if ULTIMATEXR_USE_PHOTONVOICE_SDK
+            if (!_isLocalMicSubscribed)
+            {
+                return;
+            }
+
+            _isLocalMicSubscribed = false;
+
+            if (_micPollCoroutine != null)
+            {
+                StopCoroutine(_micPollCoroutine);
+                _micPollCoroutine = null;
+            }
+
+            if (Microphone.IsRecording(_micDeviceName))
+            {
+                Microphone.End(_micDeviceName);
+            }
+
+            _micClip       = null;
+            _micReadBuffer = null;
+#endif
+        }
+
+        /// <inheritdoc />
+        public override IEnumerable<AudioSource> GetActiveRemoteVoiceAudioSources()
+        {
+#if ULTIMATEXR_USE_PHOTONVOICE_SDK
+            foreach (Speaker speaker in FindObjectsByType<Speaker>(FindObjectsSortMode.None))
+            {
+                AudioSource audioSource = speaker.GetComponent<AudioSource>();
+
+                if (audioSource != null)
+                {
+                    yield return audioSource;
+                }
+            }
+#else
+            return Enumerable.Empty<AudioSource>();
+#endif
+        }
+
         #endregion
+
+#if ULTIMATEXR_USE_PHOTONVOICE_SDK
+
+        #region Unity
+
+        /// <summary>
+        ///     Subscribes to the <see cref="VoiceConnection.SpeakerLinked" /> event to detect when a remote player's
+        ///     voice <see cref="AudioSource" /> becomes available.
+        /// </summary>
+        protected override void OnEnable()
+        {
+            base.OnEnable();
+
+            VoiceConnection voiceConnection = FindFirstObjectByType<VoiceConnection>();
+
+            if (voiceConnection != null)
+            {
+                voiceConnection.SpeakerLinked += OnSpeakerLinked;
+            }
+        }
+
+        /// <summary>
+        ///     Unsubscribes from the <see cref="VoiceConnection.SpeakerLinked" /> event.
+        /// </summary>
+        protected override void OnDisable()
+        {
+            base.OnDisable();
+
+            UnsubscribeLocalMic();
+
+            VoiceConnection voiceConnection = FindFirstObjectByType<VoiceConnection>();
+
+            if (voiceConnection != null)
+            {
+                voiceConnection.SpeakerLinked -= OnSpeakerLinked;
+            }
+        }
+
+        #endregion
+
+        #region Event Handling Methods
+
+        /// <summary>
+        ///     Called when a remote player's <see cref="Speaker" /> is linked to a voice stream.
+        ///     Raises <see cref="UxrNetworkManager.RemoteVoiceAdded" /> with the associated <see cref="AudioSource" />.
+        /// </summary>
+        /// <param name="speaker">The speaker that was linked</param>
+        private void OnSpeakerLinked(Speaker speaker)
+        {
+            AudioSource audioSource = speaker.GetComponent<AudioSource>();
+
+            if (audioSource != null)
+            {
+                UxrNetworkManager.RaiseRemoteVoiceAdded(audioSource);
+            }
+        }
+
+        #endregion
+
+        #region Coroutines
+
+        /// <summary>
+        ///     Polls Unity's Microphone API each frame and raises <see cref="UxrNetworkVoiceImplementation.LocalMicDataReceived" />
+        ///     with the captured PCM data.
+        /// </summary>
+        /// <returns>Coroutine IEnumerator</returns>
+        private IEnumerator PollMicrophoneCoroutine()
+        {
+            UxrAudioFormat format = new UxrAudioFormat(_micSampleRate, 1);
+
+            while (_isLocalMicSubscribed)
+            {
+                int currentPos = Microphone.GetPosition(_micDeviceName);
+
+                if (currentPos >= 0 && _micClip != null)
+                {
+                    int samplesToRead;
+
+                    if (currentPos >= _micLastSamplePos)
+                    {
+                        samplesToRead = currentPos - _micLastSamplePos;
+                    }
+                    else
+                    {
+                        samplesToRead = _micClip.samples - _micLastSamplePos + currentPos;
+                    }
+
+                    if (samplesToRead > 0)
+                    {
+                        if (samplesToRead > _micReadBuffer.Length)
+                        {
+                            _micReadBuffer = new float[samplesToRead];
+                        }
+
+                        _micClip.GetData(_micReadBuffer, _micLastSamplePos);
+                        _micLastSamplePos = currentPos;
+
+                        RaiseLocalMicDataReceived(new ArraySegment<float>(_micReadBuffer, 0, samplesToRead), format);
+                    }
+                }
+
+                yield return null;
+            }
+        }
+
+        #endregion
+
+        #region Private Types & Data
+
+        private bool      _isLocalMicSubscribed;
+        private string    _micDeviceName;
+        private AudioClip _micClip;
+        private int       _micLastSamplePos;
+        private Coroutine _micPollCoroutine;
+        private int       _micSampleRate;
+        private float[]   _micReadBuffer;
+
+        #endregion
+
+#endif
     }
 }

@@ -15,9 +15,9 @@ namespace UltimateXR.Manipulation.Helpers
         public enum ReturnPolicy
         {
             /// <summary>
-            ///     Return to last anchor where the object was placed.
+            ///     Return to the most recent anchor where the object was placed.
             /// </summary>
-            LastAnchor = 0,
+            MostRecentAnchor = 0,
 
             /// <summary>
             ///     Return to the original anchor where the object was placed.

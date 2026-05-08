@@ -32,13 +32,13 @@ namespace UltimateXR.Devices.Integrations.Meta
         /// <inheritdoc />
         public override bool HasControllerElements(UxrHandSide handSide, UxrControllerElements controllerElements)
         {
-            uint validElements = (uint)(UxrControllerElements.Joystick |
-                                        UxrControllerElements.Grip |
-                                        UxrControllerElements.Trigger |
+            uint validElements = (uint)(UxrControllerElements.Joystick      |
+                                        UxrControllerElements.Grip          |
+                                        UxrControllerElements.Trigger       |
                                         UxrControllerElements.ThumbCapSense |
-                                        UxrControllerElements.Button1 |
-                                        UxrControllerElements.Button2 |
-                                        UxrControllerElements.Menu |
+                                        UxrControllerElements.Button1       |
+                                        UxrControllerElements.Button2       |
+                                        UxrControllerElements.Menu          |
                                         UxrControllerElements.DPad);
 
             if (handSide == UxrHandSide.Right)
@@ -52,10 +52,10 @@ namespace UltimateXR.Devices.Integrations.Meta
 
         #endregion
 
-        #region Public Overrides UxrUnityXRControllerInput
+        #region Protected Overrides UxrUnityXRControllerInput
 
         /// <inheritdoc />
-        public override IEnumerable<string> ControllerNames
+        protected override IEnumerable<string> ControllerNames
         {
             get
             {

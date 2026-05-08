@@ -3,31 +3,30 @@
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
+using UltimateXR.Core.Events;
+
 namespace UltimateXR.Avatar
 {
     /// <summary>
-    ///     Base class for avatar events.
+    ///     Event arguments for avatar-related events.
     /// </summary>
-    public class UxrAvatarEventArgs
+    /// <remarks>
+    ///     This event uses <see cref="UxrPooledEventArgs{T}" /> to avoid allocations. Instances are pooled and only guaranteed
+    ///     to be valid during the event invocation. Do not store or reuse them outside the handler scope.
+    ///     Although instances may remain unchanged briefly depending on pool usage, this behavior is not guaranteed.
+    /// </remarks>
+    public sealed class UxrAvatarEventArgs : UxrAvatarEventArgs<UxrAvatarEventArgs>
     {
-        #region Public Types & Data
-
-        /// <summary>
-        ///     Gets the Avatar the event belongs to.
-        /// </summary>
-        public UxrAvatar Avatar { get; }
-
-        #endregion
-
         #region Constructors & Finalizer
 
         /// <summary>
-        ///     Constructor.
+        ///     Default constructor.
         /// </summary>
-        /// <param name="avatar">Avatar</param>
-        public UxrAvatarEventArgs(UxrAvatar avatar)
+        /// <remarks>
+        ///     Instances should not be created directly. Use GetFromPool to retrieve a pooled instance.
+        /// </remarks>
+        public UxrAvatarEventArgs()
         {
-            Avatar = avatar;
         }
 
         #endregion

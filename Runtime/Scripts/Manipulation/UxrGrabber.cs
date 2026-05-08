@@ -10,7 +10,6 @@ using UltimateXR.Avatar.Rig;
 using UltimateXR.Core;
 using UltimateXR.Core.Components.Composite;
 using UltimateXR.Extensions.Unity;
-using UltimateXR.Extensions.Unity.Math;
 using UnityEngine;
 
 namespace UltimateXR.Manipulation
@@ -147,6 +146,21 @@ namespace UltimateXR.Manipulation
         public UxrHandSide OppositeSide => Side == UxrHandSide.Left ? UxrHandSide.Right : UxrHandSide.Left;
 
         /// <summary>
+        ///     Gets the avatar hand bone that corresponds to the grabber.
+        /// </summary>
+        public Transform HandBone => Avatar.GetHandBone(Side);
+
+        /// <summary>
+        ///     Gets the relative position of the hand bone to the grabber.
+        /// </summary>
+        public Vector3 HandBoneRelativePos => HandBone != null ? transform.InverseTransformPoint(HandBone.position) : Vector3.zero;
+
+        /// <summary>
+        ///     Gets the relative rotation of the hand bone to the grabber.
+        /// </summary>
+        public Quaternion HandBoneRelativeRot => HandBone != null ? Quaternion.Inverse(transform.rotation) * HandBone.rotation : Quaternion.identity;
+
+        /// <summary>
         ///     Gets whether the grabber component is on the left or right hand.
         /// </summary>
         public UxrHandSide Side
@@ -166,21 +180,6 @@ namespace UltimateXR.Manipulation
                 _sideInitialized = true;
             }
         }
-
-        /// <summary>
-        ///     Gets the avatar hand bone that corresponds to the grabber.
-        /// </summary>
-        public Transform HandBone => Avatar.GetHandBone(Side);
-
-        /// <summary>
-        ///     Gets the relative position of the hand bone to the grabber.
-        /// </summary>
-        public Vector3 HandBoneRelativePos => HandBone != null ? transform.InverseTransformPoint(HandBone.position) : Vector3.zero;
-
-        /// <summary>
-        ///     Gets the relative rotation of the hand bone to the grabber.
-        /// </summary>
-        public Quaternion HandBoneRelativeRot => HandBone != null ? Quaternion.Inverse(transform.rotation) * HandBone.rotation : Quaternion.identity;
 
         /// <summary>
         ///     Gets or sets the hand renderer.
@@ -276,12 +275,12 @@ namespace UltimateXR.Manipulation
 
         #endregion
 
-        #region Public Overrides Object
+        #region Public Overrides UxrComponent
 
         /// <inheritdoc />
         public override string ToString()
         {
-            string avatarName = Avatar != null ? $"{Avatar.name} " : string.Empty; 
+            string avatarName = Avatar != null ? $"{Avatar.name} " : string.Empty;
             return $"{avatarName}{Side.ToString().ToLower()} hand grabber";
         }
 
@@ -316,8 +315,14 @@ namespace UltimateXR.Manipulation
         /// </summary>
         internal void UpdateHandGrabberRenderer()
         {
-            if (_handRenderer != null && Avatar && (Avatar.RenderMode == UxrAvatarRenderModes.Avatar || Avatar.RenderMode == UxrAvatarRenderModes.AllControllersAndAvatar))
+            if (_handRenderer != null && Avatar && Avatar.RenderMode is UxrAvatarRenderMode.Avatar or UxrAvatarRenderMode.ControllersAndPartialAvatar or UxrAvatarRenderMode.ControllersAndAvatar)
             {
+                if (Avatar.RenderMode == UxrAvatarRenderMode.ControllersAndPartialAvatar && Avatar.PartialAvatarHiddenRenderers.Contains(_handRenderer))
+                {
+                    // Hand renderer should not be updated in this particular case.
+                    return;
+                }
+
                 if (GrabbedObject == null)
                 {
                     _handRenderer.enabled = true;
@@ -334,29 +339,137 @@ namespace UltimateXR.Manipulation
         /// </summary>
         internal void UpdateThrowPhysicsInfo()
         {
-            Transform     sampledTransform     = GrabbedObject != null ? GrabbedObject.transform : transform;
-            Vector3       centerOfMassPosition = transform.TransformPoint(ThrowCenterOfMassLocalPosition);
-            Vector3       throwTipPosition     = transform.TransformPoint(ThrowTipLocalPosition);
-            PhysicsSample newSample            = new PhysicsSample(_physicsSampleWindow.LastOrDefault(), sampledTransform, centerOfMassPosition, throwTipPosition, Time.deltaTime);
+            Transform sampledTransform     = GrabbedObject != null ? GrabbedObject.transform : transform;
+            Vector3   centerOfMassPosition = transform.TransformPoint(ThrowCenterOfMassLocalPosition);
+            Vector3   throwTipPosition     = transform.TransformPoint(ThrowTipLocalPosition);
+            float     deltaTime            = Time.deltaTime;
 
-            // Update timers
-            _physicsSampleWindow.ForEach(s => s.Age += Time.deltaTime);
+            // Update samples
 
-            // Remove samples out of the time window
-            _physicsSampleWindow.RemoveAll(s => s.Age > SampleWindowSeconds);
+            int   firstAvailable = -1;
+            int   oldestIndex    = -1;
+            int   youngestIndex  = -1;
+            float oldestAge      = -1.0f;
+            float youngestAge    = float.MaxValue;
 
-            // Add new sample
-            _physicsSampleWindow.Add(newSample);
+            for (int i = 0; i < _physicsSampleWindow.Length; i++)
+            {
+                // Update age
+                if (_physicsSampleWindow[i].Age >= 0.0f)
+                {
+                    _physicsSampleWindow[i].Age += deltaTime;
+
+                    if (_physicsSampleWindow[i].Age > SampleWindowSeconds)
+                    {
+                        _physicsSampleWindow[i].Age = -1.0f;
+                    }
+                }
+
+                if (_physicsSampleWindow[i].Age < 0.0f)
+                {
+                    if (firstAvailable == -1)
+                    {
+                        firstAvailable = i;
+                    }
+
+                    continue;
+                }
+
+                // Keep track of the oldest sample in case we don't have a free one.
+                if (_physicsSampleWindow[i].Age > oldestAge)
+                {
+                    oldestIndex = i;
+                    oldestAge   = _physicsSampleWindow[i].Age;
+                }
+
+                // Keep track of the youngest valid sample to compute instant velocities safely.
+                if (_physicsSampleWindow[i].Age < youngestAge)
+                {
+                    youngestIndex = i;
+                    youngestAge   = _physicsSampleWindow[i].Age;
+                }
+            }
+
+            if (_lastSampleIndex < 0 || _lastSampleIndex >= _physicsSampleWindow.Length || _physicsSampleWindow[_lastSampleIndex].Age < 0.0f)
+            {
+                _lastSampleIndex = -1;
+            }
+
+            int newIndex = firstAvailable == -1 ? oldestIndex : firstAvailable;
+
+            if (newIndex == -1)
+            {
+                Velocity              = Vector3.zero;
+                AngularVelocity       = Vector3.zero;
+                SmoothVelocity        = Vector3.zero;
+                SmoothAngularVelocity = Vector3.zero;
+                _lastSampleIndex      = -1;
+                return;
+            }
+
+            // Register new sample
+            _physicsSampleWindow[newIndex].Initialize(sampledTransform, centerOfMassPosition, throwTipPosition, deltaTime);
+
+            // Compute velocities using the youngest valid previous sample.
+            if (youngestIndex != -1 && youngestIndex != newIndex)
+            {
+                _physicsSampleWindow[newIndex].ComputeVelocities(_physicsSampleWindow[youngestIndex], sampledTransform);
+            }
+
+            _lastSampleIndex = newIndex;
 
             // Compute instant and smoothed values:
-            Velocity        = newSample.Velocity;
-            AngularVelocity = newSample.EulerSpeed;
-            SmoothVelocity  = Vector3Ext.Average(_physicsSampleWindow.Select(s => s.TotalVelocity));
+            Velocity        = _physicsSampleWindow[newIndex].Velocity;
+            AngularVelocity = _physicsSampleWindow[newIndex].EulerSpeed;
+            SmoothVelocity  = Vector3.zero;
 
-            Quaternion relative = Quaternion.Inverse(_physicsSampleWindow.First().Rotation) * _physicsSampleWindow.Last().Rotation;
+            int   sampleCount      = 0;
+            int   oldestValidIndex = -1;
+            float oldestValidAge   = -1.0f;
+
+            for (int i = 0; i < _physicsSampleWindow.Length; i++)
+            {
+                if (_physicsSampleWindow[i].Age >= 0.0f)
+                {
+                    SmoothVelocity += _physicsSampleWindow[i].TotalVelocity;
+                    sampleCount++;
+
+                    if (i != newIndex && _physicsSampleWindow[i].Age > oldestValidAge)
+                    {
+                        oldestValidIndex = i;
+                        oldestValidAge   = _physicsSampleWindow[i].Age;
+                    }
+                }
+            }
+
+            if (sampleCount > 1)
+            {
+                SmoothVelocity /= sampleCount;
+            }
+
+            if (oldestValidIndex == -1 || oldestValidAge <= Mathf.Epsilon)
+            {
+                SmoothAngularVelocity = AngularVelocity;
+                return;
+            }
+
+            Quaternion relative = Quaternion.Inverse(_physicsSampleWindow[oldestValidIndex].Rotation) * _physicsSampleWindow[newIndex].Rotation;
             relative.ToAngleAxis(out float angle, out Vector3 axis);
 
-            SmoothAngularVelocity = angle * sampledTransform.TransformDirection(axis) / _physicsSampleWindow.First().Age;
+            if (angle > 180.0f)
+            {
+                angle -= 360.0f;
+            }
+
+            if (axis.sqrMagnitude > Mathf.Epsilon)
+            {
+                Vector3 worldAxis = _physicsSampleWindow[oldestValidIndex].Rotation * axis.normalized;
+                SmoothAngularVelocity = angle * worldAxis / oldestValidAge;
+            }
+            else
+            {
+                SmoothAngularVelocity = Vector3.zero;
+            }
         }
 
         /// <summary>
@@ -399,6 +512,11 @@ namespace UltimateXR.Manipulation
         protected override void Awake()
         {
             base.Awake();
+
+            for (int i = 0; i < _physicsSampleWindow.Length; i++)
+            {
+                _physicsSampleWindow[i].Age = -1.0f;
+            }
 
             UxrAvatarRig.GetHandSide(transform, out UxrHandSide handSide);
             Side = handSide;
@@ -518,11 +636,12 @@ namespace UltimateXR.Manipulation
         /// </summary>
         private const float SampleWindowSeconds = 0.15f;
 
-        private readonly List<PhysicsSample> _physicsSampleWindow = new List<PhysicsSample>();
+        private readonly PhysicsSample[] _physicsSampleWindow = new PhysicsSample[20];
 
         private bool               _sideInitialized;
         private UxrHandSide        _side;
         private UxrGrabbableObject _grabbedObject;
+        private int                _lastSampleIndex = -1;
 
         #endregion
     }

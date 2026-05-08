@@ -86,6 +86,27 @@ namespace UltimateXR.Animation.Splines
             return true;
         }
 
+        /// <summary>
+        ///     Creates a spline using the children of a specified parent transform as the control points.
+        /// </summary>
+        /// <param name="splineParent">
+        ///     Parent transform whose children will be used as the control points for the spline.
+        /// </param>
+        /// <param name="inOutMultiplier">
+        ///     Magnitude of spline start and end dummy tangent vectors compared to their respective control points.
+        ///     A value of 1 (default) will create dummies that mirror vectors p1 and p(n-1). A different value will
+        ///     multiply these vectors by the specified multiplier, affecting the spline's start/end curvature.
+        /// </param>
+        public void Create(Transform splineParent, float inOutMultiplier = 1.0f)
+        {
+            Vector3[] points = new Vector3[splineParent.childCount];
+            for (int i = splineParent.childCount - 1, index = 0; i >= 0; i--, index++)
+            {
+                points[index] = splineParent.GetChild(i).position;
+            }
+            Create(1f, points);
+        }
+
         #endregion
 
         #region Private Methods

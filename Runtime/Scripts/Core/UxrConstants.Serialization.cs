@@ -5,6 +5,7 @@
 // --------------------------------------------------------------------------------------------------------------------
 using UltimateXR.Core.Components.Singleton;
 using UltimateXR.Core.Instantiation;
+using UltimateXR.Core.Serialization;
 using UltimateXR.Core.StateSave;
 
 namespace UltimateXR.Core
@@ -21,8 +22,9 @@ namespace UltimateXR.Core
             #region Public Types & Data
 
             /// <summary>
-            ///     Each time the serialization format of a component in UltimateXR is changed, this version number gets incremented by
-            ///     one. The goal is to provide backwards compatibility and be able to deserialize old data as well as new.<br />
+            ///     Each time the serialization format used by <see cref="UxrBinarySerializer" /> is changed, this version number gets
+            ///     incremented by one. The goal is to provide backwards compatibility and be able to deserialize old data as well as
+            ///     new.<br />
             ///     When serializing data, this version will be included somewhere. When deserializing data, the version it was
             ///     serialized with will be provided, enabling backwards compatibility.
             /// </summary>

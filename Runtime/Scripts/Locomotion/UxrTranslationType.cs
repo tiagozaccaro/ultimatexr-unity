@@ -13,7 +13,7 @@ namespace UltimateXR.Locomotion
         /// <summary>
         ///     Immediate teleportation.
         /// </summary>
-        Immediate,
+        Snap,
 
         /// <summary>
         ///     Fadeout -> teleportation -> Fadein.
@@ -21,8 +21,8 @@ namespace UltimateXR.Locomotion
         Fade,
 
         /// <summary>
-        ///     Position interpolation.
+        ///     Position interpolation/dash.
         /// </summary>
-        Smooth
+        Interpolate
     }
 }

@@ -349,8 +349,8 @@ namespace UltimateXR.Extensions.Unity.Render
                     }
                     else
                     {
-                        min = Vector3Ext.Min(localVertex, min);
-                        max = Vector3Ext.Max(localVertex, max);
+                        min = Vector3Ext.Min(new[] { localVertex, min });
+                        max = Vector3Ext.Max(new[] { localVertex, max });
                     }
                 }
             }

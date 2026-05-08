@@ -3,7 +3,7 @@
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
-using System;
+using UltimateXR.Core.Events;
 using UltimateXR.Core.Serialization;
 using UnityEngine;
 
@@ -95,13 +95,18 @@ namespace UltimateXR.Manipulation
     ///         </item>
     ///     </list>
     /// </summary>
-    public class UxrManipulationEventArgs : EventArgs, IUxrSerializable
+    /// <remarks>
+    ///     This event uses <see cref="UxrPooledEventArgs{T}" /> to avoid allocations. Instances are pooled and only guaranteed
+    ///     to be valid during the event invocation. Do not store or reuse them outside the handler scope.
+    ///     Although instances may remain unchanged briefly depending on pool usage, this behavior is not guaranteed.
+    /// </remarks>
+    public class UxrManipulationEventArgs : UxrPooledEventArgs<UxrManipulationEventArgs>, IUxrSerializable
     {
         #region Public Types & Data
 
         /// <summary>
-        ///     Gets whether the manipulation changed an object from not being grabbed at all to being grabbed or vice-versa.
-        ///     This is useful to filter out grabs or releases on an object that is still being grabbed using another hand.<br/>
+        ///     Gets whether the manipulation changed an object from not being grabbed at all to being grabbed or vice versa.
+        ///     This is useful to filter out grabs or releases on an object that is still being grabbed using another hand.<br />
         ///     <see cref="IsGrabbedStateChanged" /> is true if <see cref="IsMultiHands" /> and <see cref="IsSwitchHands" /> are
         ///     both false.
         /// </summary>
@@ -270,18 +275,13 @@ namespace UltimateXR.Manipulation
         #region Constructors & Finalizer
 
         /// <summary>
-        ///     Default constructor is private.
+        ///     Default constructor
         /// </summary>
-        private UxrManipulationEventArgs()
+        /// <remarks>
+        ///     Instances should not be created directly. Use the static From methods to retrieve a pooled instance.
+        /// </remarks>
+        public UxrManipulationEventArgs()
         {
-        }
-
-        /// <summary>
-        ///     Constructor that initializes the event type.
-        /// </summary>
-        private UxrManipulationEventArgs(UxrManipulationEventType eventType)
-        {
-            EventType = eventType;
         }
 
         #endregion
@@ -295,9 +295,9 @@ namespace UltimateXR.Manipulation
         void IUxrSerializable.Serialize(IUxrSerializer serializer, int serializationVersion)
         {
             serializer.SerializeEnum(ref _eventType);
-            serializer.SerializeUniqueComponent(ref _grabbableObject);
-            serializer.SerializeUniqueComponent(ref _grabbableAnchor);
-            serializer.SerializeUniqueComponent(ref _grabber);
+            serializer.SerializeUniqueIdComponent(ref _grabbableObject);
+            serializer.SerializeUniqueIdComponent(ref _grabbableAnchor);
+            serializer.SerializeUniqueIdComponent(ref _grabber);
             serializer.Serialize(ref _grabPointIndex);
             serializer.Serialize(ref _isMultiHands);
             serializer.Serialize(ref _isSwitchHands);
@@ -335,8 +335,8 @@ namespace UltimateXR.Manipulation
         /// <param name="grabPointIndex">Grab point index</param>
         /// <param name="isMultiHands">Whether the object was already grabbed with one or more hands</param>
         /// <param name="isSwitchHands">Whether the event was a result of passing the grabbable object from one hand to the other</param>
-        /// <param name="grabberLocalSnapPosition">Grab snap position in local UxrGrabber space at the moment of grabbing</param>
-        /// <param name="grabberLocalSnapRotation">Grab snap rotation in local UxrGrabber space at the moment of grabbing</param>
+        /// <param name="grabberLocalSnapPosition">Grab snap position in the local UxrGrabber space at the moment of grabbing</param>
+        /// <param name="grabberLocalSnapRotation">Grab snap rotation in the local UxrGrabber space at the moment of grabbing</param>
         public static UxrManipulationEventArgs FromGrab(UxrGrabbableObject       grabbableObject,
                                                         UxrGrabbableObjectAnchor grabbableAnchor,
                                                         UxrGrabber               grabber,
@@ -346,8 +346,9 @@ namespace UltimateXR.Manipulation
                                                         Vector3                  grabberLocalSnapPosition,
                                                         Quaternion               grabberLocalSnapRotation)
         {
-            UxrManipulationEventArgs eventArgs = new UxrManipulationEventArgs(UxrManipulationEventType.Grab);
+            UxrManipulationEventArgs eventArgs = GetFromPool();
 
+            eventArgs.EventType       = UxrManipulationEventType.Grab;
             eventArgs.GrabbableObject = grabbableObject;
             eventArgs.GrabbableAnchor = grabbableAnchor;
             eventArgs.Grabber         = grabber;
@@ -389,8 +390,9 @@ namespace UltimateXR.Manipulation
                                                            Vector3                  releaseAngularVelocity = default(Vector3))
 
         {
-            UxrManipulationEventArgs eventArgs = new UxrManipulationEventArgs(UxrManipulationEventType.Release);
+            UxrManipulationEventArgs eventArgs = GetFromPool();
 
+            eventArgs.EventType              = UxrManipulationEventType.Release;
             eventArgs.GrabbableObject        = grabbableObject;
             eventArgs.GrabbableAnchor        = grabbableAnchor;
             eventArgs.Grabber                = grabber;
@@ -425,8 +427,9 @@ namespace UltimateXR.Manipulation
                                                          int                      grabPointIndex,
                                                          UxrPlacementOptions      placementOptions)
         {
-            UxrManipulationEventArgs eventArgs = new UxrManipulationEventArgs(UxrManipulationEventType.Place);
+            UxrManipulationEventArgs eventArgs = GetFromPool();
 
+            eventArgs.EventType        = UxrManipulationEventType.Place;
             eventArgs.GrabbableObject  = grabbableObject;
             eventArgs.GrabbableAnchor  = grabbableAnchor;
             eventArgs.Grabber          = grabber;
@@ -439,7 +442,7 @@ namespace UltimateXR.Manipulation
         }
 
         /// <summary>
-        ///     Constructor for Release events.
+        ///     Constructor for Remove events.
         /// </summary>
         /// <param name="grabbableObject">Grabbable object</param>
         /// <param name="grabbableAnchor">Grabbable object anchor</param>
@@ -454,8 +457,9 @@ namespace UltimateXR.Manipulation
                                                           bool                     isMultiHands   = false,
                                                           bool                     isSwitchHands  = false)
         {
-            UxrManipulationEventArgs eventArgs = new UxrManipulationEventArgs(UxrManipulationEventType.Remove);
+            UxrManipulationEventArgs eventArgs = GetFromPool();
 
+            eventArgs.EventType       = UxrManipulationEventType.Remove;
             eventArgs.GrabbableObject = grabbableObject;
             eventArgs.GrabbableAnchor = grabbableAnchor;
             eventArgs.Grabber         = grabber;
@@ -469,6 +473,7 @@ namespace UltimateXR.Manipulation
         /// <summary>
         ///     Constructor for PlacedObjectRangeEntered/Left, AnchorRangeEntered/Left and GrabTrying events.
         /// </summary>
+        /// <param name="eventType">Event type</param>
         /// <param name="grabbableObject">Grabbable object</param>
         /// <param name="grabbableAnchor">Grabbable object anchor</param>
         /// <param name="grabber">Grabber</param>
@@ -483,8 +488,9 @@ namespace UltimateXR.Manipulation
                                                          bool                     isMultiHands   = false,
                                                          bool                     isSwitchHands  = false)
         {
-            UxrManipulationEventArgs eventArgs = new UxrManipulationEventArgs(eventType);
+            UxrManipulationEventArgs eventArgs = GetFromPool();
 
+            eventArgs.EventType       = eventType;
             eventArgs.GrabbableObject = grabbableObject;
             eventArgs.GrabbableAnchor = grabbableAnchor;
             eventArgs.Grabber         = grabber;
@@ -511,6 +517,17 @@ namespace UltimateXR.Manipulation
             }
 
             return "Unknown event";
+        }
+
+        #endregion
+
+        #region Event Trigger Methods
+
+        /// <inheritdoc />
+        protected override void OnGet()
+        {
+            base.OnGet();
+            Reset();
         }
 
         #endregion
@@ -552,6 +569,29 @@ namespace UltimateXR.Manipulation
             string id            = e.GrabbableObject != null && includeIds ? $" (id {e.GrabbableObject.UniqueId})" : string.Empty;
             string grabPointInfo = e.GrabbableObject != null && e.GrabbableObject.GrabPointCount > 1 && e.GrabPointIndex >= 0 ? $" (grab point {e.GrabPointIndex})" : string.Empty;
             return e.GrabbableObject != null ? $"{e.GrabbableObject.name}{id}{grabPointInfo}" : string.Empty;
+        }
+
+        /// <summary>
+        ///     Resets the state for reuse.
+        /// </summary>
+        private void Reset()
+        {
+            _eventType                  = UxrManipulationEventType.None;
+            _grabbableObject            = null;
+            _grabbableAnchor            = null;
+            _grabber                    = null;
+            _grabPointIndex             = -1;
+            _isMultiHands               = false;
+            _isSwitchHands              = false;
+            _releaseVelocity            = default;
+            _releaseAngularVelocity     = default;
+            _placementOptions           = UxrPlacementOptions.None;
+            _grabberLocalObjectPosition = default;
+            _grabberLocalObjectRotation = default;
+            _grabberLocalSnapPosition   = default;
+            _grabberLocalSnapRotation   = default;
+            _releaseStartPosition       = default;
+            _releaseStartRotation       = default;
         }
 
         #endregion

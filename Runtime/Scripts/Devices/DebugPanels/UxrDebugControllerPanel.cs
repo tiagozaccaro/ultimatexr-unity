@@ -41,14 +41,17 @@ namespace UltimateXR.Devices.DebugPanels
         /// </summary>
         private void Update()
         {
-            UxrAvatar          avatar          = UxrAvatar.LocalAvatar;
-            UxrControllerInput controllerInput = avatar != null ? avatar.ControllerInput : null;
+            UxrAvatar          avatar              = UxrAvatar.LocalAvatar;
+            UxrControllerInput controllerInput     = avatar != null ? avatar.ControllerInput : null;
+            bool               blinkButtonsChanged = _lastBlinkButtonsOnInput != _blinkButtonsOnInput;
 
-            if (avatar != _avatar || controllerInput != _avatarControllerInput)
+            _lastBlinkButtonsOnInput = _blinkButtonsOnInput;
+
+            if (avatar != _avatar || controllerInput != _avatarControllerInput || blinkButtonsChanged)
             {
                 // Unsubscribe from the current avatar controller events.
 
-                if (_avatarControllerInput != null)
+                if (_avatarControllerInput != null && _blinkButtonsOnInput)
                 {
                     _avatarControllerInput.ButtonStateChanged -= ControllerInput_ButtonStateChanged;
                     _avatarControllerInput.Input1DChanged     -= ControllerInput_Input1DChanged;
@@ -64,7 +67,7 @@ namespace UltimateXR.Devices.DebugPanels
 
                 // Subscribe to the input events to update the input UI widgets.
 
-                if (_avatarControllerInput != null)
+                if (_avatarControllerInput != null && _blinkButtonsOnInput)
                 {
                     _avatarControllerInput.ButtonStateChanged += ControllerInput_ButtonStateChanged;
                     _avatarControllerInput.Input1DChanged     += ControllerInput_Input1DChanged;
@@ -90,11 +93,13 @@ namespace UltimateXR.Devices.DebugPanels
             UxrControllerInput    controllerInput   = (UxrControllerInput)sender;
             UxrControllerElements controllerElement = UxrControllerInput.ButtonToControllerElement(e.Button);
 
-            bool allControllerElementsBlinking = controllerInput.AreAllControllerElementsBlinking(e.HandSide, controllerElement);
-
-            if (_blinkButtonsOnInput && controllerElement != UxrControllerElements.None && allControllerElementsBlinking == false)
+            if (_blinkButtonsOnInput)
             {
-                _avatarControllerInput.StartControllerElementsBlinking(e.HandSide, controllerElement, Color.white, 5, 2.0f);
+                bool allControllerElementsBlinking = controllerInput.AreAllControllerElementsBlinking(e.HandSide, controllerElement);
+                if (controllerElement != UxrControllerElements.None && !allControllerElementsBlinking)
+                {
+                    _avatarControllerInput.StartControllerElementsBlinking(e.HandSide, controllerElement, Color.white, 5, 2.0f);
+                }
             }
         }
 
@@ -108,11 +113,13 @@ namespace UltimateXR.Devices.DebugPanels
             UxrControllerInput    controllerInput   = (UxrControllerInput)sender;
             UxrControllerElements controllerElement = UxrControllerInput.Input1DToControllerElement(e.Target);
 
-            bool allControllerElementsBlinking = controllerInput.AreAllControllerElementsBlinking(e.HandSide, controllerElement);
-
-            if (_blinkButtonsOnInput && controllerElement != UxrControllerElements.None && allControllerElementsBlinking == false)
+            if (_blinkButtonsOnInput)
             {
-                _avatarControllerInput.StartControllerElementsBlinking(e.HandSide, controllerElement, Color.white, 5, 2.0f);
+                bool allControllerElementsBlinking = controllerInput.AreAllControllerElementsBlinking(e.HandSide, controllerElement);
+                if (controllerElement != UxrControllerElements.None && !allControllerElementsBlinking)
+                {
+                    _avatarControllerInput.StartControllerElementsBlinking(e.HandSide, controllerElement, Color.white, 5, 2.0f);
+                }
             }
         }
 
@@ -126,11 +133,13 @@ namespace UltimateXR.Devices.DebugPanels
             UxrControllerInput    controllerInput   = (UxrControllerInput)sender;
             UxrControllerElements controllerElement = UxrControllerInput.Input2DToControllerElement(e.Target);
 
-            bool allControllerElementsBlinking = controllerInput.AreAllControllerElementsBlinking(e.HandSide, controllerElement);
-
-            if (_blinkButtonsOnInput && controllerElement != UxrControllerElements.None && allControllerElementsBlinking == false)
+            if (_blinkButtonsOnInput)
             {
-                _avatarControllerInput.StartControllerElementsBlinking(e.HandSide, controllerElement, Color.white, 5, 2.0f);
+                bool allControllerElementsBlinking = controllerInput.AreAllControllerElementsBlinking(e.HandSide, controllerElement);
+                if (controllerElement != UxrControllerElements.None && !allControllerElementsBlinking)
+                {
+                    _avatarControllerInput.StartControllerElementsBlinking(e.HandSide, controllerElement, Color.white, 5, 2.0f);
+                }
             }
         }
 
@@ -143,22 +152,47 @@ namespace UltimateXR.Devices.DebugPanels
         /// </summary>
         private void UpdateControllerStrings()
         {
-            if (_avatar && _avatarControllerInput)
+            if (!_avatar || !_avatarControllerInput)
             {
-                string leftName  = _avatarControllerInput.LeftControllerName ?? NoController;
-                string rightName = _avatarControllerInput.RightControllerName ?? NoController;
+                return;
+            }
 
-                _containerControllerNames.SetActive(!string.IsNullOrEmpty(leftName) || !string.IsNullOrEmpty(rightName));
+            string leftName  = _avatarControllerInput.LeftControllerName  ?? NoController;
+            string rightName = _avatarControllerInput.RightControllerName ?? NoController;
 
-                if (_avatarControllerInput.SetupType == UxrControllerSetupType.Single)
+            bool containerActive = !string.IsNullOrEmpty(leftName) || !string.IsNullOrEmpty(rightName);
+            if (_containerControllerNames.activeSelf != containerActive)
+            {
+                _containerControllerNames.SetActive(containerActive);
+            }
+
+            UxrControllerSetupType setupType = _avatarControllerInput.SetupType;
+
+            if (setupType == _lastSetupType && leftName  == _lastLeftName && rightName == _lastRightName)
+            {
+                return;
+            }
+
+            _lastSetupType = setupType;
+            _lastLeftName  = leftName;
+            _lastRightName = rightName;
+
+            if (setupType == UxrControllerSetupType.Single)
+            {
+                _cachedSingleControllerText = "Controller: " + leftName;
+
+                if (_textControllerNames.text != _cachedSingleControllerText)
                 {
-                    // Single controller setup. Both sides will return the same name. 
-                    _textControllerNames.text = $"Controller: {leftName}";
+                    _textControllerNames.text = _cachedSingleControllerText;
                 }
-                else if (_avatarControllerInput.SetupType == UxrControllerSetupType.Dual)
+            }
+            else if (setupType == UxrControllerSetupType.Dual)
+            {
+                _cachedDualControllerText = "Left controller: " + leftName + ", right controller: " + rightName;
+
+                if (_textControllerNames.text != _cachedDualControllerText)
                 {
-                    // Dual controller setup.
-                    _textControllerNames.text = $"Left controller: {leftName}, right controller: {rightName}";
+                    _textControllerNames.text = _cachedDualControllerText;
                 }
             }
         }
@@ -250,6 +284,14 @@ namespace UltimateXR.Devices.DebugPanels
 
         private UxrAvatar          _avatar;
         private UxrControllerInput _avatarControllerInput;
+        private bool?              _lastBlinkButtonsOnInput;
+
+        private string                 _cachedSingleControllerText;
+        private string                 _cachedDualControllerText;
+        private string                 _lastLeftName;
+        private string                 _lastRightName;
+        private UxrControllerSetupType _lastSetupType;
+        private bool                   _lastContainerActive;
 
         #endregion
     }

@@ -17,28 +17,32 @@ namespace UltimateXR.Devices.Integrations.HP
         #region Public Overrides UxrWindowsMixedRealityInput
 
         /// <inheritdoc />
-        public override IEnumerable<string> ControllerNames
+        public override bool HasControllerElements(UxrHandSide handSide, UxrControllerElements controllerElements)
+        {
+            uint validElements = (uint)(UxrControllerElements.Joystick  |
+                                        UxrControllerElements.Joystick2 |
+                                        UxrControllerElements.Grip      |
+                                        UxrControllerElements.Trigger   |
+                                        UxrControllerElements.Button1   |
+                                        UxrControllerElements.Button2   |
+                                        UxrControllerElements.Menu      |
+                                        UxrControllerElements.DPad);
+
+            return (validElements & (uint)controllerElements) == (uint)controllerElements;
+        }
+
+        #endregion
+
+        #region Protected Overrides UxrWindowsMixedRealityInput
+
+        /// <inheritdoc />
+        protected override IEnumerable<string> ControllerNames
         {
             get
             {
                 yield return "HP Reverb G2 Controller";
-                yield return "HP Reverb G2 Controller OpenXR";
+                // Uncomment when providing grip/aim pivots in controller prefabs // yield return "HP Reverb G2 Controller OpenXR";
             }
-        }
-
-        /// <inheritdoc />
-        public override bool HasControllerElements(UxrHandSide handSide, UxrControllerElements controllerElements)
-        {
-            uint validElements = (uint)(UxrControllerElements.Joystick |
-                                        UxrControllerElements.Joystick2 |
-                                        UxrControllerElements.Grip |
-                                        UxrControllerElements.Trigger |
-                                        UxrControllerElements.Button1 |
-                                        UxrControllerElements.Button2 |
-                                        UxrControllerElements.Menu |
-                                        UxrControllerElements.DPad);
-
-            return (validElements & (uint)controllerElements) == (uint)controllerElements;
         }
 
         #endregion

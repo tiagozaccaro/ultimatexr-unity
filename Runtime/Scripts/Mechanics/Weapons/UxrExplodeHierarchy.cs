@@ -157,7 +157,7 @@ namespace UltimateXR.Mechanics.Weapons
                 }
 
                 rigidBodyChunk.isKinematic     = false;
-                rigidBodyChunk.velocity        = Random.insideUnitSphere * Random.Range(MinExplodeSpeed,        MaxExplodeSpeed);
+                rigidBodyChunk.linearVelocity  = Random.insideUnitSphere * Random.Range(MinExplodeSpeed,        MaxExplodeSpeed);
                 rigidBodyChunk.angularVelocity = Random.insideUnitSphere * Random.Range(MinExplodeAngularSpeed, MaxExplodeAngularSpeed);
 
                 float    startAlpha = 1.0f;

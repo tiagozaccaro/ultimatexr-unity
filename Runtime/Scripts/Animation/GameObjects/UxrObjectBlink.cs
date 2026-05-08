@@ -222,6 +222,11 @@ namespace UltimateXR.Animation.GameObjects
                 if (_renderer == null)
                 {
                     _renderer = GetComponent<MeshRenderer>();
+
+                    if (_renderer == null)
+                    {
+                        _renderer = GetComponentInChildren<MeshRenderer>();
+                    }
                 }
 
                 if (_renderer != null)

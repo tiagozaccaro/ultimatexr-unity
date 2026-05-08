@@ -1,4 +1,4 @@
-﻿// --------------------------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 // <copyright file="UxrFirearmWeapon.cs" company="VRMADA">
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
@@ -72,7 +72,7 @@ namespace UltimateXR.Mechanics.Weapons
 
             BeginSync();
             runtimeTrigger.HasReloaded = true;
-            EndSyncMethod(new object[] { triggerIndex });
+            EndSyncMethod(SyncParams(triggerIndex));
         }
 
         /// <summary>
@@ -626,7 +626,7 @@ namespace UltimateXR.Mechanics.Weapons
                     runtimeTrigger.TriggerPressStarted = pressDown;
                     runtimeTrigger.TriggerPressEnded   = pressUp;
 
-                    EndSyncMethod(new object[] { triggerIndex, pressed, pressDown, pressUp });
+                    EndSyncMethod(SyncParams(triggerIndex, pressed, pressDown, pressUp));
                 }
             }
         }
@@ -661,7 +661,7 @@ namespace UltimateXR.Mechanics.Weapons
 
             SetAmmoLeft(triggerIndex, ammo);
 
-            EndSyncMethod(new object[] { triggerIndex, ammo });
+            EndSyncMethod(SyncParams(triggerIndex, ammo));
         }
 
         #endregion

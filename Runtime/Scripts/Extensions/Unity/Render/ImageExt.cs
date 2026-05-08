@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using UltimateXR.Extensions.System;
 using UltimateXR.Extensions.System.IO;
+using UnityEngine;
 using UnityEngine.UI;
 
 namespace UltimateXR.Extensions.Unity.Render
@@ -19,6 +20,26 @@ namespace UltimateXR.Extensions.Unity.Render
     public static class ImageExt
     {
         #region Public Methods
+
+        /// <summary>
+        ///     Replaces the current sprite of the <see cref="Image" /> with one created
+        ///     from the given <see cref="Texture2D" />. The generated sprite uses the
+        ///     full texture area and a centered pivot, and is assigned as the image's
+        ///     <see cref="Image.overrideSprite" />.
+        /// </summary>
+        /// <param name="image">The target UI <see cref="Image" /> to update</param>
+        /// <param name="texture">The source texture to convert into a sprite</param>
+        public static void SetTextureOverride(this Image image, Texture2D texture)
+        {
+            // Create a Sprite from the Texture2D
+            Sprite sprite = Sprite.Create(texture,
+                                          new Rect(0, 0, texture.width, texture.height),
+                                          new Vector2(0.5f, 0.5f) // pivot at center
+                                         );
+
+            // Assign it to the UI Image as override
+            image.overrideSprite = sprite;
+        }
 
         /// <summary>
         ///     Loads a sprite asynchronously from a base64 encoded string and assigns it to the

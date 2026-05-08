@@ -103,7 +103,7 @@ namespace UltimateXR.Animation.Avatars
             {
                 _localRotEyeLidBottomLeft = _eyeLidBottomLeft.localRotation;
             }
-            if (_eyeLidBottomLeft)
+            if (_eyeLidBottomRight)
             {
                 _localRotEyeLidBottomRight = _eyeLidBottomRight.localRotation;
             }

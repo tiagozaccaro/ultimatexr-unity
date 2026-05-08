@@ -95,7 +95,13 @@ namespace UltimateXR.Devices.Visualization
         /// </summary>
         private void UxrManager_AvatarsUpdated()
         {
-            _controller3DModel.UpdateFromInput(UxrAvatar.LocalAvatarInput);
+            if (_grabbedAvatar != null)
+            {
+                if (_grabbedAvatar.AvatarMode == UxrAvatarMode.Local)
+                {
+                    _controller3DModel.UpdateFromInput(_grabbedAvatar.ControllerInput);
+                }
+            }
 
             if (_controller3DModel.ControllerHand)
             {
@@ -125,6 +131,8 @@ namespace UltimateXR.Devices.Visualization
         protected override void OnObjectGrabbed(UxrManipulationEventArgs e)
         {
             UxrManager.AvatarsUpdated += UxrManager_AvatarsUpdated;
+
+            _grabbedAvatar = e.Grabber?.Avatar;
 
             UxrControllerHand controllerHand = GetControllerHand(e.Grabber);
 
@@ -189,6 +197,8 @@ namespace UltimateXR.Devices.Visualization
         {
             UxrManager.AvatarsUpdated -= UxrManager_AvatarsUpdated;
 
+            _grabbedAvatar = null;
+
             UxrControllerHand controllerHand = GetControllerHand(e.Grabber);
 
             if (controllerHand)
@@ -246,6 +256,7 @@ namespace UltimateXR.Devices.Visualization
 
         #region Private Types & Data
 
+        private UxrAvatar            _grabbedAvatar;
         private UxrController3DModel _controller3DModel;
         private bool                 _ignoreInputLeft;
         private bool                 _ignoreInputRight;

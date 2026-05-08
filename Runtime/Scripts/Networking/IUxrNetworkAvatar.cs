@@ -29,6 +29,11 @@ namespace UltimateXR.Networking
         event Action AvatarDespawned;
 
         /// <summary>
+        ///     Gets whether the avatar networking component was initialized and its properties are set.
+        /// </summary>
+        public bool IsInitialized { get; }
+
+        /// <summary>
         ///     Gets whether this avatar is the avatar controller by the user (true) or a remote avatar (false).
         /// </summary>
         bool IsLocal { get; }
@@ -39,10 +44,9 @@ namespace UltimateXR.Networking
         UxrAvatar Avatar { get; }
 
         /// <summary>
-        ///     Gets the list of objects that will be disabled when the avatar is in local mode. This allows to avoid rendering the
-        ///     head or elements that could intersect with the camera.
+        ///     Gets whether the implementation uses dummy network transforms to synchronize avatar transforms.
         /// </summary>
-        IList<GameObject> LocalDisabledGameObjects { get; }
+        bool UsesDummyNetworkTransforms { get; }
 
         /// <summary>
         ///     Gets or sets the avatar name.
@@ -54,13 +58,12 @@ namespace UltimateXR.Networking
         #region Public Methods
 
         /// <summary>
-        ///     Initializes an avatar. Should be called by the implementation right after the avatar was spawned.
+        ///     Changes the parent of the specified child Transform to the specified parent Transform.
         /// </summary>
-        /// <param name="avatar">Avatar component</param>
-        /// <param name="isLocal">Whether the avatar is local</param>
-        /// <param name="uniqueId">A unique Id to identify the avatar, usually the user unique network ID</param>
-        /// <param name="avatarName">The name of the avatar, to assign it to the avatar GameObject and a label if there is a label</param>
-        void InitializeNetworkAvatar(UxrAvatar avatar, bool isLocal, string uniqueId, string avatarName);
+        /// <param name="child">The Transform of the child GameObject to reparent</param>
+        /// <param name="parent">The Transform of the target parent GameObject</param>
+        /// <returns>Returns true if the parent was successfully changed. Otherwise, false.</returns>
+        bool ChangeParent(Transform child, Transform parent);
 
         #endregion
     }

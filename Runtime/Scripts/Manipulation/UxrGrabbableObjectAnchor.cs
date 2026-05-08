@@ -5,7 +5,6 @@
 // --------------------------------------------------------------------------------------------------------------------
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using UltimateXR.Core.Components;
 using UnityEngine;
 
@@ -203,6 +202,13 @@ namespace UltimateXR.Manipulation
                 throw new ArgumentNullException(nameof(tags));
             }
 
+            CreateCompatibleTagSetIfNecessary();
+
+            foreach (string newTag in tags)
+            {
+                _compatibleTagsSet.Add(newTag);
+            }
+
             _compatibleTags.AddRange(tags);
         }
 
@@ -218,9 +224,12 @@ namespace UltimateXR.Manipulation
                 throw new ArgumentNullException(nameof(tags));
             }
 
-            foreach (string tag in tags)
+            CreateCompatibleTagSetIfNecessary();
+
+            foreach (string tagToRemove in tags)
             {
-                _compatibleTags.Remove(tag);
+                _compatibleTags.Remove(tagToRemove);
+                _compatibleTagsSet.Remove(tagToRemove);
             }
         }
 
@@ -281,7 +290,18 @@ namespace UltimateXR.Manipulation
         /// <returns>Whether the object is compatible with the anchor</returns>
         public bool IsCompatibleObject(UxrGrabbableObject grabbableObject)
         {
-            return grabbableObject != null && _placingValidators.All(v => v(grabbableObject)) && IsCompatibleObjectTag(grabbableObject.Tag);
+            bool allValid = true;
+
+            foreach (Func<UxrGrabbableObject, bool> validator in _placingValidators)
+            {
+                if (!validator(grabbableObject))
+                {
+                    allValid = false;
+                    break;
+                }
+            }
+
+            return grabbableObject != null && allValid && IsCompatibleObjectTag(grabbableObject.Tag);
         }
 
         #endregion
@@ -395,18 +415,36 @@ namespace UltimateXR.Manipulation
         #region Private Methods
 
         /// <summary>
+        ///     Ensures that the set of compatible tags is initialized. If the set has not been created yet,
+        ///     a new <see cref="HashSet{T}" /> instance will be created and populated with the existing compatible tags.
+        /// </summary>
+        /// <remarks>
+        ///     The compatible tag set allows for quick lookups of whether a given tag is compatible with the anchor, instead of
+        ///     relying on a list of tags.
+        /// </remarks>
+        private void CreateCompatibleTagSetIfNecessary()
+        {
+            if (_compatibleTagsSet == null)
+            {
+                _compatibleTagsSet = new HashSet<string>(_compatibleTags);
+            }
+        }
+
+        /// <summary>
         ///     Checking whether the given tag is compatible with the anchor.
         /// </summary>
         /// <param name="otherTag">Tag to check whether it is compatible</param>
         /// <returns>Whether the tag is compatible</returns>
         private bool IsCompatibleObjectTag(string otherTag)
         {
-            if (_compatibleTags == null || _compatibleTags.Count == 0)
+            CreateCompatibleTagSetIfNecessary();
+                
+            if (_compatibleTagsSet == null || _compatibleTagsSet.Count == 0)
             {
                 return string.IsNullOrEmpty(otherTag);
             }
 
-            return _compatibleTags.Contains(otherTag);
+            return _compatibleTagsSet.Contains(otherTag);
         }
 
         #endregion
@@ -414,6 +452,7 @@ namespace UltimateXR.Manipulation
         #region Private Types & Data
 
         private readonly List<Func<UxrGrabbableObject, bool>> _placingValidators = new List<Func<UxrGrabbableObject, bool>>();
+        private          HashSet<string>                      _compatibleTagsSet;
         private          UxrManipulationEventArgs             _smoothPlaceEventArgs;
         private          UxrGrabbableObject                   _currentPlacedObject;
 

@@ -25,7 +25,7 @@ namespace UltimateXR.Core.Threading
         /// <summary>
         ///     Gets whether the caller is running on the main thread.
         /// </summary>
-        public static bool IsCurrentThreadMain => !Application.isPlaying || s_mainThread == Thread.CurrentThread;
+        public static bool IsCurrentThreadMain => !ThreadSafePlayModeTracker.IsPlaying || s_mainThread == Thread.CurrentThread;
 
         #endregion
 
@@ -47,7 +47,7 @@ namespace UltimateXR.Core.Threading
         {
             action.ThrowIfNull(nameof(action));
 
-            if (!Application.isPlaying || Thread.CurrentThread == s_mainThread)
+            if (!ThreadSafePlayModeTracker.IsPlaying || Thread.CurrentThread == s_mainThread)
             {
                 action();
             }
@@ -72,7 +72,7 @@ namespace UltimateXR.Core.Threading
         /// </exception>
         public static void RunOnMainThread(params Action[] actions)
         {
-            if (!Application.isPlaying || Thread.CurrentThread == s_mainThread)
+            if (!ThreadSafePlayModeTracker.IsPlaying || Thread.CurrentThread == s_mainThread)
             {
                 foreach (Action action in actions)
                 {
@@ -112,7 +112,7 @@ namespace UltimateXR.Core.Threading
                 return Task.CompletedTask;
             }
 
-            if (Thread.CurrentThread == s_mainThread && !Application.isPlaying)
+            if (Thread.CurrentThread == s_mainThread && !ThreadSafePlayModeTracker.IsPlaying)
             {
                 action();
                 return Task.CompletedTask;
@@ -176,7 +176,7 @@ namespace UltimateXR.Core.Threading
         private static void Initialize()
         {
             s_mainThread = Thread.CurrentThread;
-            s_instance   = FindObjectOfType<UxrMonoDispatcher>();
+            s_instance   = FindFirstObjectByType<UxrMonoDispatcher>();
             if (!(s_instance is null))
             {
                 Debug.Log($"[{nameof(UxrMonoDispatcher)} singleton successfully found in scene.");

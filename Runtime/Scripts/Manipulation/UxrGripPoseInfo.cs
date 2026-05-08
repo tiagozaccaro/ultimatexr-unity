@@ -50,7 +50,27 @@ namespace UltimateXR.Manipulation
         public UxrHandPoseAsset HandPose
         {
             get => _handPose;
-            set => _handPose = value;
+            set
+            {
+                _handPose     = value;
+                _handPoseName = value?.name;
+            }
+        }
+
+        /// <summary>
+        ///     Gets the hand pose name. We use this for caching and avoid allocations.
+        /// </summary>
+        public string HandPoseName
+        {
+            get
+            {
+                if (_handPoseName == null)
+                {
+                    _handPoseName = _handPose?.name;
+                }
+                
+                return _handPoseName;
+            }
         }
 
         /// <summary>
@@ -103,5 +123,7 @@ namespace UltimateXR.Manipulation
         }
 
         #endregion
+
+        private string _handPoseName;
     }
 }

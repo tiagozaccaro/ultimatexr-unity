@@ -5,7 +5,6 @@
 // --------------------------------------------------------------------------------------------------------------------
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using UltimateXR.Core;
@@ -102,13 +101,11 @@ namespace UltimateXR.Extensions.Unity.Math
         /// <returns>Result vector</returns>
         public static Vector3 FillNanWith(this in Vector3 self, in Vector3 other)
         {
-            float[] result = new float[VectorLength];
-            for (int i = 0; i < VectorLength; ++i)
-            {
-                result[i] = float.IsNaN(self[i]) ? other[i] : self[i];
-            }
-
-            return result.ToVector3();
+            Vector3 result;
+            result.x = float.IsNaN(self.x) ? other.x : self.x;
+            result.y = float.IsNaN(self.y) ? other.y : self.y;
+            result.z = float.IsNaN(self.z) ? other.z : self.z;
+            return result;
         }
 
         /// <summary>
@@ -130,13 +127,13 @@ namespace UltimateXR.Extensions.Unity.Math
         /// <returns>Clamped vector</returns>
         public static Vector3 Clamp(this in Vector3 self, in Vector3 min, in Vector3 max)
         {
-            float[] result = new float[VectorLength];
-            for (int i = 0; i < VectorLength; ++i)
-            {
-                result[i] = Mathf.Clamp(self[i], min[i], max[i]);
-            }
+            Vector3 result;
+            
+            result.x = Mathf.Clamp(self.x, min.x, max.x);
+            result.y = Mathf.Clamp(self.y, min.y, max.y);
+            result.z = Mathf.Clamp(self.z, min.z, max.z);
 
-            return result.ToVector3();
+            return result;
         }
 
         /// <summary>
@@ -146,104 +143,232 @@ namespace UltimateXR.Extensions.Unity.Math
         /// <returns>Euler angles in the -180, 180 degrees range</returns>
         public static Vector3 ToEuler180(this in Vector3 self)
         {
-            float[] result = new float[VectorLength];
+            Vector3 result;
 
-            for (int i = 0; i < VectorLength; ++i)
-            {
-                result[i] = self[i].ToEuler180();
-            }
+            result.x = self.x.ToEuler180();
+            result.y = self.y.ToEuler180();
+            result.z = self.z.ToEuler180();
 
-            return result.ToVector3();
+            return result;
         }
 
         /// <summary>
         ///     Computes the average of a set of vectors.
         /// </summary>
-        /// <param name="vectors">Input vectors</param>
-        /// <returns>Vector with components averaged</returns>
-        public static Vector3 Average(params Vector3[] vectors)
+        /// <param name="vectors">Input vectors.</param>
+        /// <param name="defaultIfEmpty">The default value to return if the list is empty or null.</param>
+        /// <returns>
+        ///     A vector whose components are the average of the input vector components, or
+        ///     <paramref name="defaultIfEmpty" /> if the input is null or empty.
+        /// </returns>
+        public static Vector3 Average(Vector3[] vectors, Vector3 defaultIfEmpty = default)
         {
-            return new Vector3(vectors.Average(v => v.x),
-                               vectors.Average(v => v.y),
-                               vectors.Average(v => v.z));
+            if (vectors == null || vectors.Length == 0)
+            {
+                return defaultIfEmpty;
+            }
+
+            Vector3 sum = Vector3.zero;
+
+            for (int i = 0; i < vectors.Length; ++i)
+            {
+                sum += vectors[i];
+            }
+
+            return sum / vectors.Length;
         }
 
         /// <summary>
         ///     Computes the average of a set of vectors.
         /// </summary>
-        /// <param name="vectors">Input vectors</param>
-        /// <param name="defaultIfEmpty">The default value to return if the list is empty</param>
-        /// <returns>Vector with components averaged</returns>
-        public static Vector3 Average(IEnumerable<Vector3> vectors, Vector3 defaultIfEmpty = default)
+        /// <param name="vectors">Input vectors.</param>
+        /// <param name="defaultIfEmpty">The default value to return if the list is empty or null.</param>
+        /// <returns>
+        ///     A vector whose components are the average of the input vector components, or
+        ///     <paramref name="defaultIfEmpty" /> if the input is null or empty.
+        /// </returns>
+        public static Vector3 Average(IReadOnlyList<Vector3> vectors, Vector3 defaultIfEmpty = default)
         {
-            if (vectors == null || !vectors.Any())
+            if (vectors == null || vectors.Count == 0)
             {
                 return defaultIfEmpty;
             }
 
-            return new Vector3(vectors.Average(v => v.x),
-                               vectors.Average(v => v.y),
-                               vectors.Average(v => v.z));
+            Vector3 sum   = Vector3.zero;
+            int     count = vectors.Count;
+
+            for (int i = 0; i < count; ++i)
+            {
+                sum += vectors[i];
+            }
+
+            return sum / count;
         }
 
         /// <summary>
         ///     Computes the maximum values of a set of vectors.
         /// </summary>
-        /// <param name="vectors">Input vectors</param>
-        /// <returns>Vector with maximum component values</returns>
-        public static Vector3 Max(params Vector3[] vectors)
+        /// <param name="vectors">Input vectors.</param>
+        /// <param name="defaultIfEmpty">The default value to return if the list is empty or null.</param>
+        /// <returns>
+        ///     A vector whose components are the maximum component values found in the input vectors, or
+        ///     <paramref name="defaultIfEmpty" /> if the input is null or empty.
+        /// </returns>
+        public static Vector3 Max(Vector3[] vectors, Vector3 defaultIfEmpty = default)
         {
-            return new Vector3(vectors.Max(v => v.x),
-                               vectors.Max(v => v.y),
-                               vectors.Max(v => v.z));
+            if (vectors == null || vectors.Length == 0)
+            {
+                return defaultIfEmpty;
+            }
+
+            Vector3 max = vectors[0];
+
+            for (int i = 1; i < vectors.Length; ++i)
+            {
+                Vector3 v = vectors[i];
+
+                if (v.x > max.x)
+                {
+                    max.x = v.x;
+                }
+
+                if (v.y > max.y)
+                {
+                    max.y = v.y;
+                }
+
+                if (v.z > max.z)
+                {
+                    max.z = v.z;
+                }
+            }
+
+            return max;
         }
 
         /// <summary>
         ///     Computes the maximum values of a set of vectors.
         /// </summary>
-        /// <param name="vectors">Input vectors</param>
-        /// <param name="defaultIfEmpty">The default value to return if the list is empty</param>
-        /// <returns>Vector with maximum component values</returns>
-        public static Vector3 Max(IEnumerable<Vector3> vectors, Vector3 defaultIfEmpty = default)
+        /// <param name="vectors">Input vectors.</param>
+        /// <param name="defaultIfEmpty">The default value to return if the list is empty or null.</param>
+        /// <returns>
+        ///     A vector whose components are the maximum component values found in the input vectors, or
+        ///     <paramref name="defaultIfEmpty" /> if the input is null or empty.
+        /// </returns>
+        public static Vector3 Max(IReadOnlyList<Vector3> vectors, Vector3 defaultIfEmpty = default)
         {
-            if (vectors == null || !vectors.Any())
+            if (vectors == null || vectors.Count == 0)
             {
                 return defaultIfEmpty;
             }
 
-            return new Vector3(vectors.Max(v => v.x),
-                               vectors.Max(v => v.y),
-                               vectors.Max(v => v.z));
+            Vector3 max   = vectors[0];
+            int     count = vectors.Count;
+
+            for (int i = 1; i < count; ++i)
+            {
+                Vector3 v = vectors[i];
+
+                if (v.x > max.x)
+                {
+                    max.x = v.x;
+                }
+
+                if (v.y > max.y)
+                {
+                    max.y = v.y;
+                }
+
+                if (v.z > max.z)
+                {
+                    max.z = v.z;
+                }
+            }
+
+            return max;
         }
 
         /// <summary>
         ///     Computes the minimum values of a set of vectors.
         /// </summary>
-        /// <param name="vectors">Input vectors</param>
-        /// <returns>Vector with minimum component values</returns>
-        public static Vector3 Min(params Vector3[] vectors)
+        /// <param name="vectors">Input vectors.</param>
+        /// <param name="defaultIfEmpty">The default value to return if the list is empty or null.</param>
+        /// <returns>
+        ///     A vector whose components are the minimum component values found in the input vectors, or
+        ///     <paramref name="defaultIfEmpty" /> if the input is null or empty.
+        /// </returns>
+        public static Vector3 Min(Vector3[] vectors, Vector3 defaultIfEmpty = default)
         {
-            return new Vector3(vectors.Min(v => v.x),
-                               vectors.Min(v => v.y),
-                               vectors.Min(v => v.z));
+            if (vectors == null || vectors.Length == 0)
+            {
+                return defaultIfEmpty;
+            }
+
+            Vector3 min = vectors[0];
+
+            for (int i = 1; i < vectors.Length; ++i)
+            {
+                Vector3 v = vectors[i];
+
+                if (v.x < min.x)
+                {
+                    min.x = v.x;
+                }
+
+                if (v.y < min.y)
+                {
+                    min.y = v.y;
+                }
+
+                if (v.z < min.z)
+                {
+                    min.z = v.z;
+                }
+            }
+
+            return min;
         }
 
         /// <summary>
         ///     Computes the minimum values of a set of vectors.
         /// </summary>
-        /// <param name="vectors">Input vectors</param>
-        /// <param name="defaultIfEmpty">The default value to return if the list is empty</param>
-        /// <returns>Vector with minimum component values</returns>
-        public static Vector3 Min(IEnumerable<Vector3> vectors, Vector3 defaultIfEmpty = default)
+        /// <param name="vectors">Input vectors.</param>
+        /// <param name="defaultIfEmpty">The default value to return if the list is empty or null.</param>
+        /// <returns>
+        ///     A vector whose components are the minimum component values found in the input vectors, or
+        ///     <paramref name="defaultIfEmpty" /> if the input is null or empty.
+        /// </returns>
+        public static Vector3 Min(IReadOnlyList<Vector3> vectors, Vector3 defaultIfEmpty = default)
         {
-            if (vectors == null || !vectors.Any())
+            if (vectors == null || vectors.Count == 0)
             {
                 return defaultIfEmpty;
             }
 
-            return new Vector3(vectors.Min(v => v.x),
-                               vectors.Min(v => v.y),
-                               vectors.Min(v => v.z));
+            Vector3 min   = vectors[0];
+            int     count = vectors.Count;
+
+            for (int i = 1; i < count; ++i)
+            {
+                Vector3 v = vectors[i];
+
+                if (v.x < min.x)
+                {
+                    min.x = v.x;
+                }
+
+                if (v.y < min.y)
+                {
+                    min.y = v.y;
+                }
+
+                if (v.z < min.z)
+                {
+                    min.z = v.z;
+                }
+            }
+
+            return min;
         }
 
         /// <summary>
@@ -314,10 +439,10 @@ namespace UltimateXR.Extensions.Unity.Math
         {
             return data.Length switch
                    {
-                               0 => NaN,
-                               1 => new Vector3(data[0], float.NaN, float.NaN),
-                               2 => new Vector3(data[0], data[1],   float.NaN),
-                               _ => new Vector3(data[0], data[1],   data[2])
+                       0 => NaN,
+                       1 => new Vector3(data[0], float.NaN, float.NaN),
+                       2 => new Vector3(data[0], data[1],   float.NaN),
+                       _ => new Vector3(data[0], data[1],   data[2])
                    };
         }
 
@@ -355,21 +480,24 @@ namespace UltimateXR.Extensions.Unity.Math
             s = s.TrimEnd(' ', ')', ']');
 
             // split the items
-            string[] sArray = s.Split(s_cardinalSeparator, VectorLength);
+            string[] sArray = s.Split(s_cardinalSeparator, 3);
 
             // store as an array
-            float[] result = new float[VectorLength];
+            Vector3 result;
+            result.x = 0.0f;
+            result.y = 0.0f;
+            result.z = 0.0f;
             for (int i = 0; i < sArray.Length; ++i)
             {
                 result[i] = float.TryParse(sArray[i],
                                            NumberStyles.Float,
                                            CultureInfo.InvariantCulture.NumberFormat,
                                            out float f)
-                                        ? f
-                                        : float.NaN;
+                                ? f
+                                : float.NaN;
             }
 
-            return result.ToVector3();
+            return result;
         }
 
         /// <summary>
@@ -412,12 +540,12 @@ namespace UltimateXR.Extensions.Unity.Math
         /// <returns>Perpendicular vector in 3D space</returns>
         public static Vector3 GetPerpendicularVector(this Vector3 vector)
         {
-            if (Mathf.Approximately(vector.x, 0.0f) == false)
+            if (!Mathf.Approximately(vector.x, 0.0f))
             {
                 return new Vector3(-vector.y, vector.x, 0.0f);
             }
 
-            if (Mathf.Approximately(vector.y, 0.0f) == false)
+            if (!Mathf.Approximately(vector.y, 0.0f))
             {
                 return new Vector3(0.0f, -vector.z, vector.y);
             }
@@ -459,7 +587,7 @@ namespace UltimateXR.Extensions.Unity.Math
         public static float DistanceToSegment(this Vector3 point, Vector3 segmentA, Vector3 segmentB)
         {
             Vector3 ab = segmentB - segmentA;
-            Vector3 av = point - segmentA;
+            Vector3 av = point    - segmentA;
 
             if (Vector3.Dot(av, ab) <= 0.0f)
             {
@@ -486,7 +614,7 @@ namespace UltimateXR.Extensions.Unity.Math
         public static Vector3 ProjectOnSegment(this Vector3 point, Vector3 segmentA, Vector3 segmentB)
         {
             Vector3 ab = segmentB - segmentA;
-            Vector3 av = point - segmentA;
+            Vector3 av = point    - segmentA;
 
             if (Vector3.Dot(av, ab) <= 0.0f)
             {
@@ -714,7 +842,6 @@ namespace UltimateXR.Extensions.Unity.Math
 
         #region Private Types & Data
 
-        private const int    VectorLength      = 3;
         private const string CardinalSeparator = ",";
 
         private static readonly char[]  s_cardinalSeparator = CardinalSeparator.ToCharArray();

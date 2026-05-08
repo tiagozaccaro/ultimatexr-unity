@@ -33,23 +33,13 @@ namespace UltimateXR.Devices.Integrations.MagicLeap
         public override bool HasControllerElements(UxrHandSide handSide, UxrControllerElements controllerElements)
         {
             uint validElements = (uint)(UxrControllerElements.Joystick |
-                                        UxrControllerElements.Trigger |
-                                        UxrControllerElements.Grip |
-                                        UxrControllerElements.Bumper |
-                                        UxrControllerElements.Menu |
+                                        UxrControllerElements.Trigger  |
+                                        UxrControllerElements.Grip     |
+                                        UxrControllerElements.Bumper   |
+                                        UxrControllerElements.Menu     |
                                         UxrControllerElements.DPad);
 
             return (validElements & (uint)controllerElements) == (uint)controllerElements;
-        }
-
-        #endregion
-
-        #region Public Overrides UxrUnityXRControllerInput
-
-        /// <inheritdoc />
-        public override IEnumerable<string> ControllerNames
-        {
-            get { yield return "MagicLeap Controller"; }
         }
 
         #endregion
@@ -61,7 +51,7 @@ namespace UltimateXR.Devices.Integrations.MagicLeap
         {
             base.OnDeviceConnected(e);
 
-#if ULTIMATEXR_USE_MAGICLEAP_SDK            
+#if ULTIMATEXR_USE_MAGICLEAP_SDK
             if (e.IsConnected)
             {
                 _mlInputs = new MagicLeapInputs();
@@ -83,11 +73,17 @@ namespace UltimateXR.Devices.Integrations.MagicLeap
         #region Protected Overrides UxrUnityXRControllerInput
 
         /// <inheritdoc />
+        protected override IEnumerable<string> ControllerNames
+        {
+            get { yield return "MagicLeap Controller"; }
+        }
+
+        /// <inheritdoc />
         protected override void UpdateInput()
         {
             base.UpdateInput();
 
-            // Propagate touchpad touch to press, since only touch is signaled by the API
+            // Propagate touchpad touch to press, since the API signals only touch
             SetButtonFlags(ButtonFlags.PressFlagsLeft,  UxrInputButtons.Joystick, GetButtonsTouch(UxrHandSide.Left,  UxrInputButtons.Joystick));
             SetButtonFlags(ButtonFlags.PressFlagsRight, UxrInputButtons.Joystick, GetButtonsTouch(UxrHandSide.Right, UxrInputButtons.Joystick));
         }
@@ -109,7 +105,7 @@ namespace UltimateXR.Devices.Integrations.MagicLeap
                 return _mlInputs.Controller.Bumper.IsPressed();
             }
 #endif
-            
+
             return false;
         }
 

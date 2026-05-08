@@ -329,7 +329,14 @@ namespace UltimateXR.Manipulation
         /// <returns>Grip pose info or null if it wasn't found</returns>
         public UxrGripPoseInfo GetGripPoseInfo(string prefabGuid)
         {
-            return _avatarGripPoseEntries.FirstOrDefault(i => i.AvatarPrefabGuid == prefabGuid);
+            foreach (UxrGripPoseInfo i in _avatarGripPoseEntries)
+            {
+                if (i.AvatarPrefabGuid == prefabGuid)
+                {
+                    return i;
+                }
+            }
+            return null;
         }
 
         /// <summary>
@@ -347,8 +354,13 @@ namespace UltimateXR.Manipulation
         /// </returns>
         public UxrGripPoseInfo GetGripPoseInfo(UxrAvatar avatar, bool usePrefabInheritance = true)
         {
-            foreach (string avatarPrefabGuid in avatar.GetPrefabGuidChain())
+            // Iterate without allocations
+            
+            IReadOnlyList<string> list = avatar.GetPrefabGuidChainNoAlloc();
+
+            for (int i = 0; i < list.Count; i++)
             {
+                string avatarPrefabGuid = list[i];
                 foreach (UxrGripPoseInfo gripPoseInfo in _avatarGripPoseEntries)
                 {
                     if (gripPoseInfo.AvatarPrefabGuid == avatarPrefabGuid)
@@ -374,8 +386,13 @@ namespace UltimateXR.Manipulation
         /// <returns>List of <see cref="UxrGripPoseInfo" /> that are potentially compatible with the given avatar</returns>
         public IEnumerable<UxrGripPoseInfo> GetCompatibleGripPoseInfos(UxrAvatar avatar, bool usePrefabInheritance = true)
         {
-            foreach (string avatarPrefabGuid in avatar.GetPrefabGuidChain())
+            // Iterate without allocations
+            
+            IReadOnlyList<string> list = avatar.GetPrefabGuidChainNoAlloc();
+            
+            for (int i = 0; i < list.Count; i++)
             {
+                string avatarPrefabGuid = list[i];
                 foreach (UxrGripPoseInfo gripPoseInfo in _avatarGripPoseEntries)
                 {
                     if (gripPoseInfo.AvatarPrefabGuid == avatarPrefabGuid)

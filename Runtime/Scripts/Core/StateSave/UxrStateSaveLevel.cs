@@ -16,9 +16,8 @@ namespace UltimateXR.Core.StateSave
         None = 0,
 
         /// <summary>
-        ///     Save a snapshot with only the changes since the previous save using <see cref="ChangesSincePreviousSave" />,
-        ///     <see cref="ChangesSinceBeginning" /> or <see cref="Complete" />.
-        ///     This can be used in replay systems to save incremental changes only.
+        ///     Save a snapshot containing only the changes since the previous save using any level.
+        ///     Used mainly for time-sampling. Records deltas between consecutive state samples.
         /// </summary>
         ChangesSincePreviousSave,
 
@@ -27,8 +26,8 @@ namespace UltimateXR.Core.StateSave
         ///     first frame is used because it represents the initial state of the scene when it's loaded, including logic that
         ///     might be executed during Awake() or Start().
         ///     This can be used to save space/bandwidth by avoiding sending redundant information.
-        ///     It can be utilized in a networking environment to send an up-to-date scene state to new users upon joining.
-        ///     Additionally, it can be employed in replay systems to save a keyframe.
+        ///     It can be used in a networking environment to send an up-to-date scene state to new users upon joining.
+        ///     Additionally, it can be used in replay systems to save a keyframe.
         /// </summary>
         ChangesSinceBeginning,
 

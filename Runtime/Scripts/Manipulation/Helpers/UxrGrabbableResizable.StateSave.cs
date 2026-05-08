@@ -12,18 +12,29 @@ namespace UltimateXR.Manipulation.Helpers
         #region Protected Overrides UxrComponent
 
         /// <inheritdoc />
-        protected override void SerializeState(bool isReading, int stateSerializationVersion, UxrStateSaveLevel level, UxrStateSaveOptions options)
+        protected override void SerializeState(bool isReading, UxrStateSaveLevel level, UxrStateSaveOptions options)
         {
-            base.SerializeState(isReading, stateSerializationVersion, level, options);
+            base.SerializeState(isReading, level, options);
 
-            // Manipulations are already handled through events, we don't serialize them in incremental changes
+            // Version
 
-            if (level > UxrStateSaveLevel.ChangesSincePreviousSave)
+            SerializeStateVersion(level, options, StateSerializationVersion, out int effectiveVersion);
+
+            if (level <= UxrStateSaveLevel.ChangesSincePreviousSave)
             {
-                SerializeStateValue(level, options, nameof(_grabbingCount), ref _grabbingCount);
-                SerializeStateValue(level, options, nameof(_grabbedCount),  ref _grabbedCount);
+                // Process all save levels above time sampling. Time sampling is not needed and covered by event synchronization.
+                return;
             }
+
+            SerializeStateValue(level, options, nameof(_grabbingCount), ref _grabbingCount);
+            SerializeStateValue(level, options, nameof(_grabbedCount),  ref _grabbedCount);
         }
+
+        #endregion
+
+        #region Private Types & Data
+
+        private const int StateSerializationVersion = 0;
 
         #endregion
     }

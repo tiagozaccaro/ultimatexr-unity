@@ -26,7 +26,7 @@ namespace UltimateXR.Extensions.System
                 {
                     throw new Exception("Guid cannot be empty");
                 }
-                
+
                 throw new Exception($"Guid is empty for parameter {paramName}");
             }
         }
@@ -56,6 +56,36 @@ namespace UltimateXR.Extensions.System
             Buffer.BlockCopy(hashBytes, 0, guidBytes, 0, guidBytes.Length);
 
             return new Guid(guidBytes);
+        }
+
+        /// <summary>
+        ///     Maps this <see cref="Guid" /> to a deterministic integer in the range [minInclusive, maxExclusive).
+        /// </summary>
+        /// <param name="id">The source GUID.</param>
+        /// <param name="minInclusive">Lower bound (inclusive).</param>
+        /// <param name="maxExclusive">Upper bound (exclusive).</param>
+        /// <returns>
+        ///     A deterministic value in the range [minInclusive, maxExclusive).
+        /// </returns>
+        /// <exception cref="ArgumentException">
+        ///     Thrown when <paramref name="maxExclusive" /> is less than or equal to
+        ///     <paramref name="minInclusive" />.
+        /// </exception>
+        public static int ToDeterministicIndex(this Guid id,
+                                               int       minInclusive,
+                                               int       maxExclusive)
+        {
+            if (maxExclusive <= minInclusive)
+            {
+                throw new ArgumentException("maxExclusive must be greater than minInclusive.");
+            }
+
+            int          range = maxExclusive - minInclusive;
+            using SHA256 sha   = SHA256.Create();
+            byte[]       hash  = sha.ComputeHash(id.ToByteArray());
+            ulong        value = BitConverter.ToUInt64(hash, 0);
+
+            return minInclusive + (int)(value % (ulong)range);
         }
 
         #endregion

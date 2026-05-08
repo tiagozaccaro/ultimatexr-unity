@@ -135,7 +135,11 @@ namespace UltimateXR.Core.Components.Singleton
                     Debug.LogWarning($"{UxrConstants.CoreModule} {typeof(T).Name} singleton already added. Destroying second instance @ {value.gameObject}", value);
                 }
 
-                Destroy(value);
+                if (value.gameObject != null)
+                {
+                    Destroy(value.gameObject);
+                }
+
                 return false;
             }
 
@@ -195,7 +199,7 @@ namespace UltimateXR.Core.Components.Singleton
         /// <returns></returns>
         private static bool TryFindInstance()
         {
-            return TrySetInstance(FindObjectOfType<T>());
+            return TrySetInstance(FindFirstObjectByType<T>());
         }
 
         /// <summary>

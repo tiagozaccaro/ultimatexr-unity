@@ -65,12 +65,16 @@ namespace UltimateXR.Core.Components
         ///     to <see cref="GameObject.GetComponentsInChildren{T}(bool)" /> or
         ///     <see cref="UnityEngine.Object.FindObjectsOfType{T}(bool)" />.
         /// </remarks>
-        public new static IEnumerable<T> AllComponents => s_typeComponents;
+        public new static IReadOnlyList<T> AllComponents => s_typeComponents;
 
         /// <summary>
         ///     Gets all components of this specific type that are enabled, in all open scenes.
         /// </summary>
-        public new static IEnumerable<T> EnabledComponents => s_typeComponents.Where(c => c.isActiveAndEnabled);
+        /// <remarks>
+        ///     This property requires memory allocation. For no allocation, use <see cref="AllComponents"/>
+        ///     in a for and filter using <see cref="Behaviour.isActiveAndEnabled"/>.
+        /// </remarks>
+        public new static IEnumerable<T> EnabledComponents => s_typeComponents.Where(c => c != null && c.isActiveAndEnabled);
 
         #endregion
 

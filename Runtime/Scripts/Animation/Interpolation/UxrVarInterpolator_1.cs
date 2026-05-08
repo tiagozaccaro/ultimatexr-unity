@@ -35,7 +35,7 @@ namespace UltimateXR.Animation.Interpolation
             {
                 return a;
             }
-            
+
             if (a is not T ta)
             {
                 return default(T);
@@ -47,6 +47,48 @@ namespace UltimateXR.Animation.Interpolation
             }
 
             return Interpolate(ta, tb, t);
+        }
+
+        /// <inheritdoc />
+        public override object SetTarget(object a, object b, float t)
+        {
+            if (UseStep)
+            {
+                return a;
+            }
+
+            if (a is not T ta)
+            {
+                return default(T);
+            }
+
+            if (b is not T tb)
+            {
+                return default(T);
+            }
+
+            return SetTarget(ta, tb, t);
+        }
+
+        /// <inheritdoc />
+        public override object ApplySmoothDampPostProcess(float deltaTime)
+        {
+            if (!_hasTarget)
+            {
+                return _lastValue;
+            }
+
+            if (RequiresSmoothDampRestart || SmoothDamp <= 0.0f)
+            {
+                _lastValue = _targetValue;
+                ClearSmoothDampRestart();
+            }
+            else
+            {
+                _lastValue = GetInterpolatedValue(_lastValue, _targetValue, UxrInterpolator.GetSmoothInterpolationValue(SmoothDamp, deltaTime));
+            }
+
+            return _lastValue;
         }
 
         #endregion
@@ -61,7 +103,7 @@ namespace UltimateXR.Animation.Interpolation
         /// <param name="t">Interpolation factor [0.0, 1.0]</param>
         /// <returns>Interpolated value</returns>
         /// <remarks>
-        ///     The interpolated value will be affected by smoothing if the object was initialized with a smoothDamp value
+        ///     Smoothing will affect the interpolated value if the object was initialized with a smoothDamp value
         ///     greater than 0
         /// </remarks>
         public T Interpolate(T a, T b, float t)
@@ -77,6 +119,21 @@ namespace UltimateXR.Animation.Interpolation
 
             _lastValue = result;
             return result;
+        }
+
+        /// <summary>
+        ///     Step 1 of two-step interpolation: Computes the raw interpolation target from frame data
+        ///     without applying smooth damp. The result is stored internally as the current target.
+        /// </summary>
+        /// <param name="a">Start value</param>
+        /// <param name="b">End value</param>
+        /// <param name="t">Interpolation factor [0.0, 1.0]</param>
+        /// <returns>The raw interpolated target value (no smooth damp applied)</returns>
+        public T SetTarget(T a, T b, float t)
+        {
+            _targetValue = GetInterpolatedValue(a, b, t);
+            _hasTarget   = true;
+            return _targetValue;
         }
 
         #endregion
@@ -96,7 +153,9 @@ namespace UltimateXR.Animation.Interpolation
 
         #region Private Types & Data
 
-        private T _lastValue;
+        private T    _lastValue;
+        private T    _targetValue;
+        private bool _hasTarget;
 
         #endregion
     }

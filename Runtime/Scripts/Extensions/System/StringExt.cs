@@ -9,6 +9,8 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using UnityEngine;
+using UnityEngine.UI;
 using Random = UnityEngine.Random;
 
 namespace UltimateXR.Extensions.System
@@ -224,6 +226,81 @@ namespace UltimateXR.Extensions.System
             {
                 throw new ArgumentException("Empty string is not allowed", paramName);
             }
+        }
+
+        /// <summary>
+        ///     Assigns a string value to a Unity UI Text component on the specified GameObject.
+        ///     Automatically detects and assigns to either legacy Unity UI Text components or
+        ///     TextMeshPro UGUI components, providing compatibility across different text rendering systems.
+        /// </summary>
+        /// <param name="self">The string value to assign to the text component</param>
+        /// <param name="textObject">
+        ///     The GameObject containing either a Text component (legacy Unity UI) or a
+        ///     TextMeshProUGUI component (TextMeshPro). The method will check for both types
+        ///     and assign the string to whichever component is found.
+        /// </param>
+        /// <param name="useGetComponentInChildren">
+        ///     Whether to try to get the component using GetComponentInChildren. It uses
+        ///     GetComponent by default.
+        /// </param>
+        public static void AssignToTextUiComponent(this string self, GameObject textObject, bool useGetComponentInChildren = false)
+        {
+            Text textComponent = useGetComponentInChildren ? textObject.GetComponentInChildren<Text>(true) : textObject.GetComponent<Text>();
+
+            if (textComponent != null)
+            {
+                textComponent.text = self;
+                return;
+            }
+
+#if ULTIMATEXR_UNITY_TMPRO
+
+            TMPro.TextMeshProUGUI tmproComponent = useGetComponentInChildren ? textObject.GetComponentInChildren<TMPro.TextMeshProUGUI>(true) : textObject.GetComponent<TMPro.TextMeshProUGUI>();
+
+            if (tmproComponent != null)
+            {
+                tmproComponent.text = self;
+            }
+#endif
+        }
+
+        /// <summary>
+        ///     Retrieves the text string from a Unity UI Text component on the specified GameObject.
+        ///     Automatically detects and retrieves text from either legacy Unity UI Text components or
+        ///     TextMeshPro UGUI components, providing compatibility across different text rendering systems.
+        /// </summary>
+        /// <param name="textObject">
+        ///     The GameObject containing either a Text component (legacy Unity UI) or a
+        ///     TextMeshProUGUI component (TextMeshPro). The method will check for both types
+        ///     and return the text from whichever component is found.
+        /// </param>
+        /// <param name="useGetComponentInChildren">
+        ///     Whether to try to get the component using GetComponentInChildren. It uses
+        ///     GetComponent by default.
+        /// </param>
+        /// <returns>
+        ///     The text string from the UI component if found, or null if neither a Text component
+        ///     nor a TextMeshProUGUI component exists on the GameObject.
+        /// </returns>
+        public static string GetFromTextUiComponent(GameObject textObject, bool useGetComponentInChildren = false)
+        {
+            Text textComponent = useGetComponentInChildren ? textObject.GetComponentInChildren<Text>(true) : textObject.GetComponent<Text>();
+
+            if (textComponent != null)
+            {
+                return textComponent.text;
+            }
+
+#if ULTIMATEXR_UNITY_TMPRO
+
+            TMPro.TextMeshProUGUI tmproComponent = useGetComponentInChildren ? textObject.GetComponentInChildren<TMPro.TextMeshProUGUI>(true) : textObject.GetComponent<TMPro.TextMeshProUGUI>();
+
+            if (tmproComponent != null)
+            {
+                return tmproComponent.text;
+            }
+#endif
+            return null;
         }
 
         #endregion

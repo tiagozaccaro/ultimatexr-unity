@@ -97,7 +97,7 @@ namespace UltimateXR.Animation.UI
         /// </summary>
         /// <param name="graphic">Target graphic</param>
         /// <param name="blinksPerSecond">Number of blinks per second</param>
-        /// <param name="durationSeconds">Total duration of the animation in seconds</param>
+        /// <param name="durationSeconds">Total duration of the animation in seconds. If it is -1, the animation loops infinitely.</param>
         /// <param name="restoreWhenFinished">Whether to restore the original color after the animation finished</param>
         /// <param name="finishedCallback">Optional callback when the animation finished</param>
         /// <param name="delaySeconds"></param>

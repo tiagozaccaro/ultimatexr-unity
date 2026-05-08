@@ -32,6 +32,49 @@ namespace UltimateXR.Mechanics.CyborgAvatar
         #region Unity
 
         /// <summary>
+        ///     Initializes the component.
+        /// </summary>
+        protected override void Awake()
+        {
+            base.Awake();
+
+            _positions = new []
+            {
+                new Vector3(0.0f, 0.0f, 0.0f),
+                new Vector3(0.0f, 0.0f, 0.0f),
+                new Vector3(0.0f, 0.0f, 0.0f),
+                new Vector3(0.0f, 0.0f, 0.0f),
+                new Vector3(0.0f, 0.0f, 0.0f),
+                new Vector3(0.0f, 0.0f, 0.0f)
+            };
+            
+            _colorGradient = new Gradient();
+
+            _colorKeys = new[]
+                         {
+                             new GradientColorKey(Color.white, 0.0f),
+                             new GradientColorKey(Color.white, _gradientPosStart1),
+                             new GradientColorKey(Color.white, _gradientPosStart2),
+                             new GradientColorKey(Color.white, _gradientPosEnd1),
+                             new GradientColorKey(Color.white, _gradientPosEnd2),
+                             new GradientColorKey(Color.white, 1.0f)
+                         };
+
+            _alphaKeys = new[]
+                         {
+                             new GradientAlphaKey(0.0f, 0.0f),
+                             new GradientAlphaKey(0.0f, _gradientPosStart1),
+                             new GradientAlphaKey(1.0f, _gradientPosStart2),
+                             new GradientAlphaKey(1.0f, _gradientPosEnd1),
+                             new GradientAlphaKey(0.0f, _gradientPosEnd2),
+                             new GradientAlphaKey(0.0f, 1.0f)
+                         };
+            
+            _colorGradient.colorKeys = _colorKeys;
+            _colorGradient.alphaKeys = _alphaKeys;
+        }
+
+        /// <summary>
         ///     Subscribes to avatar update event.
         /// </summary>
         protected override void OnEnable()
@@ -128,26 +171,22 @@ namespace UltimateXR.Mechanics.CyborgAvatar
 
                 float rayLength = Vector3.Distance(src, dst) / ray.LineRenderer.transform.lossyScale.z;
 
-                Vector3[] positions =
-                {
-                            new Vector3(0.0f, 0.0f, 0.0f),
-                            new Vector3(0.0f, 0.0f, rayLength * _gradientPosStart1),
-                            new Vector3(0.0f, 0.0f, rayLength * _gradientPosStart2),
-                            new Vector3(0.0f, 0.0f, rayLength * _gradientPosEnd1),
-                            new Vector3(0.0f, 0.0f, rayLength * _gradientPosEnd2),
-                            new Vector3(0.0f, 0.0f, rayLength)
-                };
+                _positions[1].z = rayLength * _gradientPosStart1;
+                _positions[2].z = rayLength * _gradientPosStart2;
+                _positions[3].z = rayLength * _gradientPosEnd1;
+                _positions[4].z = rayLength * _gradientPosEnd2;
+                _positions[5].z = rayLength;
 
                 Vector3 offset = (ray.GameObject.transform.right * ray.OffsetXY.x + ray.GameObject.transform.up * ray.OffsetXY.y).normalized * ray.Offset;
 
-                for (int pos = 0; pos < positions.Length; ++pos)
+                for (int pos = 0; pos < _positions.Length; ++pos)
                 {
-                    positions[pos] = ray.LineRenderer.transform.InverseTransformPoint(ray.GameObject.transform.TransformPoint(positions[pos]) + offset);
+                    _positions[pos] = ray.LineRenderer.transform.InverseTransformPoint(ray.GameObject.transform.TransformPoint(_positions[pos]) + offset);
                 }
 
                 ray.LineRenderer.useWorldSpace = false;
                 ray.LineRenderer.positionCount = 6;
-                ray.LineRenderer.SetPositions(positions);
+                ray.LineRenderer.SetPositions(_positions);
                 ray.LineRenderer.startWidth     = ray.Thickness;
                 ray.LineRenderer.endWidth       = ray.Thickness;
                 ray.LineRenderer.material.color = ray.Color;
@@ -157,29 +196,24 @@ namespace UltimateXR.Mechanics.CyborgAvatar
                     ray.LineRenderer.material.mainTextureScale = new Vector2(rayLength / ray.Thickness / (ray.LineRenderer.material.mainTexture.width / (float)ray.LineRenderer.material.mainTexture.height), 1.0f);
                 }
 
-                Gradient colorGradient = new Gradient();
+                _colorKeys[0].color.a = 0.0f;
+                _colorKeys[1].color.a = _gradientPosStart1;
+                _colorKeys[2].color.a = _gradientPosStart2;
+                _colorKeys[3].color.a = _gradientPosEnd1;
+                _colorKeys[4].color.a = _gradientPosEnd2;
+                _colorKeys[5].color.a = 1.0f;
 
-                colorGradient.colorKeys = new[]
-                                          {
-                                                      new GradientColorKey(Color.white, 0.0f),
-                                                      new GradientColorKey(Color.white, _gradientPosStart1),
-                                                      new GradientColorKey(Color.white, _gradientPosStart2),
-                                                      new GradientColorKey(Color.white, _gradientPosEnd1),
-                                                      new GradientColorKey(Color.white, _gradientPosEnd2),
-                                                      new GradientColorKey(Color.white, 1.0f)
-                                          };
+                _alphaKeys[0].time = 0.0f;
+                _alphaKeys[1].time = _gradientPosStart1;
+                _alphaKeys[2].time = _gradientPosStart2;
+                _alphaKeys[3].time = _gradientPosEnd1;
+                _alphaKeys[4].time = _gradientPosEnd2;
+                _alphaKeys[5].time = 1.0f;
 
-                colorGradient.alphaKeys = new[]
-                                          {
-                                                      new GradientAlphaKey(0.0f, 0.0f),
-                                                      new GradientAlphaKey(0.0f, _gradientPosStart1),
-                                                      new GradientAlphaKey(1.0f, _gradientPosStart2),
-                                                      new GradientAlphaKey(1.0f, _gradientPosEnd1),
-                                                      new GradientAlphaKey(0.0f, _gradientPosEnd2),
-                                                      new GradientAlphaKey(0.0f, 1.0f)
-                                          };
+                _colorGradient.colorKeys = _colorKeys;
+                _colorGradient.alphaKeys = _alphaKeys;
 
-                ray.LineRenderer.colorGradient = colorGradient;
+                ray.LineRenderer.colorGradient = _colorGradient;
             }
         }
 
@@ -187,7 +221,12 @@ namespace UltimateXR.Mechanics.CyborgAvatar
 
         #region Private Types & Data
 
-        private readonly string DistortTimeStartVarName = "_DistortTimeStart";
+        private const string DistortTimeStartVarName = "_DistortTimeStart";
+
+        private Vector3[]          _positions     = new Vector3[6];
+        private Gradient           _colorGradient = new Gradient();
+        private GradientColorKey[] _colorKeys     = new GradientColorKey[6];
+        private GradientAlphaKey[] _alphaKeys     = new GradientAlphaKey[6];
 
         #endregion
     }

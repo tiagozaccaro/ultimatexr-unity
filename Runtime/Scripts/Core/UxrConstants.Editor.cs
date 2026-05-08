@@ -16,6 +16,8 @@ namespace UltimateXR.Core
         {
             #region Public Types & Data
 
+            public const int DefaultButtonWidth = 200;
+
             public const string Yes     = "Yes";
             public const string No      = "No";
             public const string Ok      = "OK";

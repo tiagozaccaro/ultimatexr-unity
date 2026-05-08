@@ -15,7 +15,7 @@ namespace UltimateXR.Core.Math
     ///     See the UxrAxisPropertyDrawer editor class for the integration with Unity Editor.
     /// </summary>
     [Serializable]
-    public class UxrAxis : IEquatable<UxrAxis>
+    public struct UxrAxis : IEquatable<UxrAxis>
     {
         #region Inspector Properties/Serialized Fields
 
@@ -38,6 +38,16 @@ namespace UltimateXR.Core.Math
         ///     Returns the other perpendicular axis.
         /// </summary>
         public UxrAxis OtherPerpendicular => (_axis + 2) % 3;
+
+        /// <summary>
+        ///     Returns a perpendicular axis as int.
+        /// </summary>
+        public int PerpendicularAsInt => (_axis + 1) % 3;
+
+        /// <summary>
+        ///     Returns the other perpendicular axis as int.
+        /// </summary>
+        public int OtherPerpendicularAsInt => (_axis + 2) % 3;
 
         #endregion
 
@@ -70,15 +80,6 @@ namespace UltimateXR.Core.Math
         /// <inheritdoc />
         public bool Equals(UxrAxis other)
         {
-            if (ReferenceEquals(null, other))
-            {
-                return false;
-            }
-            if (ReferenceEquals(this, other))
-            {
-                return true;
-            }
-            
             return _axis == other._axis;
         }
 
@@ -100,7 +101,7 @@ namespace UltimateXR.Core.Math
         /// <inheritdoc />
         public override bool Equals(object obj)
         {
-            return Equals(obj as UxrAxis);
+            return Equals(obj is UxrAxis axis ? axis : default);
         }
 
         /// <inheritdoc />
@@ -204,16 +205,6 @@ namespace UltimateXR.Core.Math
         /// <returns>Whether the two operands are equal</returns>
         public static bool operator ==(UxrAxis a, UxrAxis b)
         {
-            if (ReferenceEquals(a, null) && ReferenceEquals(b, null))
-            {
-                return true;
-            }
-
-            if (ReferenceEquals(a, null) || ReferenceEquals(b, null))
-            {
-                return false;
-            }
-
             return a.Equals(b);
         }
 

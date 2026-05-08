@@ -6,7 +6,6 @@
 using UltimateXR.Avatar;
 using UltimateXR.Core.Components;
 using UltimateXR.Devices;
-using UltimateXR.Extensions.Unity;
 using UltimateXR.Extensions.Unity.Math;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -25,7 +24,7 @@ namespace UltimateXR.Rendering.FX
     ///             If the Glass Axes transform is not set, it will use the transform on the component's GameObject.
     ///         </item>
     ///         <item>
-    ///             The magnifying glass normal is determined by the -forward axis, so the user will look through the glass
+    ///             The negative forward axis determines the magnifying glass normal, so the user will look through the glass
     ///             pointing in the forward axis direction.
     ///         </item>
     ///         <item>
@@ -128,6 +127,11 @@ namespace UltimateXR.Rendering.FX
                 return;
             }
 
+            if (!_glassAxes)
+            {
+                _glassAxes = transform;
+            }
+
             // Avoid recursive rendering
 
             if (s_insideRendering)
@@ -137,69 +141,75 @@ namespace UltimateXR.Rendering.FX
 
             s_insideRendering = true;
 
-            CreateResources(renderCamera, out Camera refractionCamera);
-
-            if (!_refractionCamera)
-            {
-                return;
-            }
-
-            // Lower quality for refraction
-
             int oldPixelLightCount = QualitySettings.pixelLightCount;
-            if (_disablePixelLights)
+
+            try
             {
-                QualitySettings.pixelLightCount = 0;
-            }
+                CreateResources(renderCamera, out Camera refractionCamera);
 
-            CopyCameraData(renderCamera, refractionCamera);
-
-            // Update parameters
-
-            refractionCamera.cullingMask = ~(1 << 4) & _layers.value;
-
-            if (TryGetComponent<Renderer>(out var theRenderer))
-            {
-                foreach (Material m in theRenderer.sharedMaterials)
+                if (!refractionCamera)
                 {
-                    if (m.HasProperty(VarRenderTexLeft))
-                    {
-                        m.SetTexture(VarRenderTexLeft, _renderTextureLeft);
-                    }
+                    return;
+                }
 
-                    if (m.HasProperty(VarRenderTexRight))
-                    {
-                        m.SetTexture(VarRenderTexRight, _renderTextureRight);
-                    }
+                // Lower quality for refraction
 
-                    if (m.HasProperty(VarGlassScreenCenter))
+                if (_disablePixelLights)
+                {
+                    QualitySettings.pixelLightCount = 0;
+                }
+
+                CopyCameraData(renderCamera, refractionCamera);
+
+                // Update parameters
+
+                refractionCamera.cullingMask = ~(1 << 4) & _layers.value;
+
+                if (TryGetComponent<Renderer>(out var theRenderer))
+                {
+                    foreach (Material m in theRenderer.sharedMaterials)
                     {
-                        Vector3 glassScreenCenter = renderCamera.WorldToViewportPoint(_glassAxes.position);
-                        //glassScreenCenter.y = 1.0f - glassScreenCenter.y;
-                        m.SetVector(VarGlassScreenCenter, glassScreenCenter);
+                        if (m.HasProperty(s_renderTexLeft))
+                        {
+                            m.SetTexture(s_renderTexLeft, _renderTextureLeft);
+                        }
+
+                        if (m.HasProperty(s_renderTexRight))
+                        {
+                            m.SetTexture(s_renderTexRight, _renderTextureRight);
+                        }
+
+                        if (m.HasProperty(s_glassScreenCenter))
+                        {
+                            Vector3 glassScreenCenter = renderCamera.WorldToViewportPoint(_glassAxes.position);
+                            m.SetVector(s_glassScreenCenter, glassScreenCenter);
+                        }
                     }
                 }
+
+                // Render
+
+                refractionCamera.enabled = true;
+
+                refractionCamera.targetTexture = _renderTextureLeft;
+                RenderRefraction(context, renderCamera, refractionCamera, true, true);
+
+                refractionCamera.targetTexture = _renderTextureRight;
+                RenderRefraction(context, renderCamera, refractionCamera, true, false);
+
+                refractionCamera.enabled = false;
             }
-
-            // Render
-            refractionCamera.enabled = true;
-
-            refractionCamera.targetTexture = _renderTextureLeft;
-            RenderRefraction(context, renderCamera, refractionCamera, true, true);
-
-            refractionCamera.targetTexture = _renderTextureRight;
-            RenderRefraction(context, renderCamera, refractionCamera, true, false);
-
-            refractionCamera.enabled = false;
-
-            // Restore quality
-
-            if (_disablePixelLights)
+            finally
             {
-                QualitySettings.pixelLightCount = oldPixelLightCount;
-            }
+                // Restore quality
 
-            s_insideRendering = false;
+                if (_disablePixelLights)
+                {
+                    QualitySettings.pixelLightCount = oldPixelLightCount;
+                }
+
+                s_insideRendering = false;
+            }
         }
 
         #endregion
@@ -219,10 +229,12 @@ namespace UltimateXR.Rendering.FX
             refractionCamera.ResetWorldToCameraMatrix();
             refractionCamera.ResetCullingMatrix();
 
-            Matrix4x4 projection = renderCamera.projectionMatrix;
+            Matrix4x4 projection    = renderCamera.projectionMatrix;
+            bool      isUsingStereo = false;
 
             if (stereo && UxrTrackingDevice.GetHeadsetDevice(out InputDevice headsetDevice))
             {
+                isUsingStereo = true;
                 headsetDevice.TryGetFeatureValue(CommonUsages.leftEyePosition,  out Vector3 leftEye);
                 headsetDevice.TryGetFeatureValue(CommonUsages.rightEyePosition, out Vector3 rightEye);
                 float ipd = Vector3.Distance(leftEye, rightEye) * _ipdAdjust;
@@ -246,11 +258,18 @@ namespace UltimateXR.Rendering.FX
             refractionCamera.transform.position += renderCamera.transform.forward * _cameraForwardOffset;
 
             Vector4 clipPlane = CameraSpacePlane(refractionCamera, _clipPlaneOffset, _glassAxes.position, _glassAxes.forward, 1.0f);
+            Vector3 screenPos = renderCamera.WorldToViewportPoint(_glassAxes.position, Camera.MonoOrStereoscopicEye.Mono);
+            screenPos.x = (screenPos.x - 0.5f) * 2.0f;
 
-            Vector3 screenPos = renderCamera.WorldToViewportPoint(_glassAxes.position, isLeft ? Camera.MonoOrStereoscopicEye.Left : Camera.MonoOrStereoscopicEye.Right);
-            screenPos.x = (screenPos.x - 0.5f) * 2.0f + (isLeft ? _offsetLeft : _offsetRight);
+            if (isUsingStereo)
+            {
+                screenPos = renderCamera.WorldToViewportPoint(_glassAxes.position, isLeft ? Camera.MonoOrStereoscopicEye.Left : Camera.MonoOrStereoscopicEye.Right);
+                screenPos.x = (screenPos.x - 0.5f) * 2.0f + (isLeft ? _offsetLeft : _offsetRight);
+            }
+
             screenPos.y = (screenPos.y - 0.5f) * 2.0f;
             screenPos.z = 0.0f;
+
             Matrix4x4 translateMtxA = Matrix4x4.Translate(-screenPos);
             Matrix4x4 scaleMtx      = Matrix4x4.Scale(new Vector3(_fovScale, _fovScale, 0.3f));
             Matrix4x4 translateMtxB = Matrix4x4.Translate(screenPos);
@@ -261,8 +280,29 @@ namespace UltimateXR.Rendering.FX
             refractionCamera.cullingMatrix    = refractionCamera.projectionMatrix * refractionCamera.worldToCameraMatrix;
 
 #if ULTIMATEXR_UNITY_URP
+    #if UNITY_6000_2_OR_NEWER
+            RenderTexture destination = refractionCamera.targetTexture;
+            if (destination != null)
+            {
+                UniversalRenderPipeline.SingleCameraRequest request = new UniversalRenderPipeline.SingleCameraRequest
+                {
+                    destination = destination
+                };
+
+                if (RenderPipeline.SupportsRenderRequest(refractionCamera, request))
+                {
+                    RenderPipeline.SubmitRenderRequest(refractionCamera, request);
+                }
+            }
+    #else
+#pragma warning disable CS0618
             UniversalRenderPipeline.RenderSingleCamera(context, refractionCamera);
+#pragma warning restore CS0618
+    #endif
 #endif
+
+            refractionCamera.ResetWorldToCameraMatrix();
+            refractionCamera.ResetCullingMatrix();
         }
 
         /// <summary>
@@ -358,7 +398,7 @@ namespace UltimateXR.Rendering.FX
                     refractionCamera.fieldOfView = 60.0f;
                 }
 
-                refractionCamera.transform.SetPositionAndRotation(transform);
+                refractionCamera.transform.SetPositionAndRotation(transform.position, transform.rotation);
                 refractionCamera.enabled = true;
                 go.hideFlags             = HideFlags.HideAndDontSave;
 
@@ -414,15 +454,12 @@ namespace UltimateXR.Rendering.FX
 
         #region Private Types & Data
 
-        // Constants
-
-        private const string VarRenderTexLeft     = "_RenderTexLeft";
-        private const string VarRenderTexRight    = "_RenderTexRight";
-        private const string VarGlassScreenCenter = "_GlassScreenCenter";
-
         // Static
 
-        private static bool s_insideRendering;
+        private static          bool s_insideRendering;
+        private static readonly int  s_renderTexLeft     = Shader.PropertyToID("_RenderTexLeft");
+        private static readonly int  s_renderTexRight    = Shader.PropertyToID("_RenderTexRight");
+        private static readonly int  s_glassScreenCenter = Shader.PropertyToID("_GlassScreenCenter");
 
         // Internal
 

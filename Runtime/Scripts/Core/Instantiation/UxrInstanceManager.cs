@@ -35,9 +35,6 @@ namespace UltimateXR.Core.Instantiation
     {
         #region Inspector Properties/Serialized Fields
 
-        [SerializeField] private bool                _registerAutomatically = true;
-        [SerializeField] private bool                _includeFrameworkPrefabs;
-        [SerializeField] private List<GameObject>    _automaticPrefabs; // GameObjects require at least one component with IUxrUniqueId so that the prefab ID can be known.
         [SerializeField] private List<UxrPrefabList> _userDefinedPrefabs;
 
         #endregion
@@ -57,12 +54,12 @@ namespace UltimateXR.Core.Instantiation
         /// <summary>
         ///     Called when an instance is about to be destroyed.
         /// </summary>
-        public event EventHandler<UxrInstanceEventArgs> Destroying;
+        public event EventHandler<UxrInstanceEventArgs> InstanceDestroying;
 
         /// <summary>
         ///     Called when an instance was destroyed.
         /// </summary>
-        public event EventHandler<UxrInstanceEventArgs> Destroyed;
+        public event EventHandler<UxrInstanceEventArgs> InstanceDestroyed;
 
         /// <summary>
         ///     Gets all the available prefabs registered in the instance manager.
@@ -138,7 +135,7 @@ namespace UltimateXR.Core.Instantiation
                 return null;
             }
 
-            IUxrUniqueId parentUnique = parent != null ? parent.GetComponent<IUxrUniqueId>() : null;
+            IUxrUniqueId parentUnique = parent != null ? parent.GetTrackingUniqueIdComponent() : null;
 
             if (parent != null && parentUnique == null)
             {
@@ -148,16 +145,26 @@ namespace UltimateXR.Core.Instantiation
                 }
             }
 
-            IUxrUniqueId component = prefab.GetComponent<IUxrUniqueId>();
+            IUxrUniqueId component = prefab.GetTrackingUniqueIdComponent();
 
             if (component == null)
             {
                 if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
                 {
-                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(InstantiatePrefab)}(): Prefab {prefab.name} has no components with a unique ID. Consider adding a {nameof(UxrSyncObject)} component to be able to track it.");
+                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(InstantiatePrefab)}(): Prefab {prefab.name} has no components with a unique ID. Consider adding a {nameof(UxrSyncObject)} component to be able to track it. The prefab will be instantiated but it won't be replicated on networks, for example.");
                 }
 
-                return null;
+                return Instantiate(prefab, position, rotation, parent);
+            }
+
+            if (!_prefabsById.ContainsKey(component.UnityPrefabId))
+            {
+                if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Warnings)
+                {
+                    Debug.LogWarning($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(InstantiatePrefab)}(): Prefab {prefab.name} is not registered in the {nameof(UxrInstanceManager)}. Register it in the inspector for instance synchronization to work correctly.");
+                }
+
+                return Instantiate(prefab, position, rotation, parent);
             }
 
             return InstantiatePrefabInternal(component.UnityPrefabId, parentUnique, position, rotation, UxrStateSyncImplementer.SyncCallDepth);
@@ -174,12 +181,12 @@ namespace UltimateXR.Core.Instantiation
         /// </param>
         /// <param name="position">World position</param>
         /// <param name="rotation">World rotation</param>
-        /// <returns>New instance</returns>
+        /// <returns>New instance. This instance will have a <see cref="UxrSyncObject"/> component</returns>
         public GameObject InstantiateEmptyGameObject(string objectName, Transform parent, Vector3 position, Quaternion rotation)
         {
             InitializeIfNecessary();
 
-            IUxrUniqueId parentUnique = parent != null ? parent.GetComponent<IUxrUniqueId>() : null;
+            IUxrUniqueId parentUnique = parent != null ? parent.GetTrackingUniqueIdComponent() : null;
 
             if (parent != null && parentUnique == null)
             {
@@ -212,7 +219,7 @@ namespace UltimateXR.Core.Instantiation
                 return;
             }
 
-            IUxrUniqueId unique = target.GetComponent<IUxrUniqueId>();
+            IUxrUniqueId unique = target.GetTrackingUniqueIdComponent();
 
             if (unique == null)
             {
@@ -243,7 +250,7 @@ namespace UltimateXR.Core.Instantiation
                 return;
             }
 
-            IUxrUniqueId component = instance.GetComponent<IUxrUniqueId>();
+            IUxrUniqueId component = instance.GetTrackingUniqueIdComponent();
 
             if (component == null)
             {
@@ -257,47 +264,19 @@ namespace UltimateXR.Core.Instantiation
 
             if (component.CombineIdSource == Guid.Empty)
             {
-                Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(NotifyNetworkSpawn)}(): Network instance {instance.name} needs to have unique IDs to ensure correct synchronization. Consider using {nameof(GameObjectExt)}.{nameof(CombineUniqueId)}() on the instantiated prefab to ensure unique ids. As guid parameter you may use the id assigned by the networking SDK to the spawned object together with the string.GetGuid() extension defined in {nameof(StringExt)}.");
+                if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
+                {
+                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(NotifyNetworkSpawn)}(): Network instance {instance.name} needs to have unique IDs to ensure correct synchronization. Consider using {nameof(GameObjectExt)}.{nameof(CombineUniqueId)}() on the instantiated prefab to ensure unique ids. As guid parameter you may use the id assigned by the networking SDK to the spawned object together with the string.GetGuid() extension defined in {nameof(StringExt)}.");
+                }
             }
 
             NotifyNetworkSpawnInternal(component.UnityPrefabId, component.CombineIdSource, component.UniqueId);
         }
 
         /// <summary>
-        ///     Notifies that an instance is going to be despawned externally by a networking SDK, not using the instance manager.
-        /// </summary>
-        /// <param name="instance">Instance that will be despawned</param>
-        public void NotifyNetworkDespawn(GameObject instance)
-        {
-            if (instance == null)
-            {
-                if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
-                {
-                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(NotifyNetworkDespawn)}(): Instance is null");
-                }
-
-                return;
-            }
-
-            IUxrUniqueId component = instance.GetComponent<IUxrUniqueId>();
-
-            if (component == null)
-            {
-                if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
-                {
-                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(NotifyNetworkDespawn)}(): Instance {instance.name} has no components with a unique ID. Consider adding a {nameof(UxrSyncObject)} component to the GameObject to be able to track it.");
-                }
-
-                return;
-            }
-
-            NotifyNetworkDespawnInternal(component, false);
-        }
-
-        /// <summary>
         ///     Changes the parent of a GameObject, ensuring that the operation is synced in all environments.
         /// </summary>
-        /// <param name="transform">
+        /// <param name="targetTransform">
         ///     The transform to parent. To be able to track it, it needs to have at least one component with the
         ///     <see cref="IUxrUniqueId" /> interface on the same GameObject, such as any component derived from
         ///     <see cref="UxrComponent" />. A <see cref="UxrSyncObject" /> component can be used if there is none.
@@ -308,9 +287,9 @@ namespace UltimateXR.Core.Instantiation
         ///     from <see cref="UxrComponent" />. A <see cref="UxrSyncObject" /> component can be used if there is none.
         /// </param>
         /// <param name="clearLocalPositionAndRotation">Whether to set the local position and rotation to zero after parenting</param>
-        public void SetParent(Transform transform, Transform newParent, bool clearLocalPositionAndRotation)
+        public void SetParent(Transform targetTransform, Transform newParent, bool clearLocalPositionAndRotation)
         {
-            if (transform == null)
+            if (targetTransform == null)
             {
                 if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
                 {
@@ -320,14 +299,14 @@ namespace UltimateXR.Core.Instantiation
                 return;
             }
 
-            IUxrUniqueId component       = transform.GetComponent<IUxrUniqueId>();
-            IUxrUniqueId parentComponent = newParent != null ? newParent.GetComponent<IUxrUniqueId>() : null;
+            IUxrUniqueId component       = targetTransform.GetTrackingUniqueIdComponent();
+            IUxrUniqueId parentComponent = newParent != null ? newParent.GetTrackingUniqueIdComponent() : null;
 
             if (component == null)
             {
                 if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
                 {
-                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(SetParent)}(): Target {transform.name} has no components with a unique ID. Consider adding a {nameof(UxrSyncObject)} component to the GameObject to be able to track it.");
+                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(SetParent)}(): Target {targetTransform.name} has no components with a unique ID. Consider adding a {nameof(UxrSyncObject)} component to the GameObject to be able to track it.");
                 }
 
                 return;
@@ -343,24 +322,21 @@ namespace UltimateXR.Core.Instantiation
                 return;
             }
 
-            if (component != null)
-            {
-                SetParentInternal(component, parentComponent, clearLocalPositionAndRotation);
-            }
+            SetParentInternal(component, parentComponent, clearLocalPositionAndRotation);
         }
 
         /// <summary>
         ///     Changes the local position of a Transform, ensuring that the operation is synced in all environments.
         /// </summary>
-        /// <param name="transform">
+        /// <param name="targetTransform">
         ///     The transform to change. To be able to track it, it needs to have at least one component with the
         ///     <see cref="IUxrUniqueId" /> interface on the same GameObject, such as any component derived from
         ///     <see cref="UxrComponent" />. A <see cref="UxrSyncObject" /> component can be used if there is none.
         /// </param>
         /// <param name="localPosition">The new local position</param>
-        public void SetLocalPosition(Transform transform, Vector3 localPosition)
+        public void SetLocalPosition(Transform targetTransform, Vector3 localPosition)
         {
-            if (transform == null)
+            if (targetTransform == null)
             {
                 if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
                 {
@@ -370,13 +346,13 @@ namespace UltimateXR.Core.Instantiation
                 return;
             }
 
-            IUxrUniqueId component = transform.GetComponent<IUxrUniqueId>();
+            IUxrUniqueId component = targetTransform.GetTrackingUniqueIdComponent();
 
             if (component == null)
             {
                 if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
                 {
-                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(SetLocalPosition)}(): Target {transform.name} has no components with a unique ID. Consider adding a {nameof(UxrSyncObject)} component to the GameObject to be able to track it.");
+                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(SetLocalPosition)}(): Target {targetTransform.name} has no components with a unique ID. Consider adding a {nameof(UxrSyncObject)} component to the GameObject to be able to track it.");
                 }
 
                 return;
@@ -388,15 +364,15 @@ namespace UltimateXR.Core.Instantiation
         /// <summary>
         ///     Changes the position of a Transform, ensuring that the operation is synced in all environments.
         /// </summary>
-        /// <param name="transform">
+        /// <param name="targetTransform">
         ///     The transform to change. To be able to track it, it needs to have at least one component with the
         ///     <see cref="IUxrUniqueId" /> interface on the same GameObject, such as any component derived from
         ///     <see cref="UxrComponent" />. A <see cref="UxrSyncObject" /> component can be used if there is none.
         /// </param>
         /// <param name="position">The new position</param>
-        public void SetPosition(Transform transform, Vector3 position)
+        public void SetPosition(Transform targetTransform, Vector3 position)
         {
-            if (transform == null)
+            if (targetTransform == null)
             {
                 if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
                 {
@@ -406,13 +382,13 @@ namespace UltimateXR.Core.Instantiation
                 return;
             }
 
-            IUxrUniqueId component = transform.GetComponent<IUxrUniqueId>();
+            IUxrUniqueId component = targetTransform.GetTrackingUniqueIdComponent();
 
             if (component == null)
             {
                 if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
                 {
-                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(SetPosition)}(): Target {transform.name} has no components with a unique ID. Consider adding a {nameof(UxrSyncObject)} component to the GameObject to be able to track it.");
+                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(SetPosition)}(): Target {targetTransform.name} has no components with a unique ID. Consider adding a {nameof(UxrSyncObject)} component to the GameObject to be able to track it.");
                 }
 
                 return;
@@ -424,15 +400,15 @@ namespace UltimateXR.Core.Instantiation
         /// <summary>
         ///     Changes the local rotation of a Transform, ensuring that the operation is synced in all environments.
         /// </summary>
-        /// <param name="transform">
+        /// <param name="targetTransform">
         ///     The transform to change. To be able to track it, it needs to have at least one component with the
         ///     <see cref="IUxrUniqueId" /> interface on the same GameObject, such as any component derived from
         ///     <see cref="UxrComponent" />. A <see cref="UxrSyncObject" /> component can be used if there is none.
         /// </param>
         /// <param name="localRotation">The new local rotation</param>
-        public void SetLocalRotation(Transform transform, Quaternion localRotation)
+        public void SetLocalRotation(Transform targetTransform, Quaternion localRotation)
         {
-            if (transform == null)
+            if (targetTransform == null)
             {
                 if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
                 {
@@ -442,13 +418,13 @@ namespace UltimateXR.Core.Instantiation
                 return;
             }
 
-            IUxrUniqueId component = transform.GetComponent<IUxrUniqueId>();
+            IUxrUniqueId component = targetTransform.GetTrackingUniqueIdComponent();
 
             if (component == null)
             {
                 if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
                 {
-                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(SetLocalRotation)}(): Target {transform.name} has no components with a unique ID. Consider adding a {nameof(UxrSyncObject)} component to the GameObject to be able to track it.");
+                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(SetLocalRotation)}(): Target {targetTransform.name} has no components with a unique ID. Consider adding a {nameof(UxrSyncObject)} component to the GameObject to be able to track it.");
                 }
 
                 return;
@@ -460,15 +436,15 @@ namespace UltimateXR.Core.Instantiation
         /// <summary>
         ///     Changes the rotation of a Transform, ensuring that the operation is synced in all environments.
         /// </summary>
-        /// <param name="transform">
+        /// <param name="targetTransform">
         ///     The transform to change. To be able to track it, it needs to have at least one component with the
         ///     <see cref="IUxrUniqueId" /> interface on the same GameObject, such as any component derived from
         ///     <see cref="UxrComponent" />. A <see cref="UxrSyncObject" /> component can be used if there is none.
         /// </param>
         /// <param name="rotation">The new rotation</param>
-        public void SetRotation(Transform transform, Quaternion rotation)
+        public void SetRotation(Transform targetTransform, Quaternion rotation)
         {
-            if (transform == null)
+            if (targetTransform == null)
             {
                 if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
                 {
@@ -478,13 +454,13 @@ namespace UltimateXR.Core.Instantiation
                 return;
             }
 
-            IUxrUniqueId component = transform.GetComponent<IUxrUniqueId>();
+            IUxrUniqueId component = targetTransform.GetTrackingUniqueIdComponent();
 
             if (component == null)
             {
                 if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
                 {
-                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(SetRotation)}(): Target {transform.name} has no components with a unique ID. Consider adding a {nameof(UxrSyncObject)} component to the GameObject to be able to track it.");
+                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(SetRotation)}(): Target {targetTransform.name} has no components with a unique ID. Consider adding a {nameof(UxrSyncObject)} component to the GameObject to be able to track it.");
                 }
 
                 return;
@@ -496,16 +472,16 @@ namespace UltimateXR.Core.Instantiation
         /// <summary>
         ///     Changes the position and rotation of a Transform, ensuring that the operation is synced in all environments.
         /// </summary>
-        /// <param name="transform">
+        /// <param name="targetTransform">
         ///     The transform to change. To be able to track it, it needs to have at least one component with the
         ///     <see cref="IUxrUniqueId" /> interface on the same GameObject, such as any component derived from
         ///     <see cref="UxrComponent" />. A <see cref="UxrSyncObject" /> component can be used if there is none.
         /// </param>
         /// <param name="position">The new position</param>
         /// <param name="rotation">The new rotation</param>
-        public void SetPositionAndRotation(Transform transform, Vector3 position, Quaternion rotation)
+        public void SetPositionAndRotation(Transform targetTransform, Vector3 position, Quaternion rotation)
         {
-            if (transform == null)
+            if (targetTransform == null)
             {
                 if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
                 {
@@ -515,13 +491,13 @@ namespace UltimateXR.Core.Instantiation
                 return;
             }
 
-            IUxrUniqueId component = transform.GetComponent<IUxrUniqueId>();
+            IUxrUniqueId component = targetTransform.GetTrackingUniqueIdComponent();
 
             if (component == null)
             {
                 if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
                 {
-                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(SetPositionAndRotation)}(): Target {transform.name} has no components with a unique ID. Consider adding a {nameof(UxrSyncObject)} component to the GameObject to be able to track it.");
+                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(SetPositionAndRotation)}(): Target {targetTransform.name} has no components with a unique ID. Consider adding a {nameof(UxrSyncObject)} component to the GameObject to be able to track it.");
                 }
 
                 return;
@@ -534,16 +510,16 @@ namespace UltimateXR.Core.Instantiation
         ///     Changes the local position and local rotation of a Transform, ensuring that the operation is synced in all
         ///     environments.
         /// </summary>
-        /// <param name="transform">
+        /// <param name="targetTransform">
         ///     The transform to change. To be able to track it, it needs to have at least one component with the
         ///     <see cref="IUxrUniqueId" /> interface on the same GameObject, such as any component derived from
         ///     <see cref="UxrComponent" />. A <see cref="UxrSyncObject" /> component can be used if there is none.
         /// </param>
         /// <param name="localPosition">The new local position</param>
         /// <param name="localRotation">The new local rotation</param>
-        public void SetLocalPositionAndRotation(Transform transform, Vector3 localPosition, Quaternion localRotation)
+        public void SetLocalPositionAndRotation(Transform targetTransform, Vector3 localPosition, Quaternion localRotation)
         {
-            if (transform == null)
+            if (targetTransform == null)
             {
                 if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
                 {
@@ -553,13 +529,13 @@ namespace UltimateXR.Core.Instantiation
                 return;
             }
 
-            IUxrUniqueId component = transform.GetComponent<IUxrUniqueId>();
+            IUxrUniqueId component = targetTransform.GetTrackingUniqueIdComponent();
 
             if (component == null)
             {
                 if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
                 {
-                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(SetLocalPositionAndRotation)}(): Target {transform.name} has no components with a unique ID. Consider adding a {nameof(UxrSyncObject)} component to the GameObject to be able to track it.");
+                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(SetLocalPositionAndRotation)}(): Target {targetTransform.name} has no components with a unique ID. Consider adding a {nameof(UxrSyncObject)} component to the GameObject to be able to track it.");
                 }
 
                 return;
@@ -571,15 +547,15 @@ namespace UltimateXR.Core.Instantiation
         /// <summary>
         ///     Changes the scale of a GameObject, ensuring that the operation is synced in all environments.
         /// </summary>
-        /// <param name="transform">
+        /// <param name="targetTransform">
         ///     The transform to change. To be able to track it, it needs to have at least one component with the
         ///     <see cref="IUxrUniqueId" /> interface on the same GameObject, such as any component derived from
         ///     <see cref="UxrComponent" />. A <see cref="UxrSyncObject" /> component can be used if there is none.
         /// </param>
         /// <param name="scale">The new scale</param>
-        public void SetScale(Transform transform, Vector3 scale)
+        public void SetScale(Transform targetTransform, Vector3 scale)
         {
-            if (transform == null)
+            if (targetTransform == null)
             {
                 if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
                 {
@@ -589,19 +565,31 @@ namespace UltimateXR.Core.Instantiation
                 return;
             }
 
-            IUxrUniqueId component = transform.GetComponent<IUxrUniqueId>();
+            IUxrUniqueId component = targetTransform.GetTrackingUniqueIdComponent();
 
             if (component == null)
             {
                 if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
                 {
-                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(SetScale)}(): Target {transform.name} has no components with a unique ID. Consider adding a {nameof(UxrSyncObject)} component to the GameObject to be able to track it.");
+                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(SetScale)}(): Target {targetTransform.name} has no components with a unique ID. Consider adding a {nameof(UxrSyncObject)} component to the GameObject to be able to track it.");
                 }
 
                 return;
             }
 
             SetScaleInternal(component, scale);
+        }
+
+        /// <summary>
+        ///     Clears the internal instance data. This can be useful when some instances are not destroyed through
+        ///     calls but just by removing a scene. 
+        /// </summary>
+        public void ClearInstanceData()
+        {
+            _currentInstances.Clear();
+            _currentInstancedPrefabs.Clear();
+            _nestedInstances.Clear();
+            InstanceInfo.ResetInstantiationOrder();
         }
 
         #endregion
@@ -632,6 +620,25 @@ namespace UltimateXR.Core.Instantiation
 
         #endregion
 
+        #region Event Handling Methods
+
+        /// <summary>
+        ///     Called when a component is about to be destroyed.
+        /// </summary>
+        /// <param name="component">The component</param>
+        private void Component_Destroying(IUxrUniqueId component)
+        {
+            if ((!_currentInstancedPrefabs.ContainsKey(component.CombineIdSource) || !_currentInstances.ContainsKey(component.CombineIdSource)) && !IsApplicationQuitting && UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
+            {
+                Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}: Cannot find combine Guid {component.CombineIdSource} when destroying {component.GameObject.GetPathUnderScene()}.");
+            }
+
+            _currentInstancedPrefabs.Remove(component.CombineIdSource);
+            _currentInstances.Remove(component.CombineIdSource);
+        }
+
+        #endregion
+
         #region Private Methods
 
         /// <summary>
@@ -644,38 +651,15 @@ namespace UltimateXR.Core.Instantiation
                 return;
             }
 
-            if (_automaticPrefabs == null)
-            {
-                if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Errors)
-                {
-                    Debug.LogError($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)} needs to be pre-instantiated in your startup scene to create the prefab list.");
-                }
-            }
-
             _prefabsById = new Dictionary<string, GameObject>();
 
-            if (_registerAutomatically)
-            {
-                // Use automatically created list
+            // Use user-defined prefab lists
 
-                if (_automaticPrefabs != null)
-                {
-                    foreach (GameObject prefab in _automaticPrefabs)
-                    {
-                        TryRegisterPrefab(prefab);
-                    }
-                }
-            }
-            else
+            foreach (UxrPrefabList list in _userDefinedPrefabs)
             {
-                // Use user-defined prefab lists
-
-                foreach (UxrPrefabList list in _userDefinedPrefabs)
+                foreach (GameObject prefab in list.PrefabList)
                 {
-                    foreach (GameObject prefab in list.PrefabList)
-                    {
-                        TryRegisterPrefab(prefab);
-                    }
+                    TryRegisterPrefab(prefab);
                 }
             }
 
@@ -691,7 +675,7 @@ namespace UltimateXR.Core.Instantiation
                     return;
                 }
 
-                IUxrUniqueId component = prefab.GetComponent<IUxrUniqueId>();
+                IUxrUniqueId component = prefab.GetTrackingUniqueIdComponent();
 
                 if (component != null)
                 {
@@ -742,9 +726,9 @@ namespace UltimateXR.Core.Instantiation
         /// <returns>Instantiated object</returns>
         private GameObject InstantiatePrefabInternal(string prefabId, IUxrUniqueId parent, Vector3 position, Quaternion rotation, int syncNestingDepth = 0, Guid uniqueId = default)
         {
-            if (syncNestingDepth > 0 && UxrManager.Instance.IsInsideStateSync && uniqueId == default)
+            if (syncNestingDepth > 0 && UxrManager.Instance.IsInsideStateSync && uniqueId == Guid.Empty)
             {
-                // We are inside UxrManager.ExecutaStateSyncEvent(). Instantiation is synchronized using UxrStateSyncOptions.IgnoreNestingCheck for the random Guid algorithm to work correctly.
+                // We are inside UxrManager.ExecuteStateSyncEvent(). Instantiation is synchronized using UxrStateSyncOptions.IgnoreNestingCheck for the random Guid algorithm to work correctly.
                 // The Instantiate calls will be synchronized no matter the nesting depth, but the replication calls need to use the instance guids generated by the original source.
 
                 if (_nestedInstances.Count == 0)
@@ -766,6 +750,11 @@ namespace UltimateXR.Core.Instantiation
 
                 Instantiating?.Invoke(this, new UxrInstanceEventArgs(null, prefab, prefabId));
 
+                if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Verbose)
+                {
+                    Debug.Log($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(InstantiatePrefabInternal)}(): Instantiating {prefab.name}, parent: {(parent != null ? parent.GameObject.GetPathUnderScene() : "no parent")}. UniqueId: {uniqueId}.");
+                }
+
                 Transform  parentTransform = parent?.Transform;
                 GameObject newInstance     = Instantiate(prefab, position, rotation, parentTransform);
 
@@ -776,14 +765,16 @@ namespace UltimateXR.Core.Instantiation
                     return null;
                 }
 
+                newInstance.name = prefab.name;
+
                 // We use a trick where we sync the call with the generated Unique ID as parameter. 
 
-                if (uniqueId == default)
+                if (uniqueId == Guid.Empty)
                 {
                     uniqueId = Guid.NewGuid();
                 }
 
-                IUxrUniqueId component = newInstance.GetComponent<IUxrUniqueId>();
+                IUxrUniqueId component = newInstance.GetTrackingUniqueIdComponent();
 
                 if (component == null)
                 {
@@ -793,8 +784,9 @@ namespace UltimateXR.Core.Instantiation
                 }
 
                 component.CombineUniqueId(uniqueId);
+                component.Destroying += Component_Destroying;
 
-                _currentInstancedPrefabs.TryAdd(uniqueId, new InstanceInfo(component, prefabId));
+                _currentInstancedPrefabs.TryAdd(uniqueId, new InstanceInfo(component, prefabId, false));
                 _currentInstances.TryAdd(uniqueId, newInstance);
 
                 if (syncNestingDepth > 0)
@@ -805,7 +797,7 @@ namespace UltimateXR.Core.Instantiation
 
                 Instantiated?.Invoke(this, new UxrInstanceEventArgs(newInstance, prefab, prefabId));
 
-                EndSyncMethod(new object[] { prefabId, parent, position, rotation, syncNestingDepth, uniqueId });
+                EndSyncMethod(SyncParams(prefabId, parent, position, rotation, syncNestingDepth, uniqueId));
 
                 return newInstance;
             }
@@ -833,7 +825,7 @@ namespace UltimateXR.Core.Instantiation
         /// <returns>Instantiated object</returns>
         private GameObject InstantiateEmptyGameObjectInternal(string objectName, IUxrUniqueId parent, Vector3 position, Quaternion rotation, int syncNestingDepth = 0, Guid uniqueId = default)
         {
-            if (syncNestingDepth > 0 && UxrManager.Instance.IsInsideStateSync && uniqueId == default)
+            if (syncNestingDepth > 0 && UxrManager.Instance.IsInsideStateSync && uniqueId == Guid.Empty)
             {
                 // We are inside a BeginSync/EndSync block. Instantiation is synchronized using UxrStateSyncOptions.IgnoreNestingCheck for the random Guid algorithm to work correctly.
                 // The Instantiate calls will be synchronized no matter the nesting depth, but the replication calls need to use the instance guids generated by the original source.
@@ -862,20 +854,21 @@ namespace UltimateXR.Core.Instantiation
 
             // We use a trick where we sync the call with the generated Unique ID as parameter. 
 
-            if (uniqueId == default)
+            if (uniqueId == Guid.Empty)
             {
                 uniqueId = Guid.NewGuid();
             }
 
             IUxrUniqueId component = newInstance.AddComponent<UxrSyncObject>();
             component.ChangeUniqueId(uniqueId);
+            component.Destroying += Component_Destroying;
 
-            _currentInstancedPrefabs.TryAdd(uniqueId, new InstanceInfo(component, null));
+            _currentInstancedPrefabs.TryAdd(uniqueId, new InstanceInfo(component, null, false));
             _currentInstances.TryAdd(uniqueId, component.GameObject);
 
             Instantiated?.Invoke(this, new UxrInstanceEventArgs(newInstance, null, null));
 
-            EndSyncMethod(new object[] { objectName, parent, position, rotation, syncNestingDepth, uniqueId });
+            EndSyncMethod(SyncParams(objectName, parent, position, rotation, syncNestingDepth, uniqueId));
 
             return newInstance;
         }
@@ -894,7 +887,12 @@ namespace UltimateXR.Core.Instantiation
 
                 _prefabsById.TryGetValue(component.UnityPrefabId, out GameObject prefab);
 
-                Destroying?.Invoke(this, new UxrInstanceEventArgs(component.GameObject, prefab, component.UnityPrefabId));
+                InstanceDestroying?.Invoke(this, new UxrInstanceEventArgs(component.GameObject, prefab, component.UnityPrefabId));
+
+                if (UxrGlobalSettings.Instance.LogLevelCore >= UxrLogLevel.Verbose)
+                {
+                    Debug.Log($"{UxrConstants.CoreModule} {nameof(UxrInstanceManager)}.{nameof(DestroyGameObjectInternal)}(): Destroying {component.GameObject.GetPathUnderScene()}.");
+                }
 
                 _currentInstancedPrefabs.Remove(component.CombineIdSource);
                 _currentInstances.Remove(component.CombineIdSource);
@@ -905,9 +903,9 @@ namespace UltimateXR.Core.Instantiation
 
                 Destroy(component.GameObject);
 
-                Destroyed?.Invoke(this, new UxrInstanceEventArgs(null, prefab, component.UnityPrefabId));
+                InstanceDestroyed?.Invoke(this, new UxrInstanceEventArgs(null, prefab, component.UnityPrefabId));
 
-                EndSyncMethod(new object[] { component });
+                EndSyncMethod(SyncParams(component));
             }
         }
 
@@ -915,7 +913,7 @@ namespace UltimateXR.Core.Instantiation
         ///     Notifies that a prefab was spawned externally by a networking SDK, not using the instance manager.
         /// </summary>
         /// <param name="prefabId">Prefab id</param>
-        /// <param name="combineGuid">Guid used for combination</param>
+        /// <param name="combineGuid">Guid used for the combination</param>
         /// <param name="instanceGuid">Guid of the instantiated component or default if it needs to be instantiated</param>
         private void NotifyNetworkSpawnInternal(string prefabId, Guid combineGuid, Guid instanceGuid)
         {
@@ -924,7 +922,7 @@ namespace UltimateXR.Core.Instantiation
 
             IUxrUniqueId component = null;
 
-            if (instanceGuid == default)
+            if (instanceGuid == Guid.Empty)
             {
                 if (_prefabsById.TryGetValue(prefabId, out GameObject prefab))
                 {
@@ -934,17 +932,20 @@ namespace UltimateXR.Core.Instantiation
                     {
                         // Can't happen if prefab was retrieved.
                         CancelSync();
+                        return;
                     }
 
-                    component = newInstance.GetComponent<IUxrUniqueId>();
+                    component = newInstance.GetTrackingUniqueIdComponent();
 
                     if (component == null)
                     {
                         // Can't happen if prefab is registered.
                         CancelSync();
+                        return;
                     }
 
                     component.CombineUniqueId(combineGuid);
+                    component.Destroying += Component_Destroying;
 
                     CheckNetworkSpawnPostprocess(newInstance);
                 }
@@ -956,33 +957,12 @@ namespace UltimateXR.Core.Instantiation
 
             if (component != null)
             {
-                _currentInstancedPrefabs.TryAdd(combineGuid, new InstanceInfo(component, prefabId));
+                _currentInstancedPrefabs.TryAdd(combineGuid, new InstanceInfo(component, prefabId, true));
                 _currentInstances.TryAdd(combineGuid, component.GameObject);
             }
 
             // The trick here is that we force the instantiate parameter to be true so that the call itself doesn't instantiate anything but the synced call does.
-            EndSyncMethod(new object[] { prefabId, combineGuid, default });
-        }
-
-        /// <summary>
-        ///     Notifies that an instance is going to be despawned externally by a networking SDK, not using the instance manager.
-        /// </summary>
-        /// <param name="component">Component in the instance that will be despawned</param>
-        private void NotifyNetworkDespawnInternal(IUxrUniqueId component, bool destroy)
-        {
-            if (component != null)
-            {
-                BeginSync(UxrStateSyncOptions.Default ^ UxrStateSyncOptions.Network);
-
-                if (destroy)
-                {
-                    _currentInstancedPrefabs.Remove(component.CombineIdSource);
-                    _currentInstances.Remove(component.CombineIdSource);
-                    Destroy(component.GameObject);
-                }
-
-                EndSyncMethod(new object[] { component, true });
-            }
+            EndSyncMethod(SyncParams(prefabId, combineGuid, Guid.Empty));
         }
 
         /// <summary>
@@ -1003,7 +983,7 @@ namespace UltimateXR.Core.Instantiation
                 TransformExt.SetLocalPositionAndRotation(component.Transform, Vector3.zero, Quaternion.identity);
             }
 
-            EndSyncMethod(new object[] { component, newParent, clearLocalPositionAndRotation });
+            EndSyncMethod(SyncParams(component, newParent, clearLocalPositionAndRotation));
         }
 
         /// <summary>
@@ -1020,7 +1000,7 @@ namespace UltimateXR.Core.Instantiation
             {
                 BeginSync();
                 component.Transform.localPosition = localPosition;
-                EndSyncMethod(new object[] { component, localPosition });
+                EndSyncMethod(SyncParams(component, localPosition));
             }
         }
 
@@ -1037,7 +1017,7 @@ namespace UltimateXR.Core.Instantiation
             {
                 BeginSync();
                 component.Transform.position = position;
-                EndSyncMethod(new object[] { component, position });
+                EndSyncMethod(SyncParams(component, position));
             }
         }
 
@@ -1055,7 +1035,7 @@ namespace UltimateXR.Core.Instantiation
             {
                 BeginSync();
                 component.Transform.localRotation = localRotation;
-                EndSyncMethod(new object[] { component, localRotation });
+                EndSyncMethod(SyncParams(component, localRotation));
             }
         }
 
@@ -1072,7 +1052,7 @@ namespace UltimateXR.Core.Instantiation
             {
                 BeginSync();
                 component.Transform.rotation = rotation;
-                EndSyncMethod(new object[] { component, rotation });
+                EndSyncMethod(SyncParams(component, rotation));
             }
         }
 
@@ -1092,7 +1072,7 @@ namespace UltimateXR.Core.Instantiation
                 BeginSync();
                 component.Transform.position = position;
                 component.Transform.rotation = rotation;
-                EndSyncMethod(new object[] { component, position, rotation });
+                EndSyncMethod(SyncParams(component, position, rotation));
             }
         }
 
@@ -1112,7 +1092,7 @@ namespace UltimateXR.Core.Instantiation
                 BeginSync();
                 component.Transform.localPosition = localPosition;
                 component.Transform.localRotation = localRotation;
-                EndSyncMethod(new object[] { component, localPosition, localRotation });
+                EndSyncMethod(SyncParams(component, localPosition, localRotation));
             }
         }
 
@@ -1131,7 +1111,7 @@ namespace UltimateXR.Core.Instantiation
 
                 component.Transform.localScale = scale;
 
-                EndSyncMethod(new object[] { component, scale });
+                EndSyncMethod(SyncParams(component, scale));
             }
         }
 
@@ -1183,10 +1163,10 @@ namespace UltimateXR.Core.Instantiation
 
         private readonly Dictionary<Guid, GameObject> _currentInstances = new Dictionary<Guid, GameObject>(); // (combine Guid -> instantiated GameObject). Contains the current instances in the scene.
 
+        private readonly Queue<GameObject> _nestedInstances = new Queue<GameObject>();
+
         private Dictionary<string, GameObject> _prefabsById;
         private Dictionary<Guid, InstanceInfo> _currentInstancedPrefabs = new Dictionary<Guid, InstanceInfo>(); // (combine Guid -> prefabId). This one is serialized by the StateSave functionality. Contains which prefabs are currently instantiated.
-
-        private readonly Queue<GameObject> _nestedInstances = new Queue<GameObject>();
 
         #endregion
     }

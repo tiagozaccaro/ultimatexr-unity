@@ -491,28 +491,28 @@ namespace UltimateXR.Core.Serialization
         }
 
         /// <inheritdoc />
-        public void SerializeUniqueComponent(ref IUxrUniqueId unique)
+        public void SerializeUniqueIdComponent(ref IUxrUniqueId unique)
         {
             if (IsReading)
             {
-                unique = Reader.ReadUniqueComponent(Version);
+                unique = Reader.ReadUniqueIdComponent(Version);
             }
             else
             {
-                Writer.WriteUniqueComponent(unique);
+                Writer.WriteUniqueIdComponent(unique);
             }
         }
 
         /// <inheritdoc />
-        public void SerializeUniqueComponent<T>(ref T component) where T : Component, IUxrUniqueId
+        public void SerializeUniqueIdComponent<T>(ref T component) where T : Component, IUxrUniqueId
         {
             if (IsReading)
             {
-                component = Reader.ReadUniqueComponent(Version) as T;
+                component = Reader.ReadUniqueIdComponent(Version) as T;
             }
             else
             {
-                Writer.WriteUniqueComponent(component);
+                Writer.WriteUniqueIdComponent(component);
             }
         }
 

@@ -3,6 +3,7 @@
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
+using System;
 using System.Collections.Generic;
 using UltimateXR.Avatar;
 using UnityEngine;
@@ -20,6 +21,16 @@ namespace UltimateXR.Networking
         ///     Gets the compatible networking SDKs that this voice implementation can work with.
         /// </summary>
         IEnumerable<string> CompatibleNetworkSDKs { get; }
+
+        /// <summary>
+        ///     Event raised when local microphone PCM data is available.
+        /// </summary>
+        event Action<ArraySegment<float>, UxrAudioFormat> LocalMicDataReceived;
+
+        /// <summary>
+        ///     Gets whether local microphone data delivery is currently active.
+        /// </summary>
+        bool IsLocalMicSubscribed { get; }
 
         #endregion
 
@@ -49,6 +60,22 @@ namespace UltimateXR.Networking
         /// <param name="newGameObjects">Returns a list of GameObjects that were created, if any</param>
         /// <param name="newComponents">Returns a list of components that were created, if any</param>
         void SetupAvatar(string networkingSdk, UxrAvatar avatar, out List<GameObject> newGameObjects, out List<Component> newComponents);
+
+        /// <summary>
+        ///     Begins delivering local microphone PCM data through <see cref="LocalMicDataReceived" />.
+        /// </summary>
+        void SubscribeLocalMic();
+
+        /// <summary>
+        ///     Stops delivering local microphone data and releases associated resources.
+        /// </summary>
+        void UnsubscribeLocalMic();
+
+        /// <summary>
+        ///     Gets the AudioSources currently playing remote voice data.
+        /// </summary>
+        /// <returns>An enumeration of active remote voice AudioSources</returns>
+        IEnumerable<AudioSource> GetActiveRemoteVoiceAudioSources();
 
         #endregion
     }

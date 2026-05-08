@@ -64,9 +64,12 @@ namespace UltimateXR.Rendering.FX
         {
             base.Awake();
 
+            _mirrorTransform = ReferenceEquals(_mirrorTransform, null) ? transform : _mirrorTransform;
+            _mirrorRenderer  = ReferenceEquals(_mirrorRenderer,  null) ? GetComponent<Renderer>() : _mirrorRenderer;
+
             if (_mirrorRenderer != null)
             {
-                _originalMaterial = _mirrorRenderer.sharedMaterial;
+                _materials = _mirrorRenderer.materials;
             }
         }
 
@@ -113,12 +116,14 @@ namespace UltimateXR.Rendering.FX
         {
             base.OnEnable();
 
-            if (_mirrorRenderer != null && _originalMaterial)
+            if (_mirrorRenderer != null && _materials != null)
             {
-                _mirrorRenderer.sharedMaterial = _originalMaterial;
+                _mirrorRenderer.materials = _materials;
             }
 
             RenderPipelineManager.beginCameraRendering += RenderPipelineManager_BeginCameraRendering;
+            RenderPipelineManager.beginCameraRendering += RenderPipelineManager_BeginReflectionCameraRendering;
+            RenderPipelineManager.endCameraRendering   += RenderPipelineManager_EndReflectionCameraRendering;
         }
 
         /// <summary>
@@ -129,6 +134,8 @@ namespace UltimateXR.Rendering.FX
             base.OnDisable();
 
             RenderPipelineManager.beginCameraRendering -= RenderPipelineManager_BeginCameraRendering;
+            RenderPipelineManager.beginCameraRendering -= RenderPipelineManager_BeginReflectionCameraRendering;
+            RenderPipelineManager.endCameraRendering   -= RenderPipelineManager_EndReflectionCameraRendering;
 
             foreach (KeyValuePair<Camera, Camera> camPair in _reflectionCameras)
             {
@@ -136,6 +143,12 @@ namespace UltimateXR.Rendering.FX
                 {
                     camPair.Value.enabled = false;
                 }
+            }
+
+            if (s_reflectionRequestCamera != null)
+            {
+                GL.invertCulling        = false;
+                s_reflectionRequestCamera = null;
             }
 
             if (_mirrorRenderer != null && _materialWhenDisabled)
@@ -149,14 +162,39 @@ namespace UltimateXR.Rendering.FX
         #region Event Handling Methods
 
         /// <summary>
+        ///     Called before a camera starts rendering. It is used to enable inverted culling when rendering the
+        ///     reflection camera using render requests in newer URP versions.
+        /// </summary>
+        private static void RenderPipelineManager_BeginReflectionCameraRendering(ScriptableRenderContext context, Camera camera)
+        {
+#if ULTIMATEXR_UNITY_URP && UNITY_6000_2_OR_NEWER
+            if (camera == s_reflectionRequestCamera)
+            {
+                GL.invertCulling = true;
+            }
+#endif
+        }
+
+        /// <summary>
+        ///     Called after a camera finishes rendering. It is used to restore culling after rendering the reflection
+        ///     camera using render requests in newer URP versions.
+        /// </summary>
+        private static void RenderPipelineManager_EndReflectionCameraRendering(ScriptableRenderContext context, Camera camera)
+        {
+#if ULTIMATEXR_UNITY_URP && UNITY_6000_2_OR_NEWER
+            if (camera == s_reflectionRequestCamera)
+            {
+                GL.invertCulling = false;
+            }
+#endif
+        }
+
+        /// <summary>
         ///     Called by Unity when the rendering starts. It is used in this component to render the reflection.
         /// </summary>
         private void RenderPipelineManager_BeginCameraRendering(ScriptableRenderContext context, Camera renderCamera)
         {
             // Avoid other cameras except for the main one.
-
-            _mirrorTransform = _mirrorTransform ? _mirrorTransform : transform;
-            _mirrorRenderer  = _mirrorRenderer ? _mirrorRenderer : GetComponent<Renderer>();
 
             if (UxrAvatar.LocalAvatarCamera != renderCamera || !_mirrorRenderer || !_mirrorRenderer.sharedMaterial)
             {
@@ -187,23 +225,22 @@ namespace UltimateXR.Rendering.FX
             // Update parameters
 
             reflectionCamera.cullingMask = ~(1 << 4) & _reflectLayers.value;
-
             
-            if (TryGetComponent<Renderer>(out var theRenderer))
+            if (_materials != null)
             {
-                foreach (Material m in theRenderer.sharedMaterials)
+                foreach (Material m in _materials)
                 {
-                    if (m.HasProperty(VarReflectionTexLeft))
+                    if (m.HasProperty(s_varReflectionTexLeft))
                     {
-                        m.SetTexture(VarReflectionTexLeft, _reflectionTextureLeft);
+                        m.SetTexture(s_varReflectionTexLeft, _reflectionTextureLeft);
                     }
 
-                    if (m.HasProperty(VarReflectionTexRight))
+                    if (m.HasProperty(s_varReflectionTexRight))
                     {
-                        m.SetTexture(VarReflectionTexRight, _reflectionTextureRight);
+                        m.SetTexture(s_varReflectionTexRight, _reflectionTextureRight);
                     }
 
-                    m.SetFloat(VarReflectionMaxLodBias, _reflectionTextureLeft.width == 0 ? 0.0f : Mathf.Log(_reflectionTextureLeft.width, 2.0f));
+                    m.SetFloat(s_varReflectionMaxLodBias, _reflectionTextureLeft.width == 0 ? 0.0f : Mathf.Log(_reflectionTextureLeft.width, 2.0f));
                 }
             }
 
@@ -274,14 +311,14 @@ namespace UltimateXR.Rendering.FX
             }
             else
             {
-                reflectionCamera.transform.SetPositionAndRotation(renderCamera.transform);
+                reflectionCamera.transform.SetPositionAndRotation(renderCamera.transform.position, renderCamera.transform.rotation);
             }
 
             // World->ReflectionCamera matrix
 
             reflectionCamera.worldToCameraMatrix *= reflection;
 
-            // Create projection matrix. Near plane will be our reflection plane so that we will clip everything on the other side.
+            // Create the projection matrix. The near plane will be our reflection plane so that we will clip everything on the other side.
 
             Vector4 clipPlane = GetCameraSpacePlane(reflectionCamera, _clipPlaneOffset, pos, normal, 1.0f);
             projection                        = projection.GetObliqueMatrix(clipPlane);
@@ -290,11 +327,41 @@ namespace UltimateXR.Rendering.FX
 
             // Render
 
-            GL.invertCulling = true;
 #if ULTIMATEXR_UNITY_URP
+#if UNITY_6000_2_OR_NEWER
+            RenderTexture destination = reflectionCamera.targetTexture;
+
+            if (destination != null)
+            {
+                UniversalRenderPipeline.SingleCameraRequest request = new UniversalRenderPipeline.SingleCameraRequest
+                {
+                    destination = destination
+                };
+
+                if (RenderPipeline.SupportsRenderRequest(reflectionCamera, request))
+                {
+                    Camera previousReflectionRequestCamera = s_reflectionRequestCamera;
+                    s_reflectionRequestCamera = reflectionCamera;
+
+                    try
+                    {
+                        RenderPipeline.SubmitRenderRequest(reflectionCamera, request);
+                    }
+                    finally
+                    {
+                        GL.invertCulling        = false;
+                        s_reflectionRequestCamera = previousReflectionRequestCamera;
+                    }
+                }
+            }
+#else
+#pragma warning disable CS0618
+            GL.invertCulling = true;
             UniversalRenderPipeline.RenderSingleCamera(context, reflectionCamera);
-#endif
             GL.invertCulling = false;
+#pragma warning restore CS0618
+#endif
+#endif
 
             reflectionCamera.ResetWorldToCameraMatrix();
             reflectionCamera.ResetCullingMatrix();
@@ -458,13 +525,14 @@ namespace UltimateXR.Rendering.FX
 
         // Constants
 
-        private const string VarReflectionTexLeft    = "_ReflectionTexLeft";
-        private const string VarReflectionTexRight   = "_ReflectionTexRight";
-        private const string VarReflectionMaxLodBias = "_ReflectionMaxLODBias";
+        private static readonly int s_varReflectionTexLeft    = Shader.PropertyToID("_ReflectionTexLeft");
+        private static readonly int s_varReflectionTexRight   = Shader.PropertyToID("_ReflectionTexRight");
+        private static readonly int s_varReflectionMaxLodBias = Shader.PropertyToID("_ReflectionMaxLODBias");
 
         // Static
 
         private static   bool                       s_insideRendering;
+        private static   Camera                     s_reflectionRequestCamera;
         private readonly Dictionary<Camera, Camera> _reflectionCameras = new Dictionary<Camera, Camera>();
 
         // Internal
@@ -473,7 +541,7 @@ namespace UltimateXR.Rendering.FX
         private RenderTexture _reflectionTextureLeft;
         private RenderTexture _reflectionTextureRight;
         private int           _oldReflectionTextureSize;
-        private Material      _originalMaterial;
+        private Material[]    _materials;
 
         #endregion
     }

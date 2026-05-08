@@ -26,10 +26,12 @@ namespace UltimateXR.Animation.Interpolation
         /// <param name="oldValue">Old value</param>
         /// <param name="newValue">New value</param>
         /// <param name="smooth">Smooth value [0.0, 1.0] where 0.0 is no smoothing and 1.0 is maximum smoothing</param>
+        /// <param name="useUnscaledTime">If true, uses unscaled time, which is not affected by <see cref="Time.timeScale"/>.
+        /// This is useful for smoothing during pauses or slow-motion.</param>
         /// <returns>Smoothed value</returns>
-        public static float SmoothDamp(float oldValue, float newValue, float smooth)
+        public static float SmoothDamp(float oldValue, float newValue, float smooth, bool useUnscaledTime = false)
         {
-            return Mathf.Lerp(oldValue, newValue, GetSmoothInterpolationValue(smooth, Time.deltaTime));
+            return Mathf.Lerp(oldValue, newValue, GetSmoothInterpolationValue(smooth, useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime));
         }
 
         /// <summary>
@@ -38,10 +40,12 @@ namespace UltimateXR.Animation.Interpolation
         /// <param name="oldPos">Old position</param>
         /// <param name="newPos">New position</param>
         /// <param name="smooth">Smooth value [0.0, 1.0] where 0.0 is no smoothing and 1.0 is maximum smoothing</param>
+        /// <param name="useUnscaledTime">If true, uses unscaled time, which is not affected by <see cref="Time.timeScale"/>.
+        /// This is useful for smoothing during pauses or slow-motion.</param>
         /// <returns>Smoothed position value</returns>
-        public static Vector3 SmoothDampPosition(Vector3 oldPos, Vector3 newPos, float smooth)
+        public static Vector3 SmoothDampPosition(Vector3 oldPos, Vector3 newPos, float smooth, bool useUnscaledTime = false)
         {
-            return Vector3.Lerp(oldPos, newPos, GetSmoothInterpolationValue(smooth, Time.deltaTime));
+            return Vector3.Lerp(oldPos, newPos, GetSmoothInterpolationValue(smooth, useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime));
         }
 
         /// <summary>
@@ -51,10 +55,12 @@ namespace UltimateXR.Animation.Interpolation
         /// <param name="oldRot">Old rotation</param>
         /// <param name="newRot">New rotation</param>
         /// <param name="smooth">Smooth value [0.0, 1.0] where 0.0 is no smoothing and 1.0 is maximum smoothing</param>
+        /// <param name="useUnscaledTime">If true, uses unscaled time, which is not affected by <see cref="Time.timeScale"/>.
+        /// This is useful for smoothing during pauses or slow-motion.</param>
         /// <returns>Smoothed rotation value</returns>
-        public static Quaternion SmoothDampRotation(Quaternion oldRot, Quaternion newRot, float smooth)
+        public static Quaternion SmoothDampRotation(Quaternion oldRot, Quaternion newRot, float smooth, bool useUnscaledTime = false)
         {
-            return Quaternion.Slerp(oldRot, newRot, GetSmoothInterpolationValue(smooth, Time.deltaTime));
+            return Quaternion.Slerp(oldRot, newRot, GetSmoothInterpolationValue(smooth, useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime));
         }
 
         /// <summary>
@@ -222,14 +228,14 @@ namespace UltimateXR.Animation.Interpolation
 
             if (!(loopMode != UxrLoopMode.None && loopedDuration < 0.0f))
             {
-                Mathf.Min(time, delay + (loopMode == UxrLoopMode.None ? duration : loopedDuration));
+                time = Mathf.Min(time, delay + (loopMode == UxrLoopMode.None ? duration : loopedDuration));
             }
 
             float t = duration == 0.0f ? 0.0f : (time - delay) / duration;
 
             if (loopMode == UxrLoopMode.Loop)
             {
-                t = t - (int)t;
+                t -= (int)t;
             }
             else if (loopMode == UxrLoopMode.PingPong)
             {
@@ -363,7 +369,7 @@ namespace UltimateXR.Animation.Interpolation
         ///     <para>
         ///         Start/end pairs that will be interpolated and fed into <see cref="string.Format(string,object[])" />.
         ///         These should be sequential pairs of values of the same type that represent the start value and the end value.
-        ///         For instance format could be "{0}:{1}" and args could be startArg0, endArg0, startArg1, endArg1.
+        ///         For instance, the format could be "{0}:{1}" and args could be startArg0, endArg0, startArg1, endArg1.
         ///         This will print 2 interpolated values (Arg0 and Arg1) whose start and end values are defined by the other 4
         ///         parameters.
         ///     </para>
@@ -505,7 +511,14 @@ namespace UltimateXR.Animation.Interpolation
         /// <returns>Interpolation value [0.0, 1.0]</returns>
         internal static float GetSmoothInterpolationValue(float smooth, float deltaTime)
         {
-            return smooth > 0.0f ? (1.0f - Mathf.Clamp01(smooth)) * deltaTime * MaxSmoothSpeed : 1.0f;
+            if (smooth <= 0.0f)
+            {
+                return 1.0f;
+            }
+
+            // Framerate-independent exponential decay: 1 - e^(-lambda * dt)
+            float lambda = (1.0f - Mathf.Clamp01(smooth)) * MaxSmoothSpeed;
+            return 1.0f - Mathf.Exp(-lambda * deltaTime);
         }
         
         #endregion

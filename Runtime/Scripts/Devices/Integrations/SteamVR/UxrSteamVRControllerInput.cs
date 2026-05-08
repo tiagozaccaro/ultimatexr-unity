@@ -181,8 +181,34 @@ namespace UltimateXR.Devices.Integrations.SteamVR
             {
                 // Disabled by default at the beginning, unless we already these controllers registered.
                 // If we already have the controllers registered it is due to an Awake() when loading a new scene.
-                enabled             = s_controllerList.TryGetValue(InputClassName, out List<int> controllerIndices) && controllerIndices.Count > 0;
-                RaiseConnectOnStart = enabled;
+
+                if (s_controllerList.TryGetValue(InputClassName, out List<int> controllerIndices) && controllerIndices.Count > 0)
+                {
+                    RaiseConnectOnStartEvents = new List<UxrDeviceConnectEventArgs>();
+
+                    foreach (int controllerIndex in controllerIndices)
+                    {
+                        StringBuilder         renderModelName = new StringBuilder(ModelNameMaxLength);
+                        ETrackedPropertyError error           = ETrackedPropertyError.TrackedProp_Success;
+                        
+                        OpenVR.System.GetStringTrackedDeviceProperty((uint)controllerIndex, ETrackedDeviceProperty.Prop_ModelNumber_String, renderModelName, ModelNameMaxLength, ref error);
+
+                        string                 modelNameString = renderModelName.ToString();
+                        ETrackedControllerRole role            = OpenVR.System.GetControllerRoleForTrackedDeviceIndex((uint)index);
+
+                        bool isLeft  = role == ETrackedControllerRole.LeftHand;
+                        bool isRight = role == ETrackedControllerRole.RightHand;
+
+                        if (isLeft || isRight)
+                        {
+                            RaiseConnectOnStartEvents.Add(new UxrControllerConnectEventArgs(true, modelNameString, true, isLeft ? UxrHandSide.Left : UxrHandSide.Right));
+                        }
+                    }
+                }
+                else
+                {
+                    enabled = false;
+                }
 
                 if (!s_initializedSteamVR)
                 {
@@ -206,7 +232,7 @@ namespace UltimateXR.Devices.Integrations.SteamVR
 
             if (UsesHandSkeletons)
             {
-                if (!_awakeFinished || !UxrManager.Instance || !Avatar || !Avatar.AvatarController)
+                if (!_awakeFinished || !UxrManager.HasInstance || !Avatar || !Avatar.AvatarController)
                 {
                     return;
                 }
@@ -495,12 +521,16 @@ namespace UltimateXR.Devices.Integrations.SteamVR
                 return;
             }
 
-            var renderModelName = new StringBuilder(ModelNameMaxLength);
-            var error           = ETrackedPropertyError.TrackedProp_Success;
+            StringBuilder         renderModelName = new StringBuilder(ModelNameMaxLength);
+            ETrackedPropertyError error           = ETrackedPropertyError.TrackedProp_Success;
 
             OpenVR.System.GetStringTrackedDeviceProperty((uint)index, ETrackedDeviceProperty.Prop_ModelNumber_String, renderModelName, ModelNameMaxLength, ref error);
 
-            string modelNameString = renderModelName.ToString();
+            string                 modelNameString = renderModelName.ToString();
+            ETrackedControllerRole role            = OpenVR.System.GetControllerRoleForTrackedDeviceIndex((uint)index);
+
+            bool isLeft  = role == ETrackedControllerRole.LeftHand;
+            bool isRight = role == ETrackedControllerRole.RightHand;
 
             if (UxrGlobalSettings.Instance.LogLevelDevices >= UxrLogLevel.Relevant)
             {
@@ -533,10 +563,11 @@ namespace UltimateXR.Devices.Integrations.SteamVR
 
                     if (inputSteamVR.enabled == false)
                     {
-                        // First controller: Notify device is connected since we consider the device the whole setup
+                        // First controller connected: enable input
                         inputSteamVR.enabled = true;
-                        inputSteamVR.OnDeviceConnected(new UxrDeviceConnectEventArgs(true));
                     }
+                    
+                    inputSteamVR.OnDeviceConnected(new UxrControllerConnectEventArgs(true, modelNameString, true, isLeft ? UxrHandSide.Left : UxrHandSide.Right));
                 }
                 else
                 {
@@ -545,10 +576,11 @@ namespace UltimateXR.Devices.Integrations.SteamVR
 
                     if (controllerIndices.Count == 0)
                     {
-                        // Last controller disconnected: Notify device is disconnected.
+                        // Last controller disconnected: disable input
                         inputSteamVR.enabled = false;
-                        inputSteamVR.OnDeviceConnected(new UxrDeviceConnectEventArgs(false));
                     }
+
+                    inputSteamVR.OnDeviceConnected(new UxrControllerConnectEventArgs(false, modelNameString, true, isLeft ? UxrHandSide.Left : UxrHandSide.Right));
                 }
             }
             else

@@ -27,7 +27,7 @@ namespace UltimateXR.Manipulation
             #region Public Types & Data
 
             /// <summary>
-            ///     Gets the grabber grabbing the <see cref="UxrGrabbableObject" />.
+            ///     Gets or sets the grabber grabbing the <see cref="UxrGrabbableObject" />.
             /// </summary>
             public UxrGrabber Grabber
             {
@@ -36,12 +36,21 @@ namespace UltimateXR.Manipulation
             }
 
             /// <summary>
-            ///     Gets the <see cref="UxrGrabbableObject" /> grabbed point.
+            ///     Gets or sets the <see cref="UxrGrabbableObject" /> grabbed point.
             /// </summary>
             public int GrabbedPoint
             {
                 get => _grabbedPoint;
                 set => _grabbedPoint = value;
+            }
+
+            /// <summary>
+            ///    Gets or sets the grab options.
+            /// </summary>
+            public UxrGrabOptions GrabOptions
+            {
+                get => _grabOptions;
+                set => _grabOptions = value;
             }
 
             // *************************************************************************************************************************
@@ -344,10 +353,12 @@ namespace UltimateXR.Manipulation
             /// </summary>
             /// <param name="grabber">The grabber</param>
             /// <param name="grabbedPoint">The grabbed point</param>
-            public RuntimeGrabInfo(UxrGrabber grabber, int grabbedPoint)
+            /// <param name="grabOptions">Grab options</param>
+            public RuntimeGrabInfo(UxrGrabber grabber, int grabbedPoint, UxrGrabOptions grabOptions)
             {
                 Grabber      = grabber;
                 GrabbedPoint = grabbedPoint;
+                _grabOptions = grabOptions;
             }
 
             /// <summary>
@@ -363,13 +374,19 @@ namespace UltimateXR.Manipulation
             #region Implicit IUxrSerializable
 
             /// <inheritdoc />
-            public int SerializationVersion => 0;
+            public int SerializationVersion => 1;
 
             /// <inheritdoc />
             public void Serialize(IUxrSerializer serializer, int serializationVersion)
             {
-                serializer.SerializeUniqueComponent(ref _grabber);
+                serializer.SerializeUniqueIdComponent(ref _grabber);
                 serializer.Serialize(ref _grabbedPoint);
+
+                if (serializationVersion >= 1)
+                {
+                    serializer.SerializeEnum(ref _grabOptions);
+                }
+
                 serializer.Serialize(ref _relativeGrabRotation);
                 serializer.Serialize(ref _relativeGrabPosition);
                 serializer.Serialize(ref _relativeGrabberRotation);
@@ -377,7 +394,7 @@ namespace UltimateXR.Manipulation
 
                 // Trick to be able to restore _grabAlignParentTransformUsed because we can't serialize a reference without IUxrUniqueID
                 {
-                    serializer.SerializeUniqueComponent(ref _grabbableObject);
+                    serializer.SerializeUniqueIdComponent(ref _grabbableObject);
 
                     if (serializer.IsReading && _grabbableObject)
                     {
@@ -521,36 +538,37 @@ namespace UltimateXR.Manipulation
 
             #region Private Types & Data
 
-            private UxrGrabber _grabber;
-            private int        _grabbedPoint;
-            private Quaternion _relativeGrabRotation;
-            private Vector3    _relativeGrabPosition;
-            private Quaternion _relativeGrabberRotation;
-            private Vector3    _relativeGrabberPosition;
-            private Transform  _grabAlignParentTransformUsed;
-            private Quaternion _relativeGrabAlignRotation;
-            private Vector3    _relativeGrabAlignPosition;
-            private Quaternion _relativeUsedGrabAlignRotation;
-            private Vector3    _relativeUsedGrabAlignPosition;
-            private Vector3    _relativeProximityPosition;
-            private Vector3    _grabberLocalLeverageSource;
-            private Vector3    _grabberLocalParentLeverageSourceOnGrab;
-            private Vector3    _parentGrabbableLookAtLocalLeveragePoint;
-            private Vector3    _parentGrabbableLookAtParentLeveragePoint;
-            private Vector3    _parentGrabbableLeverageContribution;
-            private Quaternion _parentGrabbableLookAtRotationContribution;
-            private float      _singleRotationAngleContribution;
-            private float      _lastAccumulatedAngle;
-            private Vector3    _parentLocalGrabPositionBeforeUpdate;
-            private Vector3    _parentLocalGrabPositionAfterUpdate;
-            private Vector3    _childLocalParentPosition;
-            private Quaternion _childLocalParentRotation;
-            private Vector3    _localPositionOnGrab;
-            private Quaternion _localRotationOnGrab;
-            private Vector3    _alignPositionOnGrab;
-            private Quaternion _alignRotationOnGrab;
-            private Vector3    _handBoneLocalAvatarPositionOnGrab;
-            private Quaternion _handBoneLocalAvatarRotationOnGrab;
+            private UxrGrabber     _grabber;
+            private int            _grabbedPoint;
+            private UxrGrabOptions _grabOptions;
+            private Quaternion     _relativeGrabRotation;
+            private Vector3        _relativeGrabPosition;
+            private Quaternion     _relativeGrabberRotation;
+            private Vector3        _relativeGrabberPosition;
+            private Transform      _grabAlignParentTransformUsed;
+            private Quaternion     _relativeGrabAlignRotation;
+            private Vector3        _relativeGrabAlignPosition;
+            private Quaternion     _relativeUsedGrabAlignRotation;
+            private Vector3        _relativeUsedGrabAlignPosition;
+            private Vector3        _relativeProximityPosition;
+            private Vector3        _grabberLocalLeverageSource;
+            private Vector3        _grabberLocalParentLeverageSourceOnGrab;
+            private Vector3        _parentGrabbableLookAtLocalLeveragePoint;
+            private Vector3        _parentGrabbableLookAtParentLeveragePoint;
+            private Vector3        _parentGrabbableLeverageContribution;
+            private Quaternion     _parentGrabbableLookAtRotationContribution;
+            private float          _singleRotationAngleContribution;
+            private float          _lastAccumulatedAngle;
+            private Vector3        _parentLocalGrabPositionBeforeUpdate;
+            private Vector3        _parentLocalGrabPositionAfterUpdate;
+            private Vector3        _childLocalParentPosition;
+            private Quaternion     _childLocalParentRotation;
+            private Vector3        _localPositionOnGrab;
+            private Quaternion     _localRotationOnGrab;
+            private Vector3        _alignPositionOnGrab;
+            private Quaternion     _alignRotationOnGrab;
+            private Vector3        _handBoneLocalAvatarPositionOnGrab;
+            private Quaternion     _handBoneLocalAvatarRotationOnGrab;
 
             // To be able to retrieve _grabAlignParentTransformUsed when serializing, because it doesn't have any way to serialize the reference:
             private UxrGrabbableObject _grabbableObject;

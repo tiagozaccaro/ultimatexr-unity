@@ -19,6 +19,11 @@ namespace UltimateXR.Core.Unique
         #region Public Types & Data
 
         /// <summary>
+        ///     Event called when the component is about to be destroyed.
+        /// </summary>
+        event Action<IUxrUniqueId> Destroying;
+
+        /// <summary>
         ///     Gets the component unique Id.
         ///     Use <see cref="ChangeUniqueId" /> to change the unique ID at runtime.
         /// </summary>
@@ -58,6 +63,13 @@ namespace UltimateXR.Core.Unique
         /// </summary>
         bool UniqueIdIsTypeName { get; }
 
+        /// <summary>
+        ///     When multiple <see cref="IUxrUniqueId" /> components are on an object, specifies those that will be used
+        ///     preferably over other components when keeping track the object. Use on component types that are more likely
+        ///     to keep a consistent unique id.
+        /// </summary>
+        bool PreferForTracking { get; }
+
         #endregion
 
         #region Public Methods
@@ -73,7 +85,7 @@ namespace UltimateXR.Core.Unique
 
         /// <summary>
         ///     Unregisters the component, removing the Unique ID from the internal list. Components are unregistered manually,
-        ///     use this method to unregister the ID ahead of time if necessary.    
+        ///     use this method to unregister the ID ahead of time if necessary.
         /// </summary>
         void Unregister();
 

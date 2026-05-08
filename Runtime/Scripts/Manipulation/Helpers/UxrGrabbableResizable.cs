@@ -1,4 +1,4 @@
-﻿// --------------------------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 // <copyright file="UxrGrabbableResizable.cs" company="VRMADA">
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
@@ -139,7 +139,7 @@ namespace UltimateXR.Manipulation.Helpers
             GrabbableExtendRight.ResetPositionAndState(propagateEvents);
             UpdateResizableScale();
 
-            EndSyncMethod(new object[] { propagateEvents });
+            EndSyncMethod(SyncParams(propagateEvents));
         }
 
         /// <inheritdoc />
@@ -154,7 +154,7 @@ namespace UltimateXR.Manipulation.Helpers
             _grabbingCount = 0;
             _grabbedCount  = 0;
 
-            EndSyncMethod(new object[] { propagateEvents });
+            EndSyncMethod(SyncParams(propagateEvents));
         }
 
         #endregion
@@ -224,7 +224,7 @@ namespace UltimateXR.Manipulation.Helpers
         }
 
         /// <summary>
-        ///     Scales the resizable using the initial scale if it's different than 1.0
+        ///     Scales the resizable using the initial scale if it's different from 1.0
         /// </summary>
         protected override void Start()
         {

@@ -68,8 +68,7 @@ namespace UltimateXR.Extensions.Unity
         /// </summary>
         /// <param name="transform">Transform to destroy all children of</param>
         /// <param name="includeInactive">Also delete children with inactive components?</param>
-        public static void DestroyAllChildren<T>(this Transform transform, bool includeInactive = true)
-                    where T : Component
+        public static void DestroyAllChildren<T>(this Transform transform, bool includeInactive = true) where T : Component
         {
             T[] children = transform.GetComponentsInChildren<T>(includeInactive);
 
@@ -297,6 +296,22 @@ namespace UltimateXR.Extensions.Unity
             return self.TransformDirection(self.InverseTransformDirection(vector).normalized.GetClosestAxis());
         }
 
+        /// <summary>
+        ///     Flattens the transform's rotation so that it looks forward only on the XZ plane.
+        ///     Both yaw (rotation around the Y axis) and roll (side tilt) are removed.
+        ///     The forward vector is projected onto the horizontal plane, and the up vector
+        ///     is forced to world up (<see cref="Vector3.up"/>).
+        /// </summary>
+        /// <param name="transform">The transform to adjust.</param>
+        public static void FlattenRotation(this Transform transform)
+        {
+            Vector3 forward = transform.forward;
+            forward.y = 0f;
+            forward.Normalize();
+
+            transform.rotation = Quaternion.LookRotation(forward, Vector3.up);
+        }
+        
         /// <summary>
         ///     Constraints the given transform position to the volume specified by a box collider.
         /// </summary>

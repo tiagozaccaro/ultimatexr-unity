@@ -14,38 +14,51 @@ namespace UltimateXR.UI.UnityInputModule.Controls
 
         protected override int SerializationOrder => UxrConstants.Serialization.SerializationOrderDefault + 1;
 
-        protected override void SerializeState(bool isReading, int stateSerializationVersion, UxrStateSaveLevel level, UxrStateSaveOptions options)
+        protected override void SerializeState(bool isReading, UxrStateSaveLevel level, UxrStateSaveOptions options)
         {
-            base.SerializeState(isReading, stateSerializationVersion, level, options);
+            base.SerializeState(isReading, level, options);
 
-            if (level >= UxrStateSaveLevel.ChangesSinceBeginning)
+            // Version
+
+            SerializeStateVersion(level, options, StateSerializationVersion, out int effectiveVersion);
+
+            if (level <= UxrStateSaveLevel.ChangesSincePreviousSave)
             {
-                int currentSelectionIndex = _toggles?.IndexOf(CurrentSelection) ?? -1;
+                // Process all save levels above time sampling. Time sampling is not needed and covered by event synchronization.
+                return;
+            }
 
-                SerializeStateValue(level, options, nameof(currentSelectionIndex), ref currentSelectionIndex);
+            int currentSelectionIndex = _toggles?.IndexOf(CurrentSelection) ?? -1;
 
-                if (isReading)
+            SerializeStateValue(level, options, nameof(currentSelectionIndex), ref currentSelectionIndex);
+
+            if (isReading)
+            {
+                CurrentSelection = _toggles != null && currentSelectionIndex >= 0 && currentSelectionIndex < _toggles.Count ? _toggles[currentSelectionIndex] : null;
+
+                if (CurrentSelection != null)
                 {
-                    CurrentSelection = _toggles != null && currentSelectionIndex >= 0 && currentSelectionIndex < _toggles.Count ? _toggles[currentSelectionIndex] : null;
-
-                    if (CurrentSelection != null)
+                    CurrentSelection.IsSelected = true;
+                }
+                else
+                {
+                    if (_toggles != null)
                     {
-                        CurrentSelection.IsSelected = true;
-                    }
-                    else
-                    {
-                        if (_toggles != null)
+                        foreach (UxrToggleControlInput t in _toggles)
                         {
-                            foreach (UxrToggleControlInput t in _toggles)
-                            {
-                                t.CanBeToggled = true;
-                                t.SetIsSelected(false, false);
-                            }
+                            t.CanBeToggled = true;
+                            t.SetIsSelected(false, false);
                         }
                     }
                 }
             }
         }
+
+        #endregion
+
+        #region Private Types & Data
+
+        private const int StateSerializationVersion = 0;
 
         #endregion
     }

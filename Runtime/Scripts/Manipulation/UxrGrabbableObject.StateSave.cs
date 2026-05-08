@@ -1,6 +1,4 @@
-﻿
-
-// --------------------------------------------------------------------------------------------------------------------
+﻿// --------------------------------------------------------------------------------------------------------------------
 // <copyright file="UxrGrabbableObject.StateSave.cs" company="VRMADA">
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
@@ -25,14 +23,17 @@ namespace UltimateXR.Manipulation
         }
 
         /// <inheritdoc />
-        protected override void SerializeState(bool isReading, int stateSerializationVersion, UxrStateSaveLevel level, UxrStateSaveOptions options)
+        protected override void SerializeState(bool isReading, UxrStateSaveLevel level, UxrStateSaveOptions options)
         {
-            base.SerializeState(isReading, stateSerializationVersion, level, options);
+            base.SerializeState(isReading, level, options);
+
+            // Version
+
+            SerializeStateVersion(level, options, StateSerializationVersion, out int effectiveVersion);
 
             if (level <= UxrStateSaveLevel.ChangesSincePreviousSave)
             {
-                // All the variables below are not needed in incremental snapshots.
-                // In a replay system, these variables will be updated by events.
+                // Process all save levels above time sampling. Time sampling is not needed and covered by event synchronization.
                 return;
             }
 
@@ -95,6 +96,12 @@ namespace UltimateXR.Manipulation
 
             SerializeStateValue(level, options, nameof(_grabPointEnabledStates), ref _grabPointEnabledStates);
         }
+
+        #endregion
+
+        #region Private Types & Data
+
+        private const int StateSerializationVersion = 0;
 
         #endregion
     }

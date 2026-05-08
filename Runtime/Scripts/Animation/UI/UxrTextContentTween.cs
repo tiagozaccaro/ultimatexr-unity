@@ -27,8 +27,8 @@ namespace UltimateXR.Animation.UI
     {
         #region Inspector Properties/Serialized Fields
 
-        [SerializeField] private string _startText;
-        [SerializeField] private string _endText;
+        [SerializeField][Multiline] private string _startText;
+        [SerializeField][Multiline] private string _endText;
 
         #endregion
 

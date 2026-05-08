@@ -27,7 +27,7 @@ namespace UltimateXR.Extensions.Unity.IO
         /// <returns>Whether the URI is compatible with <see cref="UnityWebRequest" /></returns>
         public static bool IsUwrUri(string uri)
         {
-            return uri.Contains(Application.streamingAssetsPath)
+            return uri.StartsWith(JarPrefix)
                    || uri.StartsWith(FilePrefix)
                    || uri.StartsWith(HttpPrefix)
                    || uri.StartsWith(HttpsPrefix);
@@ -108,7 +108,7 @@ namespace UltimateXR.Extensions.Unity.IO
             result.name = Path.GetFileNameWithoutExtension(uri);
             return result;
         }
-        
+
         /// <summary>
         ///     Loads an <see cref="AudioClip" /> asynchronously from an URI.
         /// </summary>
@@ -235,6 +235,7 @@ namespace UltimateXR.Extensions.Unity.IO
 
         #region Private Types & Data
 
+        private const string JarPrefix   = "jar:";
         private const string FilePrefix  = "file://";
         private const string HttpPrefix  = "http://";
         private const string HttpsPrefix = "https://";

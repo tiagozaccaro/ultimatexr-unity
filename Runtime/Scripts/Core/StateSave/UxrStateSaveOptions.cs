@@ -33,7 +33,7 @@ namespace UltimateXR.Core.StateSave
 
         /// <summary>
         ///     Do not check the changes cache when writing, which means that the values will be written whether they changed
-        ///     or not. 
+        ///     or not.
         /// </summary>
         DontCheckCache = 1 << 2,
 
@@ -43,6 +43,12 @@ namespace UltimateXR.Core.StateSave
         ///     <see cref="UxrStateSaveLevel.ChangesSincePreviousSave" />) states.
         /// </summary>
         ResetChangesCache = 1 << 3,
+
+        /// <summary>
+        ///     Does not output any version information when serializing. This is useful when checking which components output
+        ///     any data, since versions need to be excluded from the check.
+        /// </summary>
+        DontWriteVersions = 1 << 4,
 
         /// <summary>
         ///     Notifies that it is gathering the first initial state.

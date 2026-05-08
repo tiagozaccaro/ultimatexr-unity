@@ -3,8 +3,10 @@
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
+using System;
 using UltimateXR.Core.Serialization;
 using UltimateXR.Core.Unique;
+using UltimateXR.Exceptions;
 using UltimateXR.Extensions.Unity;
 using UnityEngine;
 
@@ -27,18 +29,17 @@ namespace UltimateXR.Core.Instantiation
             public string PrefabId => _prefabId;
 
             /// <summary>
-            ///     Gets the name of the empty instance, if the instance was created using
-            ///     <see cref="UxrInstanceManager.InstantiateEmptyGameObject" />.
+            ///     Gets the name of the instance.
             /// </summary>
             public string Name => _name;
 
             /// <summary>
-            ///     Gets the parent if the object was parented to any.
+            ///     Gets the Guid of the parent if the object was parented to any.
             /// </summary>
-            public IUxrUniqueId Parent => _parent;
+            public Guid ParentUniqueId => _parentGuid;
 
             /// <summary>
-            ///     Gets the position. It will contain relative position to the parent if parented.
+            ///     Gets the position. It will contain the relative position to the parent if parented.
             /// </summary>
             public Vector3 Position => _position;
 
@@ -51,6 +52,31 @@ namespace UltimateXR.Core.Instantiation
             ///     Gets the local scale.
             /// </summary>
             public Vector3 Scale => _scale;
+            
+            /// <summary>
+            ///     Gets whether the instance was created using <see cref="UxrInstanceManager.NotifyNetworkSpawn"/>.
+            /// </summary>
+            public bool IsNetworkSpawn => _isNetworkSpawn;
+
+            /// <summary>
+            ///     Gets the order in which the instance was created. This can be used when deserializing
+            ///     to determine the order in which instances should be created. This way parenting will
+            ///     be resolved in the correct order.
+            /// </summary>
+            public int Order => _order;
+
+            /// <summary>
+            ///     Gets or sets the parent if the object was parented to any.
+            /// </summary>
+            public IUxrUniqueId Parent
+            {
+                get => _parent;
+                set
+                {
+                    _parent     = value;
+                    _parentGuid = value?.UniqueId ?? Guid.Empty;
+                }
+            }
 
             #endregion
 
@@ -64,14 +90,18 @@ namespace UltimateXR.Core.Instantiation
             ///     The id of the prefab that was instantiated or null if the instance was created using
             ///     <see cref="UxrInstanceManager.InstantiateEmptyGameObject" />.
             /// </param>
-            public InstanceInfo(IUxrUniqueId instance, string prefabId)
+            /// <param name="isNetworkSpawn">Whether the instance is the result of using <see cref="UxrInstanceManager.NotifyNetworkSpawn"/></param>
+            public InstanceInfo(IUxrUniqueId instance, string prefabId, bool isNetworkSpawn)
             {
-                _prefabId = prefabId;
-                _name     = string.IsNullOrEmpty(prefabId) ? instance.GameObject.name : null;
-                _parent   = instance.Transform.parent != null ? instance.Transform.parent.GetComponent<IUxrUniqueId>() : null;
-                _position = _parent != null ? instance.Transform.localPosition : instance.Transform.position;
-                _rotation = _parent != null ? instance.Transform.localRotation : instance.Transform.rotation;
-                _scale    = instance.Transform.localScale;
+                _prefabId       = prefabId;
+                _name           = instance.GameObject.name;
+                _parent         = instance.Transform.parent != null ? instance.Transform.parent.GetTrackingUniqueIdComponent() : null;
+                _parentGuid     = _parent?.UniqueId ?? Guid.Empty;
+                _position       = _parent != null ? instance.Transform.localPosition : instance.Transform.position;
+                _rotation       = _parent != null ? instance.Transform.localRotation : instance.Transform.rotation;
+                _scale          = instance.Transform.localScale;
+                _isNetworkSpawn = isNetworkSpawn;
+                _order          = s_order++;
             }
 
             /// <summary>
@@ -86,17 +116,48 @@ namespace UltimateXR.Core.Instantiation
             #region Implicit IUxrSerializable
 
             /// <inheritdoc />
-            public int SerializationVersion => 0;
+            public int SerializationVersion => 1;
 
             /// <inheritdoc />
             public void Serialize(IUxrSerializer serializer, int serializationVersion)
             {
                 serializer.Serialize(ref _prefabId);
                 serializer.Serialize(ref _name);
-                serializer.SerializeUniqueComponent(ref _parent);
+
+                if (serializationVersion == 0)
+                {
+                    // Version 0 serialized the parent as an IUxrUniqueId, which means that when deserializing it will try to get the component
+                    // from the scene and throw an exception when not found. This gives errors if a child is parented to another object that was instantiated.
+                    // For improved backwards compatibility we can catch the exception and store the unique ID that wasn't found, which will allow us to
+                    // solve it in a second pass just like the version >= 1 does.
+
+                    try
+                    {
+                        serializer.SerializeUniqueIdComponent(ref _parent);
+                    }
+                    catch (UxrComponentNotFoundException e)
+                    {
+                        if (serializer.IsReading)
+                        {
+                            _parentGuid = e.UniqueId;
+                        }
+                    }
+                }
+                else
+                {
+                    // Starting from version 1, we serialize the parent using the ID so that we can solve the parenting on a second, safer pass. 
+                    serializer.Serialize(ref _parentGuid);
+                }
+
                 serializer.Serialize(ref _position);
                 serializer.Serialize(ref _rotation);
                 serializer.Serialize(ref _scale);
+
+                if (serializationVersion >= VersionWithNetworkSpawnAndInstantiationOrder)
+                {
+                    serializer.Serialize(ref _isNetworkSpawn);
+                    serializer.Serialize(ref _order);
+                }
             }
 
             #endregion
@@ -109,26 +170,28 @@ namespace UltimateXR.Core.Instantiation
             /// <param name="instance">The GameObject to update the information of</param>
             public void UpdateInfoUsingObject(GameObject instance)
             {
-                Transform    transform       = instance.transform;
-                IUxrUniqueId parent          = transform.parent != null ? transform.parent.GetComponent<IUxrUniqueId>() : null;
-                Transform    parentTransform = parent?.Transform;
+                Transform    instanceTransform = instance.transform;
+                IUxrUniqueId parent            = instanceTransform.parent != null ? instanceTransform.parent.GetTrackingUniqueIdComponent() : null;
+                Transform    parentTransform   = parent?.Transform;
 
                 if (parentTransform != null)
                 {
                     // Use relative parent data
-                    _parent   = parent;
-                    _position = transform.localPosition;
-                    _rotation = transform.localRotation;
+                    _parent     = parent;
+                    _parentGuid = parent.UniqueId;
+                    _position   = instanceTransform.localPosition;
+                    _rotation   = instanceTransform.localRotation;
                 }
                 else
                 {
                     // Use world data
-                    _parent   = null;
-                    _position = transform.position;
-                    _rotation = transform.rotation;
+                    _parent     = null;
+                    _parentGuid = Guid.Empty;
+                    _position   = instanceTransform.position;
+                    _rotation   = instanceTransform.rotation;
                 }
 
-                _scale = transform.localScale;
+                _scale = instanceTransform.localScale;
             }
 
             /// <summary>
@@ -137,45 +200,69 @@ namespace UltimateXR.Core.Instantiation
             /// <param name="instance">The GameObject to update</param>
             public void UpdateObjectUsingInfo(GameObject instance)
             {
-                Transform transform       = instance.transform;
-                Transform parentTransform = Parent?.Transform;
+                if (ParentUniqueId != Guid.Empty && UxrUniqueIdImplementer.TryGetComponentById(ParentUniqueId, out IUxrUniqueId parentComponent))
+                {
+                    Parent = parentComponent;
+                }
+
+                Transform instanceTransform = instance.transform;
+                Transform parentTransform   = Parent?.Transform;
 
                 if (parentTransform != null)
                 {
                     // Use relative parent data
 
-                    if (transform.parent != parentTransform)
+                    if (instanceTransform.parent != parentTransform)
                     {
-                        transform.SetParent(parentTransform);
+                        instanceTransform.SetParent(parentTransform);
                     }
 
-                    TransformExt.SetLocalPositionAndRotation(transform, Position, Rotation);
+                    TransformExt.SetLocalPositionAndRotation(instanceTransform, Position, Rotation);
                 }
                 else
                 {
                     // Use world
 
-                    if (transform.parent != null)
+                    if (instanceTransform.parent != null)
                     {
-                        transform.SetParent(null);
+                        instanceTransform.SetParent(null);
                     }
 
-                    transform.SetPositionAndRotation(Position, Rotation);
+                    instanceTransform.SetPositionAndRotation(Position, Rotation);
                 }
 
-                transform.localScale = Scale;
+                instanceTransform.localScale = Scale;
+            }
+
+            #endregion
+
+            #region Internal Methods
+
+            /// <summary>
+            ///     Resets the instantiation order counter.
+            /// </summary>
+            internal static void ResetInstantiationOrder()
+            {
+                s_order = 0;
             }
 
             #endregion
 
             #region Private Types & Data
 
+            private const int VersionWithNetworkSpawnAndInstantiationOrder = 1;
+
+            private static int s_order;
+
             private string       _prefabId;
             private string       _name;
             private IUxrUniqueId _parent;
             private Vector3      _position;
+            private Guid         _parentGuid;
             private Quaternion   _rotation;
             private Vector3      _scale;
+            private bool         _isNetworkSpawn;
+            private int          _order;
 
             #endregion
         }

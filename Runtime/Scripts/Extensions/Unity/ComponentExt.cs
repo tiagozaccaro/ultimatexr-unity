@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UltimateXR.Core;
+using UltimateXR.Core.Unique;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 #if UNITY_EDITOR
@@ -120,43 +121,6 @@ namespace UltimateXR.Extensions.Unity
             return self.gameObject.IsInPrefab();
         }
 
-#if UNITY_EDITOR
-
-       /// <summary>
-        ///     Gets the GUID of the prefab the component is in, if it is in a prefab, or the GUID of the prefab the component was
-        ///     instantiated from, if it was instantiated from a prefab.
-        ///     If the component is not in a prefab and doesn't have a source prefab either, it will return string.Empty.
-        /// </summary>
-        /// <param name="prefabGuid">If the call was successful, returns the GUID or string.Empty</param>
-        /// <returns>Whether the prefab GUID could be retrieved</returns>
-        /// <remarks>
-        ///     The reason the call can be unsuccessful is because Unity for some reason will report
-        ///     a null/empty asset path even though PrefabUtility.IsPartOfPrefabAsset() returns true.
-        ///     This behaviour happens when in prefab isolation/context mode in the editor
-        /// </remarks>
-        public static bool GetPrefabGuid(this Component self, out string prefabGuid)
-        {
-            return self.gameObject.GetPrefabGuid(out prefabGuid, out string _);
-        }
-
-        /// <summary>
-        ///     Same as <see cref="GetPrefabGuid(UnityEngine.Component)" /> but it also returns the asset path if it exists.
-        /// </summary>
-        /// <param name="prefabGuid">If the call was successful, returns the GUID or string.Empty</param>
-        /// <param name="assetPath">If the call was successful, returns the asset path or string.Empty</param>
-        /// <returns>Whether the prefab GUID could be retrieved</returns>
-        /// <remarks>
-        ///     The reason the call can be unsuccessful is because Unity for some reason will report
-        ///     a null/empty asset path even though PrefabUtility.IsPartOfPrefabAsset() returns true.
-        ///     This behaviour happens when in prefab isolation/context mode in the editor
-        /// </remarks>
-        public static bool GetPrefabGuid(this Component self, out string prefabGuid, out string assetPath)
-        {
-            return self.gameObject.GetPrefabGuid(out prefabGuid, out assetPath);
-        }
-
-#endif
-
         /// <summary>
         ///     Gets the Component of a given type. If it doesn't exist, it is added to the GameObject.
         /// </summary>
@@ -184,7 +148,6 @@ namespace UltimateXR.Extensions.Unity
             }
 
             return component;
-
         }
 
         /// <summary>
@@ -197,6 +160,34 @@ namespace UltimateXR.Extensions.Unity
         public static T SafeGetComponentInParent<T>(this Component self)
         {
             return self.GetComponentInParent<T>() ?? self.GetComponentsInParent<T>(true).FirstOrDefault();
+        }
+
+        /// <summary>
+        ///     Traverses up the transform hierarchy from the specified starting point
+        ///     and returns the topmost (highest in the hierarchy) component of the specified type, if any.
+        /// </summary>
+        /// <typeparam name="T">The type of component to search for</typeparam>
+        /// <param name="start">The starting component to begin the search from</param>
+        /// <returns>
+        ///     The topmost component of type <typeparamref name="T" /> found in the hierarchy,
+        ///     or <c>null</c> if no such component exists.
+        /// </returns>
+        public static T GetTopmostComponentInHierarchy<T>(this Component start)
+        {
+            T         topmost = default(T);
+            Transform current = start.transform;
+
+            while (current != null)
+            {
+                T component = current.GetComponent<T>();
+                if (component != null)
+                {
+                    topmost = component; // Keep updating until root
+                }
+                current = current.parent;
+            }
+
+            return topmost;
         }
 
         /// <summary>
@@ -311,6 +302,56 @@ namespace UltimateXR.Extensions.Unity
             return commonRoot;
         }
 
+        /// <summary>
+        ///     Tries to get a component on the same GameObject that implements the <see cref="IUxrUniqueId"/> interface.
+        ///     It will prefer those with <see cref="IUxrUniqueId.PreferForTracking"/> set to true to minimize
+        ///     cases where the component can't be found.
+        /// </summary>
+        /// <param name="self">Component to get a <see cref="IUxrUniqueId"/> component for</param>
+        public static IUxrUniqueId GetTrackingUniqueIdComponent(this Component self)
+        {
+            return self != null ? self.gameObject.GetTrackingUniqueIdComponent() : null;
+        }
+
         #endregion
+
+#if UNITY_EDITOR
+
+        /// <summary>
+        ///     Gets the GUID of the prefab the component is in, if it is in a prefab, or the GUID of the prefab the component was
+        ///     instantiated from, if it was instantiated from a prefab.
+        ///     If the component is not in a prefab and doesn't have a source prefab either, it will return string.Empty.
+        /// </summary>
+        /// <param name="self">Component</param>
+        /// <param name="prefabGuid">If the call was successful, returns the GUID or string.Empty</param>
+        /// <returns>Whether the prefab GUID could be retrieved</returns>
+        /// <remarks>
+        ///     The reason the call can be unsuccessful is that Unity, for some reason, will report
+        ///     a null/empty asset path even though PrefabUtility.IsPartOfPrefabAsset() returns true.
+        ///     This behavior happens when in prefab isolation/context mode in the editor
+        /// </remarks>
+        public static bool GetPrefabGuid(this Component self, out string prefabGuid)
+        {
+            return self.gameObject.GetPrefabGuid(out prefabGuid, out string _);
+        }
+
+        /// <summary>
+        ///     Same as <see cref="GetPrefabGuid(UnityEngine.Component)" /> but it also returns the asset path if it exists.
+        /// </summary>
+        /// <param name="self">Component</param>
+        /// <param name="prefabGuid">If the call was successful, returns the GUID or string.Empty</param>
+        /// <param name="assetPath">If the call was successful, returns the asset path or string.Empty</param>
+        /// <returns>Whether the prefab GUID could be retrieved</returns>
+        /// <remarks>
+        ///     The reason the call can be unsuccessful is that Unity, for some reason, will report
+        ///     a null/empty asset path even though PrefabUtility.IsPartOfPrefabAsset() returns true.
+        ///     This behavior happens when in prefab isolation/context mode in the editor
+        /// </remarks>
+        public static bool GetPrefabGuid(this Component self, out string prefabGuid, out string assetPath)
+        {
+            return self.gameObject.GetPrefabGuid(out prefabGuid, out assetPath);
+        }
+
+#endif
     }
 }

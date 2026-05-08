@@ -3,6 +3,8 @@
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
+
+using System;
 using System.IO;
 using System.Threading;
 using UltimateXR.Core.Settings;
@@ -63,10 +65,24 @@ namespace UltimateXR.Core.Components.Singleton
             {
                 if (GetInstance() is null)
                 {
-                    UxrMonoDispatcher.RunOnMainThread(FindOrAddInstance);
-                    while (GetInstance() is null && !UxrMonoDispatcher.IsCurrentThreadMain)
+                    if (Application.isPlaying)
                     {
-                        Thread.Sleep(25);
+                        // Play mode: search and auto-create if needed
+                        UxrMonoDispatcher.RunOnMainThread(FindOrAddInstance);
+                        while (GetInstance() is null && !UxrMonoDispatcher.IsCurrentThreadMain)
+                        {
+                            Thread.Sleep(25);
+                        }
+                    }
+                    else
+                    {
+                        // Edit mode: search only, no auto-creation
+                        UxrMonoDispatcher.RunOnMainThread(TryFindInstanceVoid);
+
+                        if (GetInstance() == null)
+                        {
+                            throw new InvalidOperationException($"{typeof(T).Name}.Instance requested in edit mode.");
+                        }
                     }
                 }
 
@@ -92,10 +108,19 @@ namespace UltimateXR.Core.Components.Singleton
         /// <summary>
         ///     Tries to find a pre-existing instance in the scene and set it as the singleton instance.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>Whether the instance was found and set successfully</returns>
         private static bool TryFindInstance()
         {
-            return TrySetInstance(FindObjectOfType<T>());
+            return TrySetInstance(FindFirstObjectByType<T>());
+        }
+        
+        /// <summary>
+        ///     Tries to find a pre-existing instance in the scene and set it as the singleton instance.
+        /// </summary>
+        /// <remarks></remarks>
+        private static void TryFindInstanceVoid()
+        {
+            TryFindInstance();
         }
 
         /// <summary>
@@ -109,8 +134,8 @@ namespace UltimateXR.Core.Components.Singleton
         ///             available.
         ///         </item>
         ///         <item>
-        ///             If not found, the component tries to be instantiated in the scene using a prefab in a well known
-        ///             Resources folder. The well known path is <see cref="UxrConstants.Paths.SingletonResources" /> in any
+        ///             If not found, the component tries to be instantiated in the scene using a prefab in a well-known
+        ///             Resources folder. The well-known path is <see cref="UxrConstants.Paths.SingletonResources" /> in any
         ///             Resources
         ///             folder and the prefab name is the singleton class name.
         ///             A prefab can be used to assign initial properties to the component and also hang additional resources

@@ -1,4 +1,4 @@
-﻿// --------------------------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 // <copyright file="UxrStateSyncImplementer.cs" company="VRMADA">
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
@@ -34,21 +34,21 @@ namespace UltimateXR.Core.StateSync
         ///             BeginSync(); 
         ///             ShowParticles(parameter1);
         ///             PlayAudioShot(parameter2); 
-        ///             EndSyncMethod(new object[] {parameter1, parameter2});
+        ///             EndSyncMethod(SyncParams(parameter1, parameter2));
         ///         }
         ///         
         ///         void ShowParticles(int parameter);
         ///         {
         ///             BeginSync();
         ///             Instantiate(ParticleSystem);
-        ///             EndSyncMethod(new object[] {parameter});
+        ///             EndSyncMethod(SyncParams(parameter));
         ///         }
         ///         
         ///         void PlayAudioShot(bool parameter);
         ///         {
         ///             BeginSync();
         ///             _audio.Play();
-        ///             EndSyncMethod(new object[] {parameter});
+        ///             EndSyncMethod(SyncParams(parameter));
         ///         }
         ///     </code>
         /// </summary>

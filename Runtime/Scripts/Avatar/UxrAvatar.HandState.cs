@@ -41,18 +41,19 @@ namespace UltimateXR.Avatar
             #region Public Methods
 
             /// <summary>
-            ///     Checks whether a given event would change the current state.
+            ///     Checks whether a given event (poseName change, blend value change) would change the current state.
             /// </summary>
-            /// <param name="e">Event arguments</param>
+            /// <param name="poseName">The new pose name</param>
+            /// <param name="blendValue">The new blend value</param>
             /// <returns>Whether the event would change the current state</returns>
-            public bool IsChange(UxrAvatarHandPoseChangeEventArgs e)
+            public bool IsChange(string poseName, float blendValue)
             {
-                if (CurrentHandPose == null || e.PoseName != CurrentHandPoseName)
+                if (CurrentHandPose == null || poseName != CurrentHandPoseName)
                 {
                     return true;
                 }
 
-                if (CurrentHandPose.PoseType == UxrHandPoseType.Blend && Mathf.Abs(e.BlendValue - CurrentBlendValue) > BlendEpsilon)
+                if (CurrentHandPose.PoseType == UxrHandPoseType.Blend && Mathf.Abs(blendValue - CurrentBlendValue) > BlendEpsilon)
                 {
                     return true;
                 }

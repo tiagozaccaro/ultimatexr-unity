@@ -20,23 +20,12 @@ namespace UltimateXR.Core.StateSave
         #region Public Types & Data
 
         /// <summary>
-        ///     Gets the current serialization version of the component type that implements the interface. It has the same goal as
-        ///     <see cref="UxrConstants.Serialization.CurrentBinaryVersion" /> but this version property is specific to each class
-        ///     that implements the <see cref="IUxrStateSave" /> interface, which may be used outside the UltimateXR scope,
-        ///     in user specific classes that want to benefit from state serialization.<br />
-        ///     Each class that implement the <see cref="IUxrStateSave" /> interface may have its own version. It is a number that
-        ///     gets incremented by one each time the serialization format of the class that implements this interface changes,
-        ///     enabling backwards compatibility.
-        /// </summary>
-        int StateSerializationVersion { get; }
-
-        /// <summary>
         ///     Gets the serialization order of the component. Components are serialized from lower to higher order values.
         /// </summary>
         int SerializationOrder { get; }
 
         /// <summary>
-        ///     Gets whether the component state should be save even when it's disabled.
+        ///     Gets whether the component state should be saved even when it's disabled.
         ///     This can be useful in components that have state changes even when being disabled. An example is when a
         ///     disabled component is subscribed to an event and the event triggers changes in the component.
         /// </summary>
@@ -72,16 +61,12 @@ namespace UltimateXR.Core.StateSave
         ///     Serializes or deserializes the component state.
         /// </summary>
         /// <param name="serializer">Serializer to use</param>
-        /// <param name="stateSerializationVersion">
-        ///     When reading it tells the <see cref="StateSerializationVersion" /> the data was
-        ///     serialized with. When writing it uses the latest <see cref="StateSerializationVersion" /> version.
-        /// </param>
         /// <param name="level">
         ///     The amount of data to serialize.
         /// </param>
         /// <param name="options">Options</param>
         /// <returns>Whether there were any values in the state that changed</returns>
-        bool SerializeState(IUxrSerializer serializer, int stateSerializationVersion, UxrStateSaveLevel level, UxrStateSaveOptions options = UxrStateSaveOptions.None);
+        bool SerializeState(IUxrSerializer serializer, UxrStateSaveLevel level, UxrStateSaveOptions options = UxrStateSaveOptions.None);
 
         /// <summary>
         ///     Interpolates state variables.

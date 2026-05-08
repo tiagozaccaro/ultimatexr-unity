@@ -5,6 +5,7 @@
 // --------------------------------------------------------------------------------------------------------------------
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UltimateXR.Core.Components;
 using UltimateXR.Extensions.System;
 using UltimateXR.UI.UnityInputModule.Controls;
@@ -24,6 +25,7 @@ namespace UltimateXR.UI.Helpers.Keyboard
         [SerializeField] private bool       _multiline = true;
         [SerializeField] private int        _maxLineLength;
         [SerializeField] private int        _maxLineCount;
+        [SerializeField] private bool       _maxLineOverflowRemovesOldest = true;
         [SerializeField] private Text       _consoleDisplay;
         [SerializeField] private Text       _currentLineDisplay;
         [SerializeField] private bool       _consoleDisplayUsesCursor = true;
@@ -429,18 +431,47 @@ namespace UltimateXR.UI.Helpers.Keyboard
 #endif
                 if (_multiline)
                 {
-                    ConsoleContent += "\n";
-                    CurrentLine    =  string.Empty;
-                    _currentLineCount++;
-                    CheckMaxLines();
+                    bool allow = true;
+                    
+                    if (_currentLineCount >= _maxLineCount && _maxLineCount > 0)
+                    {
+                        if (!_maxLineOverflowRemovesOldest)
+                        {
+                            allow = false;
+                        }
+                    }
+
+                    if (allow)
+                    {
+                        ConsoleContent += "\n";
+                        CurrentLine    =  string.Empty;
+                        _currentLineCount++;
+                        CheckMaxLines();
+                    }
                 }
             }
             else if (key.KeyType == UxrKeyType.Backspace)
             {
                 if (CurrentLine.Length > 0)
                 {
+                    // Remove last char
                     ConsoleContent = ConsoleContent.Substring(0, ConsoleContent.Length - 1);
                     CurrentLine    = CurrentLine.Substring(0, CurrentLine.Length - 1);
+                }
+                else if (ConsoleContent.Length > 0)
+                {
+                    _currentLineCount--;
+                    
+                    // Go a line up
+                    ConsoleContent = ConsoleContent.Substring(0, ConsoleContent.Length - 1);
+
+                    // Find the last newline in the remaining text
+                    int lastNewlineIndex = ConsoleContent.LastIndexOf('\n');
+
+                    // Extract the current line
+                    CurrentLine = (lastNewlineIndex == -1)
+                        ? ConsoleContent                             // no newline found, whole content is one line
+                        : ConsoleContent.Substring(lastNewlineIndex + 1);
                 }
             }
             else if (key.KeyType == UxrKeyType.Del)

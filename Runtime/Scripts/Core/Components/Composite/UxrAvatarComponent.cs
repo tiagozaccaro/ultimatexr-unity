@@ -26,6 +26,7 @@ namespace UltimateXR.Core.Components.Composite
         ///     Gets all the components, enabled or not, of this specific type that belong to the local avatar.
         /// </summary>
         /// <remarks>
+        ///     This property requires memory allocation.  
         ///     Components that have never been enabled are not returned. Components are automatically registered through their
         ///     Awake() call, which is never called if the object has never been enabled. In this case it is recommended to resort
         ///     to <see cref="UnityEngine.GameObject.GetComponentsInChildren{T}(bool)">GetComponentsInChildren</see>.
@@ -35,24 +36,21 @@ namespace UltimateXR.Core.Components.Composite
         /// <summary>
         ///     Gets all the enabled components of this specific type that belong to the local avatar.
         /// </summary>
+        /// <remarks>
+        ///     This property requires memory allocation. 
+        /// </remarks>
         public static IEnumerable<T> EnabledComponentsInLocalAvatar => AllComponents.Where(c => c.Avatar != null && c.Avatar.AvatarMode == UxrAvatarMode.Local && c.isActiveAndEnabled);
 
         /// <summary>
         ///     Gets the local avatar or null if there is none.
         /// </summary>
-        public static UxrAvatar LocalAvatar
-        {
-            get
-            {
-                T component = AllComponents.FirstOrDefault(c => c.Avatar != null && c.Avatar.AvatarMode == UxrAvatarMode.Local);
-                return component == null ? null : component.Avatar;
-            }
-        }
+        public static UxrAvatar LocalAvatar => UxrAvatar.LocalAvatar;
 
         /// <summary>
         ///     Gets all the components, enabled of not, of this specific type that belong to this instance of the avatar.
         /// </summary>
         /// <remarks>
+        ///     This property requires memory allocation.
         ///     Components that have never been enabled are not returned. Components are automatically registered through their
         ///     Awake() call, which is never called if the object has never been enabled. In this case it is recommended to resort
         ///     to <see cref="GameObject.GetComponentsInChildren{T}(bool)" />.
@@ -62,6 +60,9 @@ namespace UltimateXR.Core.Components.Composite
         /// <summary>
         ///     Gets only the enabled components of this specific type that belong to this instance of the avatar.
         /// </summary>
+        /// <remarks>
+        ///     This property requires memory allocation.
+        /// </remarks>
         public IEnumerable<T> EnabledComponentsInAvatar => GetComponents(Avatar);
 
         /// <summary>
@@ -91,6 +92,7 @@ namespace UltimateXR.Core.Components.Composite
         /// <param name="includeDisabled">Whether to include disabled components or not</param>
         /// <returns>Components meeting the criteria</returns>
         /// <remarks>
+        ///     This method requires memory allocation. 
         ///     When using the <paramref name="includeDisabled" /> parameter, components that have never been enabled are not
         ///     returned. Components are automatically registered through their Awake() call, which is never called if the object
         ///     has never been enabled. In this case it is recommended to resort to
@@ -112,6 +114,7 @@ namespace UltimateXR.Core.Components.Composite
         /// <param name="includeDisabled">Whether to include disabled components or not</param>
         /// <returns>Components meeting the criteria</returns>
         /// <remarks>
+        ///     This method requires memory allocation.
         ///     When using the <paramref name="includeDisabled" /> parameter, components that have never been enabled are not
         ///     returned. Components are automatically registered through their Awake() call, which is never called if the object
         ///     has never been enabled. In this case it is recommended to resort to

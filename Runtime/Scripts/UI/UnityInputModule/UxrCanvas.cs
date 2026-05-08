@@ -26,6 +26,7 @@ namespace UltimateXR.UI.UnityInputModule
         [SerializeField] protected float              _autoEnableDistance = 5.0f;
         [SerializeField] protected bool               _allowLeftHand      = true;
         [SerializeField] protected bool               _allowRightHand     = true;
+        [SerializeField] protected bool               _ignoreCameraAutoAssign;
 
         #endregion
 
@@ -35,6 +36,18 @@ namespace UltimateXR.UI.UnityInputModule
         ///     Gets the Unity <see cref="Canvas" /> component.
         /// </summary>
         public Canvas UnityCanvas => GetCachedComponent<Canvas>();
+
+        /// <summary>
+        ///     Gets or sets whether to ignore the <see cref="UxrPointerInputModule.AutoAssignEventCamera" /> parameter for this
+        ///     Canvas.
+        ///     The worldCamera of the Canvas component is assigned during Start(), which means this property needs to be changed
+        ///     before its Start() call to work.
+        /// </summary>
+        public bool IgnoreCameraAutoAssign
+        {
+            get => _ignoreCameraAutoAssign;
+            set => _ignoreCameraAutoAssign = value;
+        }
 
         /// <summary>
         ///     Gets or sets whether the <see cref="UxrLaserPointer" /> components will automatically show their laser while
@@ -123,7 +136,7 @@ namespace UltimateXR.UI.UnityInputModule
         {
             base.Start();
 
-            if (UxrPointerInputModule.Instance && UxrPointerInputModule.Instance.AutoAssignEventCamera && UnityCanvas && UxrAvatar.LocalAvatar)
+            if (!_ignoreCameraAutoAssign && UxrPointerInputModule.Instance && UxrPointerInputModule.Instance.AutoAssignEventCamera && UnityCanvas && UxrAvatar.LocalAvatar)
             {
                 UnityCanvas.worldCamera = UxrAvatar.LocalAvatar.CameraComponent;
             }
@@ -175,7 +188,7 @@ namespace UltimateXR.UI.UnityInputModule
         {
             bool copyParameters = UnityCanvas.GetComponent<T>() == null;
             T    rayCaster      = UnityCanvas.GetOrAddComponent<T>();
-            
+
             rayCaster.enabled = true;
 
             if (oldRaycaster && rayCaster)
@@ -186,8 +199,11 @@ namespace UltimateXR.UI.UnityInputModule
                     rayCaster.blockingObjects        = GraphicRaycaster.BlockingObjects.All;
                     rayCaster.blockingMask           = oldRaycaster.blockingMask;
                 }
-                
-                oldRaycaster.enabled = false;
+
+                if (UxrPointerInputModule.Instance && UxrPointerInputModule.Instance.DisableOtherInputModules)
+                {
+                    oldRaycaster.enabled = false;
+                }
             }
 
             return rayCaster;
@@ -208,7 +224,7 @@ namespace UltimateXR.UI.UnityInputModule
                 Destroy(_newRaycasterLaserPointer);
             }
 
-            if (_oldRaycaster && _oldRaycaster.enabled == false)
+            if (_oldRaycaster && !_oldRaycaster.enabled && UxrPointerInputModule.Instance && UxrPointerInputModule.Instance.DisableOtherInputModules)
             {
                 _oldRaycaster.enabled = true;
             }

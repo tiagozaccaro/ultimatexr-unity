@@ -12,17 +12,28 @@ namespace UltimateXR.Mechanics.Weapons
         #region Protected Overrides UxrComponent
 
         /// <inheritdoc />
-        protected override void SerializeState(bool isReading, int stateSerializationVersion, UxrStateSaveLevel level, UxrStateSaveOptions options)
+        protected override void SerializeState(bool isReading, UxrStateSaveLevel level, UxrStateSaveOptions options)
         {
-            base.SerializeState(isReading, stateSerializationVersion, level, options);
+            base.SerializeState(isReading, level, options);
 
-            // Logic is already handled through events, we don't serialize these parameters in incremental changes
+            // Version
 
-            if (level > UxrStateSaveLevel.ChangesSincePreviousSave)
+            SerializeStateVersion(level, options, StateSerializationVersion, out int effectiveVersion);
+
+            if (level <= UxrStateSaveLevel.ChangesSincePreviousSave)
             {
-                SerializeStateValue(level, options, nameof(_owner), ref _owner);
+                // Process all save levels above time sampling. Time sampling is not needed and covered by event synchronization.
+                return;
             }
+
+            SerializeStateValue(level, options, nameof(_owner), ref _owner);
         }
+
+        #endregion
+
+        #region Private Types & Data
+
+        private const int StateSerializationVersion = 0;
 
         #endregion
     }

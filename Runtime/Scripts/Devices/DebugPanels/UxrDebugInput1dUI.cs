@@ -43,7 +43,11 @@ namespace UltimateXR.Devices.DebugPanels
         public UxrHandSide TargetHand
         {
             get => _hand;
-            set => _hand = value;
+            set
+            {
+                _hand = value;
+                UpdateLabel();
+            }
         }
 
         /// <summary>
@@ -52,7 +56,11 @@ namespace UltimateXR.Devices.DebugPanels
         public UxrInput1D Target
         {
             get => _target;
-            set => _target = value;
+            set
+            {
+                _target = value;
+                UpdateLabel();
+            }
         }
 
         #endregion
@@ -64,12 +72,22 @@ namespace UltimateXR.Devices.DebugPanels
         /// </summary>
         private void Update()
         {
-            _name.text = $"{_hand} {_target}";
-
             if (_controllerInput != null)
             {
                 _cursor.anchoredPosition = new Vector2(0.0f, 1.0f) * (_coordAmplitude * _controllerInput.GetInput1D(_hand, _target, true));
             }
+        }
+
+        #endregion
+
+        #region Private Methods
+
+        /// <summary>
+        ///     Updates the label.
+        /// </summary>
+        private void UpdateLabel()
+        {
+            _name.text = $"{_hand} {_target}";
         }
 
         #endregion

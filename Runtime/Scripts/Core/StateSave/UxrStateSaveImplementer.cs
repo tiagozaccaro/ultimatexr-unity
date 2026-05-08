@@ -145,6 +145,11 @@ namespace UltimateXR.Core.StateSave
         /// </summary>
         internal static void NotifyEndOfFrame()
         {
+            if (s_pendingStoreInitialStates.Count == 0)
+            {
+                return;
+            }
+            
             foreach (UxrStateSaveImplementer implementer in s_pendingStoreInitialStates)
             {
                 implementer.StoreInitialState();
@@ -216,9 +221,9 @@ namespace UltimateXR.Core.StateSave
                 return;
             }
 
-            // Do a serialization test and check if there is any state saving. If not we can ignore it because this component doesn't save any data.
+            // Do a serialization test and check if there is any state saving. If not, we can ignore it because this component doesn't save any data.
 
-            if (!stateSave.SerializeState(UxrDummySerializer.WriteModeSerializer, stateSave.StateSerializationVersion, UxrStateSaveLevel.Complete, UxrStateSaveOptions.DontSerialize | UxrStateSaveOptions.DontCacheChanges))
+            if (!stateSave.SerializeState(UxrDummySerializer.WriteModeSerializer, UxrStateSaveLevel.Complete, UxrStateSaveOptions.DontSerialize | UxrStateSaveOptions.DontCacheChanges))
             {
                 return;
             }
@@ -273,27 +278,13 @@ namespace UltimateXR.Core.StateSave
 
             if (stateSave is IUxrSingleton)
             {
-                if (s_allSingletons.Contains(stateSave))
-                {
-                    s_enabledSingletons.Add(stateSave);
-                }
-
-                if (!stateSave.SaveStateWhenDisabled)
-                {
-                    s_saveRequiredSingletons.Add(stateSave);
-                }
+                s_enabledSingletons.Add(stateSave);
+                s_saveRequiredSingletons.Add(stateSave);
             }
             else
             {
-                if (s_allComponents.Contains(stateSave))
-                {
-                    s_enabledComponents.Add(stateSave);
-                }
-
-                if (!stateSave.SaveStateWhenDisabled)
-                {
-                    s_saveRequiredComponents.Add(stateSave);
-                }
+                s_enabledComponents.Add(stateSave);
+                s_saveRequiredComponents.Add(stateSave);
             }
         }
 
@@ -311,7 +302,7 @@ namespace UltimateXR.Core.StateSave
             {
                 s_enabledSingletons.Remove(stateSave);
 
-                if (!stateSave.SaveStateWhenDisabled)
+                if (!ShouldSerializeDisabledComponent(stateSave))
                 {
                     s_saveRequiredSingletons.Remove(stateSave);
                 }
@@ -320,11 +311,28 @@ namespace UltimateXR.Core.StateSave
             {
                 s_enabledComponents.Remove(stateSave);
 
-                if (!stateSave.SaveStateWhenDisabled)
+                if (!ShouldSerializeDisabledComponent(stateSave))
                 {
                     s_saveRequiredComponents.Remove(stateSave);
                 }
             }
+        }
+
+        #endregion
+
+        #region Private Methods
+
+        /// <summary>
+        ///     Determines whether a disabled component should be serialized based on its state save settings.
+        /// </summary>
+        /// <param name="stateSave">The state save component being evaluated for serialization.</param>
+        /// <returns>
+        ///     True if the component should be serialized when disabled or if its active and enabled state should be serialized;
+        ///     otherwise, false.
+        /// </returns>
+        private static bool ShouldSerializeDisabledComponent(IUxrStateSave stateSave)
+        {
+            return stateSave.SaveStateWhenDisabled || stateSave.SerializeActiveAndEnabledState;
         }
 
         #endregion

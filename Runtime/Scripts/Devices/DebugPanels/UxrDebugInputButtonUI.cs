@@ -50,7 +50,11 @@ namespace UltimateXR.Devices.DebugPanels
         public UxrHandSide TargetHand
         {
             get => _hand;
-            set => _hand = value;
+            set
+            {
+                _hand = value;
+                UpdateLabel();
+            }
         }
 
         /// <summary>
@@ -59,7 +63,11 @@ namespace UltimateXR.Devices.DebugPanels
         public UxrInputButtons Target
         {
             get => _button;
-            set => _button = value;
+            set
+            {
+                _button = value;
+                UpdateLabel();
+            }
         }
 
         #endregion
@@ -71,8 +79,6 @@ namespace UltimateXR.Devices.DebugPanels
         /// </summary>
         private void Update()
         {
-            _name.text = $"{_hand} {_button}";
-
             if (_controllerInput != null)
             {
                 _pressDownTimer -= Time.deltaTime;
@@ -104,10 +110,22 @@ namespace UltimateXR.Devices.DebugPanels
                 _imageTouching.color = _controllerInput.GetButtonsTouch(_hand, _button, true) ? _colorEnabled : _colorDisabled;
 
                 _imagePressDown.color = _pressDownTimer > 0.0f ? _colorEnabled : _colorDisabled;
-                _imagePressUp.color   = _pressUpTimer > 0.0f ? _colorEnabled : _colorDisabled;
+                _imagePressUp.color   = _pressUpTimer   > 0.0f ? _colorEnabled : _colorDisabled;
                 _imageTouchDown.color = _touchDownTimer > 0.0f ? _colorEnabled : _colorDisabled;
-                _imageTouchUp.color   = _touchUpTimer > 0.0f ? _colorEnabled : _colorDisabled;
+                _imageTouchUp.color   = _touchUpTimer   > 0.0f ? _colorEnabled : _colorDisabled;
             }
+        }
+
+        #endregion
+
+        #region Private Methods
+
+        /// <summary>
+        ///     Updates the label.
+        /// </summary>
+        private void UpdateLabel()
+        {
+            _name.text = $"{_hand} {_button}";
         }
 
         #endregion

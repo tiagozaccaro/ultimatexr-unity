@@ -1,4 +1,4 @@
-// --------------------------------------------------------------------------------------------------------------------
+﻿// --------------------------------------------------------------------------------------------------------------------
 // <copyright file="UxrStateSaveImplementer_1.cs" company="VRMADA">
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
@@ -11,6 +11,7 @@ using UltimateXR.Avatar;
 using UltimateXR.Core.Components;
 using UltimateXR.Core.Serialization;
 using UltimateXR.Core.Unique;
+using UltimateXR.Extensions.Unity;
 using UnityEngine;
 using ObjectExt = UltimateXR.Extensions.System.ObjectExt;
 
@@ -30,7 +31,7 @@ namespace UltimateXR.Core.StateSave
         /// <summary>
         ///     State serialization handler.
         /// </summary>
-        public delegate void SerializeStateHandler(bool isReading, int stateSerializationVersion, UxrStateSaveLevel level, UxrStateSaveOptions options);
+        public delegate void SerializeStateHandler(bool isReading, UxrStateSaveLevel level, UxrStateSaveOptions options);
 
         /// <summary>
         ///     State interpolation handler.
@@ -83,6 +84,12 @@ namespace UltimateXR.Core.StateSave
             {
                 return;
             }
+
+            if (_targetComponent == null || UxrUniqueIdImplementer.HasDontRegisterAttribute(_targetComponent) || UxrUniqueIdImplementer.HasDontSyncAttribute(_targetComponent))
+            {
+                // This type registration is ignored.
+                return;
+            }
             
             if (!_registered)
             {
@@ -96,7 +103,13 @@ namespace UltimateXR.Core.StateSave
         /// </summary>
         public void Unregister()
         {
-            base.UnregisterComponent(_targetComponent);
+            if (_targetComponent == null || UxrUniqueIdImplementer.HasDontRegisterAttribute(_targetComponent) || UxrUniqueIdImplementer.HasDontSyncAttribute(_targetComponent))
+            {
+                // This type registration is ignored.
+                return;
+            }
+
+            UnregisterComponent(_targetComponent);
         }
 
         /// <summary>
@@ -104,6 +117,12 @@ namespace UltimateXR.Core.StateSave
         /// </summary>
         public void NotifyOnEnable()
         {
+            if (_targetComponent == null || UxrUniqueIdImplementer.HasDontRegisterAttribute(_targetComponent) || UxrUniqueIdImplementer.HasDontSyncAttribute(_targetComponent))
+            {
+                // This type registration is ignored.
+                return;
+            }
+            
             base.NotifyOnEnable(_targetComponent);
         }
 
@@ -112,6 +131,12 @@ namespace UltimateXR.Core.StateSave
         /// </summary>
         public void NotifyOnDisable()
         {
+            if (_targetComponent == null || UxrUniqueIdImplementer.HasDontRegisterAttribute(_targetComponent) || UxrUniqueIdImplementer.HasDontSyncAttribute(_targetComponent))
+            {
+                // This type registration is ignored.
+                return;
+            }
+            
             base.NotifyOnDisable(_targetComponent);
         }
 
@@ -136,14 +161,20 @@ namespace UltimateXR.Core.StateSave
         /// <param name="customSerializeStateHandler">The handler that will serialize the remaining custom data</param>
         public void SerializeState(IUxrSerializer serializer, UxrStateSaveLevel level, UxrStateSaveOptions options, SerializeStateHandler customSerializeStateHandler)
         {
-            if (_targetComponent == null)
+            if (_targetComponent == null || UxrUniqueIdImplementer.HasDontRegisterAttribute(_targetComponent) || UxrUniqueIdImplementer.HasDontSyncAttribute(_targetComponent))
             {
                 return;
             }
-            
+
             OnStateSerializing(_targetComponent, GetStateSaveEventArgs(serializer, level, options));
+            
+            // Version
+            
+            SerializeStateVersion(serializer, level, options, StateSerializationVersion, out int effectiveVersion);
 
             // Enabled/Active states
+            
+            bool isActiveAndEnabled = _targetComponent.gameObject.activeSelf && _targetComponent.Component != null && _targetComponent.Component.enabled;
 
             if (_targetComponent.SerializeActiveAndEnabledState)
             {
@@ -170,23 +201,68 @@ namespace UltimateXR.Core.StateSave
                 }
             }
 
-            // Transform
+            bool serialize = true;
 
-            if (_targetComponent.RequiresTransformSerialization(level))
+            if (!isActiveAndEnabled)
             {
-                SerializeStateTransform(serializer, level, options, SelfTransformVarName, _targetComponent.TransformStateSaveSpace, _targetComponent.transform);
+                // A disabled component is being serialized because UxrStateSaveImplementer.ShouldSerializeDisabledComponent(component) is true.
+                // This is the case when either SaveStateWhenDisabled or SerializeActiveAndEnabledState are being used.
+                // We serialize the rest of the data only if the SaveStateWhenDisabled is true, as SaveStateWhenDisabled will only save the
+                // enabled/active states.
+                serialize = _targetComponent.SaveStateWhenDisabled;
             }
 
-            // User custom serialization
+            if (serialize)
+            {
+                // Transform
 
-            customSerializeStateHandler?.Invoke(serializer.IsReading, _targetComponent.StateSerializationVersion, level, options);
+                if (_targetComponent.RequiresTransformSerialization(level))
+                {
+                    SerializeStateTransform(serializer, level, options, SelfTransformVarName, _targetComponent.TransformStateSaveSpace, _targetComponent.transform);
+                }
+
+                // User custom serialization
+
+                customSerializeStateHandler?.Invoke(serializer.IsReading, level, options);
+            }
 
             OnStateSerialized(_targetComponent, GetStateSaveEventArgs(serializer, level, options));
         }
 
         /// <summary>
+        ///     Handles the serialization of a version number, allowing for backwards compatibility and serialization nesting.
+        /// </summary>
+        /// <param name="serializer">Serializer</param>
+        /// <param name="level">The amount of data to serialize</param>
+        /// <param name="options">Options</param>
+        /// <param name="version">The version of the serialized data at the moment the method is called</param>
+        /// <param name="effectiveVersion">
+        ///     When serializing, will contain the same as
+        ///     <see cref="version" />. When deserializing, will contain the version the data was serialized
+        ///     with, allowing for backwards compatibility.
+        /// </param>
+        public void SerializeStateVersion(IUxrSerializer serializer, UxrStateSaveLevel level, UxrStateSaveOptions options, int version, out int effectiveVersion)
+        {
+            effectiveVersion = version;
+
+            if (options.HasFlag(UxrStateSaveOptions.DontWriteVersions) && !serializer.IsReading)
+            {
+                // Don't write versions
+                return;
+            }
+
+            // Serialize the version number using intermediate var to allow ref to be used.
+
+            int refEffectiveVersion = effectiveVersion;
+
+            SerializeStateValue(serializer, level, options, null, ref refEffectiveVersion);
+
+            effectiveVersion = refEffectiveVersion;
+        }
+
+        /// <summary>
         ///     Serializes a value only when necessary, depending on <paramref name="level" />, <paramref name="options" /> and if
-        ///     the value changed.<br />
+        ///     the value changed.
         /// </summary>
         /// <param name="serializer">Serializer</param>
         /// <param name="level">The amount of data to serialize</param>
@@ -194,13 +270,18 @@ namespace UltimateXR.Core.StateSave
         /// <param name="varName">
         ///     The parameter name. It will be used to track value changes over time. If it is null or empty,
         ///     it will be serialized without checking for value changes. The name must be unique to any other transform or value
-        ///     serialized for the target component using <see cref="SerializeStateValue{TV}" /> or
+        ///     serialized for the target component using <see cref="SerializeStateValue" /> or
         ///     <see cref="SerializeStateTransform" />.
         /// </param>
         /// <param name="value">A reference to the value being loaded/saved</param>
         [SuppressMessage("ReSharper", "InvokeAsExtensionMethod")]
         public void SerializeStateValue<TV>(IUxrSerializer serializer, UxrStateSaveLevel level, UxrStateSaveOptions options, string varName, ref TV value)
         {
+            if (_targetComponent == null || UxrUniqueIdImplementer.HasDontRegisterAttribute(_targetComponent) || UxrUniqueIdImplementer.HasDontSyncAttribute(_targetComponent))
+            {
+                return;
+            }
+
             // Initialize dictionaries if necessary. We store a deep copy to be able to check for changes later by comparing values.
 
             if (!string.IsNullOrEmpty(varName))
@@ -241,23 +322,13 @@ namespace UltimateXR.Core.StateSave
                 {
                     switch (level)
                     {
-                    
                         case UxrStateSaveLevel.None: return;
 
-                        case UxrStateSaveLevel.ChangesSinceBeginning:
+                        case UxrStateSaveLevel.ChangesSinceBeginning: serialize = varName == null || !ObjectExt.ValuesEqual(value, _initialValues[varName], UxrConstants.Math.DefaultPrecisionThreshold); break;
 
-                            serialize = varName == null || !ObjectExt.ValuesEqual(value, _initialValues[varName], UxrConstants.Math.DefaultPrecisionThreshold);
-                            break;
+                        case UxrStateSaveLevel.ChangesSincePreviousSave: serialize = varName == null || !ObjectExt.ValuesEqual(value, _lastValues[varName], UxrConstants.Math.DefaultPrecisionThreshold); break;
 
-                        case UxrStateSaveLevel.ChangesSincePreviousSave:
-
-                            serialize = varName == null || !ObjectExt.ValuesEqual(value, _lastValues[varName], UxrConstants.Math.DefaultPrecisionThreshold);
-                            break;
-
-                        case UxrStateSaveLevel.Complete:
-
-                            serialize = true;
-                            break;
+                        case UxrStateSaveLevel.Complete: serialize = true; break;
                     }
                 }
             }
@@ -272,7 +343,7 @@ namespace UltimateXR.Core.StateSave
             if (serialize)
             {
                 object oldValue = !string.IsNullOrEmpty(varName) ? ObjectExt.DeepCopy(value) : null;
-                
+
                 OnVarSerializing(_targetComponent, GetStateSaveEventArgs(serializer, level, options, varName, value, oldValue));
 
                 if (!options.HasFlag(UxrStateSaveOptions.DontSerialize))
@@ -302,11 +373,11 @@ namespace UltimateXR.Core.StateSave
         /// <param name="transformVarName">
         ///     A name to identify the transform. It will be used to track value changes over time. If it is null or empty,
         ///     it will be serialized without checking for value changes. The name must be unique to any other transform or
-        ///     value serialized for the target component using <see cref="SerializeStateValue{TV}" /> or
+        ///     value serialized for the target component using <see cref="SerializeStateValue" /> or
         ///     <see cref="SerializeStateTransform" />.
         /// </param>
         /// <param name="space">
-        ///     The space the transform data is specified in, when writing. Scale will always be stored in local
+        ///     The space the transform data is specified in when writing. Scale will always be stored in local
         ///     space.
         /// </param>
         /// <param name="transform">
@@ -315,20 +386,25 @@ namespace UltimateXR.Core.StateSave
         /// </param>
         public void SerializeStateTransform(IUxrSerializer serializer, UxrStateSaveLevel level, UxrStateSaveOptions options, string transformVarName, UxrTransformSpace space, Transform transform)
         {
+            if (_targetComponent == null || UxrUniqueIdImplementer.HasDontRegisterAttribute(_targetComponent) || UxrUniqueIdImplementer.HasDontSyncAttribute(_targetComponent))
+            {
+                return;
+            }
+
             // Can't use ref with Transform property directly, so we need to implement read/write paths separately
 
             if (serializer.IsReading)
             {
                 // Read parent
 
-                IUxrUniqueId newUniqueParent     = transform.parent != null ? transform.parent.GetComponent<IUxrUniqueId>() : null;
+                IUxrUniqueId newUniqueParent     = transform.parent != null ? transform.parent.GetTrackingUniqueIdComponent() : null;
                 IUxrUniqueId currentUniqueParent = newUniqueParent;
                 SerializeStateValue(serializer, level, options, GetTransformVarName(transformVarName, NameTransformParent), ref newUniqueParent);
 
                 if (currentUniqueParent != newUniqueParent)
                 {
-                    Debug.Log($"{transform.name} parent changed from {currentUniqueParent} to {newUniqueParent}");
-                    
+                    // Debug.Log($"{transform.name} parent changed from {currentUniqueParent} to {newUniqueParent}");
+
                     if (newUniqueParent != null)
                     {
                         Component newParentComponent = newUniqueParent as Component;
@@ -412,7 +488,7 @@ namespace UltimateXR.Core.StateSave
                 int  counterBeforeParent = SerializeCounter;
                 bool parentSerialized    = false;
 
-                IUxrUniqueId uniqueParent = transform.parent != null ? transform.parent.GetComponent<IUxrUniqueId>() : null;
+                IUxrUniqueId uniqueParent = transform.parent != null ? transform.parent.GetTrackingUniqueIdComponent() : null;
                 SerializeStateValue(serializer, level, options, GetTransformVarName(transformVarName, NameTransformParent), ref uniqueParent);
 
                 if (counterBeforeParent != SerializeCounter)
@@ -458,7 +534,7 @@ namespace UltimateXR.Core.StateSave
         /// <param name="getInterpolator">A function that gets the interpolator for a given serialized var</param>
         public void InterpolateState(in UxrStateInterpolationVars vars, float t, InterpolateStateHandler customInterpolateStateHandler, Func<string, UxrVarInterpolator> getInterpolator)
         {
-            if (_targetComponent == null)
+            if (_targetComponent == null || UxrUniqueIdImplementer.HasDontRegisterAttribute(_targetComponent) || UxrUniqueIdImplementer.HasDontSyncAttribute(_targetComponent))
             {
                 return;
             }
@@ -497,7 +573,15 @@ namespace UltimateXR.Core.StateSave
             {
                 if (getInterpolator(posVarName) is UxrVector3Interpolator positionInterpolator)
                 {
-                    SetPosition(targetTransform, space, positionInterpolator.Interpolate((Vector3)vars.Values[posVarName].OldValue, (Vector3)vars.Values[posVarName].NewValue, t));
+                    // Step 1: Compute raw target (no smooth damp) and apply immediately
+                    Vector3 target = positionInterpolator.SetTarget((Vector3)vars.Values[posVarName].OldValue, (Vector3)vars.Values[posVarName].NewValue, t);
+                    SetPosition(targetTransform, space, target);
+
+                    // Register for Step 2 smooth damp post-process if smooth damp is enabled
+                    if (positionInterpolator.SmoothDamp > 0.0f)
+                    {
+                        UxrSmoothDampRegistry.Register(_targetComponent, posVarName, positionInterpolator, value => SetPosition(targetTransform, space, (Vector3)value));
+                    }
                 }
             }
 
@@ -505,7 +589,15 @@ namespace UltimateXR.Core.StateSave
             {
                 if (getInterpolator(rotVarName) is UxrQuaternionInterpolator rotationInterpolator)
                 {
-                    SetRotation(targetTransform, space, rotationInterpolator.Interpolate((Quaternion)vars.Values[rotVarName].OldValue, (Quaternion)vars.Values[rotVarName].NewValue, t));
+                    // Step 1: Compute raw target (no smooth damp) and apply immediately
+                    Quaternion target = rotationInterpolator.SetTarget((Quaternion)vars.Values[rotVarName].OldValue, (Quaternion)vars.Values[rotVarName].NewValue, t);
+                    SetRotation(targetTransform, space, target);
+
+                    // Register for Step 2 smooth damp post-process if smooth damp is enabled
+                    if (rotationInterpolator.SmoothDamp > 0.0f)
+                    {
+                        UxrSmoothDampRegistry.Register(_targetComponent, rotVarName, rotationInterpolator, value => SetRotation(targetTransform, space, (Quaternion)value));
+                    }
                 }
             }
 
@@ -513,7 +605,15 @@ namespace UltimateXR.Core.StateSave
             {
                 if (getInterpolator(scaleVarName) is UxrVector3Interpolator scaleInterpolator)
                 {
-                    targetTransform.localScale = scaleInterpolator.Interpolate((Vector3)vars.Values[scaleVarName].OldValue, (Vector3)vars.Values[scaleVarName].NewValue, t);
+                    // Step 1: Compute raw target (no smooth damp) and apply immediately
+                    Vector3 target = scaleInterpolator.SetTarget((Vector3)vars.Values[scaleVarName].OldValue, (Vector3)vars.Values[scaleVarName].NewValue, t);
+                    targetTransform.localScale = target;
+
+                    // Register for Step 2 smooth damp post-process if smooth damp is enabled
+                    if (scaleInterpolator.SmoothDamp > 0.0f)
+                    {
+                        UxrSmoothDampRegistry.Register(_targetComponent, scaleVarName, scaleInterpolator, value => targetTransform.localScale = (Vector3)value);
+                    }
                 }
             }
         }
@@ -662,10 +762,9 @@ namespace UltimateXR.Core.StateSave
             {
                 return;
             }
-            
-            // Cache the initial state after the first frame. We use a dummy serializer in write mode to initialize the changes cache without saving any data.
+
+            // Cache the initial state after the first frame. We use a dummy serializer in write-mode to initialize the cache of changes without saving any data.
             _targetComponent.SerializeState(UxrDummySerializer.WriteModeSerializer,
-                                            _targetComponent.StateSerializationVersion,
                                             UxrStateSaveLevel.ChangesSinceBeginning,
                                             UxrStateSaveOptions.DontSerialize | UxrStateSaveOptions.ResetChangesCache | UxrStateSaveOptions.FirstFrame);
         }
@@ -823,6 +922,11 @@ namespace UltimateXR.Core.StateSave
                 return _avatar;
             }
 
+            if (_targetComponent == null)
+            {
+                return null;
+            }
+
             _avatar = _targetComponent.GetComponentInParent<UxrAvatar>();
             return _avatar;
         }
@@ -859,6 +963,11 @@ namespace UltimateXR.Core.StateSave
         #endregion
 
         #region Private Types & Data
+
+        /// <summary>
+        ///     Serialization version for base StateSave functionality in <see cref="SerializeState" />.
+        /// </summary>
+        private const int StateSerializationVersion = 0;
 
         private const string NameIsEnabled       = "__enabled";
         private const string NameIsActive        = "__active";

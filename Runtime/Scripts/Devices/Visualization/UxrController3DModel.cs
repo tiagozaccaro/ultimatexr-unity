@@ -1,14 +1,17 @@
-﻿// --------------------------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 // <copyright file="UxrController3DModel.cs" company="VRMADA">
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UltimateXR.Avatar;
 using UltimateXR.Avatar.Rig;
 using UltimateXR.Core;
 using UltimateXR.Core.Components;
+using UltimateXR.Extensions.System;
+using UltimateXR.Extensions.Unity;
 using UnityEngine;
 
 namespace UltimateXR.Devices.Visualization
@@ -17,7 +20,7 @@ namespace UltimateXR.Devices.Visualization
     ///     Represents the 3D model of a VR controller. It allows to graphically render the current position/orientation and
     ///     input state of the device.
     /// </summary>
-    public class UxrController3DModel : UxrComponent
+    public partial class UxrController3DModel : UxrComponent
     {
         #region Inspector Properties/Serialized Fields
 
@@ -44,7 +47,7 @@ namespace UltimateXR.Devices.Visualization
         public UxrHandSide HandSide => _handSide;
 
         /// <summary>
-        ///     Gets the forward transform as it is currently in the scene. It can be different than the actual forward tracking
+        ///     Gets the forward transform as it is currently in the scene. It can be different from the actual forward tracking
         ///     when we use grab mechanics because the hand transform can be modified by the grab manager and the controller
         ///     usually hangs from the hand hierarchy.
         ///     If you need to know the forward controller transform using the information of tracking sensors without any
@@ -76,32 +79,56 @@ namespace UltimateXR.Devices.Visualization
         }
 
         /// <summary>
-        ///     Gets or sets the hand that is interacting with the controller, when the controller is used with only one hand.
+        ///     Gets or sets the hand interacting with the controller when the controller is used with only one hand.
         /// </summary>
         public UxrControllerHand ControllerHand
         {
             get => _controllerHand;
-            set => _controllerHand = value;
+            set
+            {
+                if (value == null && _controllerHand != null)
+                {
+                    ResetInteraction();
+                }
+
+                _controllerHand = value;
+            }
         }
 
         /// <summary>
-        ///     Gets or sets the left hand that is interacting with the controller, when the controller can be held using both
+        ///     Gets or sets the left hand interacting with the controller, when the controller can be held using both
         ///     hands.
         /// </summary>
         public UxrControllerHand ControllerHandLeft
         {
             get => _controllerHandLeft;
-            set => _controllerHandLeft = value;
+            set
+            {
+                if (value == null && _controllerHandLeft != null)
+                {
+                    ResetInteraction();
+                }
+
+                _controllerHandLeft = value;
+            }
         }
 
         /// <summary>
-        ///     Gets or sets the right hand that is interacting with the controller, when the controller can be held using both
+        ///     Gets or sets the right hand interacting with the controller, when the controller can be held using both
         ///     hands.
         /// </summary>
         public UxrControllerHand ControllerHandRight
         {
             get => _controllerHandRight;
-            set => _controllerHandRight = value;
+            set
+            {
+                if (value == null && _controllerHandRight != null)
+                {
+                    ResetInteraction();
+                }
+
+                _controllerHandRight = value;
+            }
         }
 
         /// <summary>
@@ -161,19 +188,25 @@ namespace UltimateXR.Devices.Visualization
                 return;
             }
 
-            foreach (UxrFingerType fingerType in Enum.GetValues(typeof(UxrFingerType)))
+            // Initialize finger contacts
+
+            foreach (UxrFingerType fingerType in _fingerTypeEnums)
             {
-                if (fingerType != UxrFingerType.None)
-                {
-                    _fingerContacts[fingerType].Transform      = null;
-                    _fingerContactsLeft[fingerType].Transform  = null;
-                    _fingerContactsRight[fingerType].Transform = null;
-                }
+                _lastFingerContacts[fingerType]      = _fingerContacts[fingerType];
+                _lastFingerContactsLeft[fingerType]  = _fingerContactsLeft[fingerType];
+                _lastFingerContactsRight[fingerType] = _fingerContactsRight[fingerType];
+                _fingerContacts[fingerType]          = -1;
+                _fingerContactsLeft[fingerType]      = -1;
+                _fingerContactsRight[fingerType]     = -1;
             }
 
-            foreach (UxrElement element in _controllerElements)
+            // Iterate through all elements
+
+            for (int i = 0; i < _controllerElements.Count; i++)
             {
-                if (element.ElementObject == null)
+                UxrElement element = _controllerElements[i];
+
+                if (element.ElementObject == null || element.Finger == UxrFingerType.None)
                 {
                     continue;
                 }
@@ -195,7 +228,7 @@ namespace UltimateXR.Devices.Visualization
                         {
                             if (controllerInput.GetButtonsPress(element.HandSide, controllerButton, true))
                             {
-                                element.ElementObject.transform.localPosition = element.InitialLocalPos +
+                                element.ElementObject.transform.localPosition = element.InitialLocalPos                              +
                                                                                 element.LocalOffsetX * element.ButtonPressedOffset.x +
                                                                                 element.LocalOffsetY * element.ButtonPressedOffset.y +
                                                                                 element.LocalOffsetZ * element.ButtonPressedOffset.z;
@@ -276,9 +309,13 @@ namespace UltimateXR.Devices.Visualization
                         Vector3 offset1 = Vector3.Lerp(-element.Input2DFirstAxisOffset,  element.Input2DFirstAxisOffset,  (inputValueTouch.x + 1.0f) * 0.5f);
                         Vector3 offset2 = Vector3.Lerp(-element.Input2DSecondAxisOffset, element.Input2DSecondAxisOffset, (inputValueTouch.y + 1.0f) * 0.5f);
 
-                        element.FingerContactPoint.transform.localPosition = element.FingerContactInitialLocalPos +
-                                                                             element.LocalFingerPosOffsetX * offset1.x + element.LocalFingerPosOffsetY * offset1.y + element.LocalFingerPosOffsetZ * offset1.z +
-                                                                             element.LocalFingerPosOffsetX * offset2.x + element.LocalFingerPosOffsetY * offset2.y + element.LocalFingerPosOffsetZ * offset2.z;
+                        if (element.FingerContactPoint != null)
+                        {
+                            element.FingerContactPoint.transform.localPosition = element.FingerContactInitialLocalPos      +
+                                                                                 element.LocalFingerPosOffsetX * offset1.x + element.LocalFingerPosOffsetY * offset1.y + element.LocalFingerPosOffsetZ * offset1.z +
+                                                                                 element.LocalFingerPosOffsetX * offset2.x + element.LocalFingerPosOffsetY * offset2.y + element.LocalFingerPosOffsetZ * offset2.z;
+                        }
+
                         contact = contact || inputValueTouch != Vector2.zero;
                         break;
 
@@ -311,7 +348,7 @@ namespace UltimateXR.Devices.Visualization
 
                         element.ElementObject.transform.localRotation = Quaternion.Euler(dpadEuler2) * Quaternion.Euler(dpadEuler1) * element.InitialLocalRot;
 
-                        element.FingerContactPoint.transform.localPosition = element.FingerContactInitialLocalPos +
+                        element.FingerContactPoint.transform.localPosition = element.FingerContactInitialLocalPos          +
                                                                              element.LocalFingerPosOffsetX * dpadOffset1.x +
                                                                              element.LocalFingerPosOffsetY * dpadOffset1.y +
                                                                              element.LocalFingerPosOffsetZ * dpadOffset1.z +
@@ -325,7 +362,7 @@ namespace UltimateXR.Devices.Visualization
                     case UxrElementType.NotSet: break;
                 }
 
-                // Update finger contact?
+                // Is there contact?
 
                 contact = contact || (controllerButton != UxrInputButtons.None && (controllerInput.GetButtonsTouch(element.HandSide, controllerButton, true) || controllerInput.GetButtonsPress(element.HandSide, controllerButton, true)));
 
@@ -334,77 +371,49 @@ namespace UltimateXR.Devices.Visualization
                     contact = false;
                 }
 
-                if (element.FingerContactPoint == null)
+                if (!contact)
                 {
                     continue;
                 }
 
-                if (element.FingerContactPoint != element.ElementObject)
+                // Write contacts
+
+                if (!_needsBothHands)
                 {
-                    bool handVisible = _controllerHand && _controllerHand.gameObject.activeSelf;
-
-                    if (_needsBothHands)
-                    {
-                        handVisible = (element.HandSide == UxrHandSide.Left && _controllerHandLeft != null && _controllerHandLeft.gameObject.activeSelf) ||
-                                      (element.HandSide == UxrHandSide.Right && _controllerHandRight != null && _controllerHandRight.gameObject.activeSelf);
-                    }
-
-                    element.FingerContactPoint.SetActive(contact && !handVisible);
-                }
-
-                if (!contact || element.Finger == UxrFingerType.None)
-                {
-                    continue;
-                }
-
-                if (_needsBothHands == false)
-                {
-                    _fingerContacts[element.Finger].Transform = element.FingerContactPoint.transform;
+                    _fingerContacts[element.Finger] = i;
                 }
                 else
                 {
                     switch (element.HandSide)
                     {
-                        case UxrHandSide.Left:
-                            _fingerContactsLeft[element.Finger].Transform = element.FingerContactPoint.transform;
-                            break;
-
-                        case UxrHandSide.Right:
-                            _fingerContactsRight[element.Finger].Transform = element.FingerContactPoint.transform;
-                            break;
-
-                        default: throw new ArgumentOutOfRangeException();
+                        case UxrHandSide.Left:  _fingerContactsLeft[element.Finger]  = i; break;
+                        case UxrHandSide.Right: _fingerContactsRight[element.Finger] = i; break;
+                        default:                throw new ArgumentOutOfRangeException();
                     }
                 }
             }
 
-            // Update fingers
+            // Look for changes and update contact targets with synchronization support
 
-            if (_needsBothHands == false)
+            foreach (UxrFingerType fingerType in _fingerTypeEnums)
             {
-                if (_controllerHand != null && _fingerContacts != null)
+                if (!_needsBothHands)
                 {
-                    foreach (KeyValuePair<UxrFingerType, UxrFingerContactInfo> fingerTransformPair in _fingerContacts)
+                    if (_lastFingerContacts[fingerType] != _fingerContacts[fingerType])
                     {
-                        _controllerHand.UpdateFinger(fingerTransformPair.Key, fingerTransformPair.Value);
+                        ChangeFingerContactTarget(-1, fingerType, _fingerContacts[fingerType]);
                     }
                 }
-            }
-            else
-            {
-                if (_controllerHandLeft != null && _fingerContactsLeft != null)
+                else
                 {
-                    foreach (KeyValuePair<UxrFingerType, UxrFingerContactInfo> fingerTransformPair in _fingerContactsLeft)
+                    if (_lastFingerContactsLeft[fingerType] == _fingerContactsLeft[fingerType])
                     {
-                        _controllerHandLeft.UpdateFinger(fingerTransformPair.Key, fingerTransformPair.Value);
+                        ChangeFingerContactTarget((int)UxrHandSide.Left, fingerType, _fingerContactsLeft[fingerType]);
                     }
-                }
 
-                if (_controllerHandRight != null && _fingerContactsRight != null)
-                {
-                    foreach (KeyValuePair<UxrFingerType, UxrFingerContactInfo> fingerTransformPair in _fingerContactsRight)
+                    if (_lastFingerContactsRight[fingerType] == _fingerContactsRight[fingerType])
                     {
-                        _controllerHandRight.UpdateFinger(fingerTransformPair.Key, fingerTransformPair.Value);
+                        ChangeFingerContactTarget((int)UxrHandSide.Right, fingerType, _fingerContactsRight[fingerType]);
                     }
                 }
             }
@@ -417,8 +426,9 @@ namespace UltimateXR.Devices.Visualization
         /// <returns>List of GameObjects representing the given controller input elements</returns>
         public IEnumerable<GameObject> GetElements(UxrControllerElements elements)
         {
-            foreach (UxrControllerElements element in ControllerElements)
+            for (int i = 0; i < UxrControllerInput.SupportedControllerElements.Count; i++)
             {
+                UxrControllerElements element = UxrControllerInput.SupportedControllerElements[i];
                 if (elements.HasFlag(element) && _hashedElements.TryGetValue(element, out GameObject elementGameObject))
                 {
                     yield return elementGameObject;
@@ -433,8 +443,9 @@ namespace UltimateXR.Devices.Visualization
         /// <returns>List of materials used by the objects representing the given controller input elements</returns>
         public IEnumerable<Material> GetElementsMaterials(UxrControllerElements elements)
         {
-            foreach (UxrControllerElements element in ControllerElements)
+            for (int i = 0; i < UxrControllerInput.SupportedControllerElements.Count; i++)
             {
+                UxrControllerElements element = UxrControllerInput.SupportedControllerElements[i];
                 if (elements.HasFlag(element) && _hashedElements.TryGetValue(element, out GameObject elementGameObject))
                 {
                     Renderer elementRenderer = elementGameObject.GetComponent<Renderer>();
@@ -456,8 +467,9 @@ namespace UltimateXR.Devices.Visualization
         /// <returns>List of original shared materials used by the objects representing the given controller input elements</returns>
         public IEnumerable<Material> GetElementsOriginalMaterials(UxrControllerElements elements)
         {
-            foreach (UxrControllerElements element in ControllerElements)
+            for (int i = 0; i < UxrControllerInput.SupportedControllerElements.Count; i++)
             {
+                UxrControllerElements element = UxrControllerInput.SupportedControllerElements[i];
                 if (elements.HasFlag(element) && _hashedElementsOriginalMaterial.TryGetValue(element, out Material elementMaterial))
                 {
                     yield return elementMaterial;
@@ -472,10 +484,11 @@ namespace UltimateXR.Devices.Visualization
         /// <param name="material">New material to assign</param>
         public void SetElementsMaterial(UxrControllerElements elements, Material material)
         {
-            foreach (UxrControllerElements element in ControllerElements)
+            for (int i = 0; i < UxrControllerInput.SupportedControllerElements.Count; i++)
             {
-                if (elements.HasFlag(element) && _hashedElements.TryGetValue(element, out GameObject elementGameObject) 
-                    && elementGameObject.TryGetComponent<Renderer>(out var elementRenderer))
+                UxrControllerElements element = UxrControllerInput.SupportedControllerElements[i];
+                if (elements.HasFlag(element) && _hashedElements.TryGetValue(element, out GameObject elementGameObject)
+                                              && elementGameObject.TryGetComponent<Renderer>(out Renderer elementRenderer))
                 {
                     elementRenderer.material = material;
                 }
@@ -488,10 +501,11 @@ namespace UltimateXR.Devices.Visualization
         /// <param name="elements">Flags representing the input elements whose materials to restore</param>
         public void RestoreElementsMaterials(UxrControllerElements elements)
         {
-            foreach (UxrControllerElements element in ControllerElements)
+            for (int i = 0; i < UxrControllerInput.SupportedControllerElements.Count; i++)
             {
-                if (elements.HasFlag(element) && _hashedElements.TryGetValue(element, out GameObject elementGameObject) 
-                    && elementGameObject.TryGetComponent<Renderer>(out var elementRenderer))
+                UxrControllerElements element = UxrControllerInput.SupportedControllerElements[i];
+                if (elements.HasFlag(element) && _hashedElements.TryGetValue(element, out GameObject elementGameObject)
+                                              && elementGameObject.TryGetComponent<Renderer>(out Renderer elementRenderer))
                 {
                     elementRenderer.sharedMaterial = _hashedElementsOriginalMaterial[element];
                 }
@@ -529,65 +543,120 @@ namespace UltimateXR.Devices.Visualization
 
             // Initialize data
 
-            _avatar = GetComponentInParent<UxrAvatar>();
+            UniqueIdChanged += This_UniqueIdChanged;
 
-            foreach (UxrFingerType fingerType in Enum.GetValues(typeof(UxrFingerType)))
+            _fingerTypeEnums = Enum.GetValues(typeof(UxrFingerType)).Cast<UxrFingerType>().Where(fingerType => fingerType != UxrFingerType.None).ToArray();
+            _avatar          = GetComponentInParent<UxrAvatar>();
+
+            foreach (UxrFingerType fingerType in _fingerTypeEnums)
             {
-                if (fingerType != UxrFingerType.None)
-                {
-                    _fingerContacts.Add(fingerType, new UxrFingerContactInfo(null));
-                    _fingerContactsLeft.Add(fingerType, new UxrFingerContactInfo(null));
-                    _fingerContactsRight.Add(fingerType, new UxrFingerContactInfo(null));
-                }
+                _lastFingerContacts.Add(fingerType, -1);
+                _lastFingerContactsLeft.Add(fingerType, -1);
+                _lastFingerContactsRight.Add(fingerType, -1);
+                _fingerContacts.Add(fingerType, -1);
+                _fingerContactsLeft.Add(fingerType, -1);
+                _fingerContactsRight.Add(fingerType, -1);
             }
 
-            if (_controllerElements != null)
+            for (int i = 0; i < _controllerElements.Count; i++)
             {
-                foreach (UxrElement element in _controllerElements)
+                UxrElement element = _controllerElements[i];
+                if (element.ElementObject != null)
                 {
-                    if (element.ElementObject != null)
+                    // Initialize initial pos/rot
+
+                    element.InitialLocalPos = element.ElementObject.transform.localPosition;
+                    element.InitialLocalRot = element.ElementObject.transform.localRotation;
+
+                    // Initialize original materials and hashed elements
+
+                    if (_hashedElements.ContainsKey(element.Element))
                     {
-                        // Initialize initial pos/rot
+                        //Debug.LogWarning($"Element {element.Element} was already found in the {nameof(UxrController3DModel)} list of {name}. Ignoring.");
+                    }
+                    else
+                    {
+                        // Element
+                        _hashedElements.Add(element.Element, element.ElementObject);
 
-                        element.InitialLocalPos = element.ElementObject.transform.localPosition;
-                        element.InitialLocalRot = element.ElementObject.transform.localRotation;
-
-                        // Initialize original materials and hashed elements
-
-                        if (_hashedElements.ContainsKey(element.Element))
-                        {
-                            //Debug.LogWarning($"Element {element.Element} was already found in the {nameof(UxrController3DModel)} list of {name}. Ignoring.");
-                        }
-                        else
-                        {
-                            // Element
-                            _hashedElements.Add(element.Element, element.ElementObject);
-
-                            // Original materials
-                            Renderer renderer = element.ElementObject.GetComponent<Renderer>();
-                            _hashedElementsOriginalMaterial.Add(element.Element, renderer != null ? renderer.sharedMaterial : null);
-                        }
-
-                        element.LocalOffsetX = element.ElementObject.transform.parent.InverseTransformDirection(element.ElementObject.transform.right);
-                        element.LocalOffsetY = element.ElementObject.transform.parent.InverseTransformDirection(element.ElementObject.transform.up);
-                        element.LocalOffsetZ = element.ElementObject.transform.parent.InverseTransformDirection(element.ElementObject.transform.forward);
-
-                        if (element.FingerContactPoint != null)
-                        {
-                            element.LocalFingerPosOffsetX = element.FingerContactPoint.transform.parent.InverseTransformDirection(element.ElementObject.transform.right);
-                            element.LocalFingerPosOffsetY = element.FingerContactPoint.transform.parent.InverseTransformDirection(element.ElementObject.transform.up);
-                            element.LocalFingerPosOffsetZ = element.FingerContactPoint.transform.parent.InverseTransformDirection(element.ElementObject.transform.forward);
-                        }
+                        // Original materials
+                        Renderer componentRenderer = element.ElementObject.GetComponent<Renderer>();
+                        _hashedElementsOriginalMaterial.Add(element.Element, componentRenderer != null ? componentRenderer.sharedMaterial : null);
                     }
 
-                    if (element.ElementObject != null && element.FingerContactPoint != null)
-                    {
-                        element.FingerContactInitialLocalPos = element.FingerContactPoint.transform.localPosition;
+                    element.LocalOffsetX = element.ElementObject.transform.parent.InverseTransformDirection(element.ElementObject.transform.right);
+                    element.LocalOffsetY = element.ElementObject.transform.parent.InverseTransformDirection(element.ElementObject.transform.up);
+                    element.LocalOffsetZ = element.ElementObject.transform.parent.InverseTransformDirection(element.ElementObject.transform.forward);
 
-                        if (element.FingerContactPoint != element.ElementObject)
-                        {
-                            element.FingerContactPoint.SetActive(false);
-                        }
+                    if (element.FingerContactPoint != null)
+                    {
+                        element.LocalFingerPosOffsetX = element.FingerContactPoint.transform.parent.InverseTransformDirection(element.ElementObject.transform.right);
+                        element.LocalFingerPosOffsetY = element.FingerContactPoint.transform.parent.InverseTransformDirection(element.ElementObject.transform.up);
+                        element.LocalFingerPosOffsetZ = element.FingerContactPoint.transform.parent.InverseTransformDirection(element.ElementObject.transform.forward);
+                    }
+                }
+
+                if (element.ElementObject != null && element.FingerContactPoint != null)
+                {
+                    element.FingerContactInitialLocalPos = element.FingerContactPoint.transform.localPosition;
+
+                    if (element.FingerContactPoint != element.ElementObject)
+                    {
+                        element.FingerContactPoint.SetActive(false);
+                    }
+                }
+
+#if !ULTIMATEXR_NOSYNC
+
+                if (element.ElementObject != null)
+                {
+                    UxrSyncObject syncObject = element.ElementObject.GetOrAddComponent<UxrSyncObject>();
+                    syncObject.ChangeUniqueId(GuidExt.Combine(UniqueId, GetElementUniqueId(i)));
+                    syncObject.SyncTransform                         = true;
+                    syncObject.SyncTransformNetwork                  = true;
+                    syncObject.TransformSpace                        = UxrTransformSpace.Local;
+                    syncObject.OverrideDefaultNetSyncIntervalSeconds = true;
+                    syncObject.NetSyncIntervalSecondsOverride        = 0.1f;
+                }
+#endif
+            }
+        }
+
+        /// <summary>
+        ///     Updates the fingers based on the current contact information.
+        /// </summary>
+        private void LateUpdate()
+        {
+            // Update fingers
+
+            if (!_needsBothHands)
+            {
+                if (_controllerHand != null && _fingerContacts != null)
+                {
+                    foreach (KeyValuePair<UxrFingerType, int> fingerContactPair in _fingerContacts)
+                    {
+                        int elementIndex = fingerContactPair.Value;
+                        _controllerHand.UpdateFinger(fingerContactPair.Key, elementIndex >= 0 ? _controllerElements[elementIndex].FingerContactPoint.transform : null);
+                    }
+                }
+            }
+            else
+            {
+                if (_controllerHandLeft != null && _fingerContactsLeft != null)
+                {
+                    foreach (KeyValuePair<UxrFingerType, int> fingerContactPair in _fingerContactsLeft)
+                    {
+                        int elementIndex = fingerContactPair.Value;
+                        _controllerHandLeft.UpdateFinger(fingerContactPair.Key, elementIndex >= 0 ? _controllerElements[elementIndex].FingerContactPoint.transform : null);
+                    }
+                }
+
+                if (_controllerHandRight != null && _fingerContactsRight != null)
+                {
+                    foreach (KeyValuePair<UxrFingerType, int> fingerContactPair in _fingerContactsRight)
+                    {
+                        int elementIndex = fingerContactPair.Value;
+                        _controllerHandRight.UpdateFinger(fingerContactPair.Key, elementIndex >= 0 ? _controllerElements[elementIndex].FingerContactPoint.transform : null);
                     }
                 }
             }
@@ -595,7 +664,106 @@ namespace UltimateXR.Devices.Visualization
 
         #endregion
 
+        #region Event Handling Methods
+
+        /// <summary>
+        ///     Handles the event triggered when the unique identifier of the object changes.
+        /// </summary>
+        /// <param name="oldId">The previous unique identifier.</param>
+        /// <param name="newId">The new unique identifier.</param>
+        private void This_UniqueIdChanged(Guid oldId, Guid newId)
+        {
+#if !ULTIMATEXR_NOSYNC
+            for (int i = 0; i < _controllerElements.Count; i++)
+            {
+                UxrElement element = _controllerElements[i];
+
+                if (element.ElementObject != null)
+                {
+                    UxrSyncObject syncObject = element.ElementObject.GetComponent<UxrSyncObject>();
+
+                    if (syncObject != null)
+                    {
+                        syncObject.ChangeUniqueId(GuidExt.Combine(newId, GetElementUniqueId(i)));
+                    }
+                }
+            }
+#endif
+        }
+
+        #endregion
+
         #region Private Methods
+
+        /// <summary>
+        ///     Builds a unique identifier for a controller element.
+        /// </summary>
+        /// <param name="elementIndex">Controller element index</param>
+        /// <returns>Unique ID</returns>
+        private Guid GetElementUniqueId(int elementIndex)
+        {
+            return ("UxrController3D element " + elementIndex).GetGuid();
+        }
+
+        /// <summary>
+        ///     Changes the contact target of a finger holding the controller.
+        /// </summary>
+        /// <param name="hand">
+        ///     The hand to change the contact state for. Use -1 for the target hand when the controller can only be grabbed with
+        ///     one hand, or 0 (left) 1 (right) when the controller can be grabbed using both hands.
+        /// </param>
+        /// <param name="fingerType">
+        ///     The type of finger to change the contact state for.
+        /// </param>
+        /// <param name="targetElementIndex">
+        ///     The index of the controller element that the finger is contacting or -1 for no contact (release).
+        /// </param>
+        private void ChangeFingerContactTarget(int hand, UxrFingerType fingerType, int targetElementIndex)
+        {
+            UxrElement oldElement = _fingerContacts[fingerType] != -1 ? _controllerElements[_fingerContacts[fingerType]] : null;
+            UxrElement newElement = targetElementIndex          != -1 ? _controllerElements[targetElementIndex] : null;
+
+            BeginSync();
+
+            // Update finger contact point transform
+
+            if (hand == -1)
+            {
+                _fingerContacts[fingerType] = targetElementIndex;
+            }
+            else
+            {
+                switch (hand)
+                {
+                    case (int)UxrHandSide.Left:  _fingerContactsLeft[fingerType]  = targetElementIndex; break;
+                    case (int)UxrHandSide.Right: _fingerContactsRight[fingerType] = targetElementIndex; break;
+
+                    default: throw new ArgumentOutOfRangeException();
+                }
+            }
+
+            // Set the contact point visible state if the contact point is specified and different from the element itself.
+
+            if (oldElement != null && oldElement.FingerContactPoint != null && oldElement.FingerContactPoint != oldElement.ElementObject)
+            {
+                oldElement.FingerContactPoint.SetActive(false);
+            }
+
+            if (newElement != null && newElement.FingerContactPoint != null && newElement.FingerContactPoint != newElement.ElementObject)
+            {
+                bool handVisible = _controllerHand && _controllerHand.gameObject.activeSelf;
+
+                if (_needsBothHands)
+                {
+                    handVisible = (newElement.HandSide == UxrHandSide.Left  && _controllerHandLeft  != null && _controllerHandLeft.gameObject.activeSelf) ||
+                                  (newElement.HandSide == UxrHandSide.Right && _controllerHandRight != null && _controllerHandRight.gameObject.activeSelf);
+                }
+
+                newElement.FingerContactPoint.SetActive(targetElementIndex != -1 && !handVisible);
+            }
+
+            EndSyncMethod(SyncParams(hand, fingerType, targetElementIndex));
+        }
 
         /// <summary>
         ///     Gets whether the component has a visual hand available for visualization.
@@ -612,34 +780,72 @@ namespace UltimateXR.Devices.Visualization
             return _controllerHand != null;
         }
 
-        #endregion
-
-        #region Private Types & Data
-
         /// <summary>
-        ///     Gets all the possible elements in a controller.
+        ///     Resets the controller to a state where it's not being interacted with.
         /// </summary>
-        private IEnumerable<UxrControllerElements> ControllerElements
+        private void ResetInteraction()
         {
-            get
+            foreach (UxrFingerType fingerType in _fingerTypeEnums)
             {
-                foreach (var value in Enum.GetValues(typeof(UxrControllerElements)))
-                {
-                    UxrControllerElements element = (UxrControllerElements)value;
+                _lastFingerContacts[fingerType]      = -1;
+                _lastFingerContactsLeft[fingerType]  = -1;
+                _lastFingerContactsRight[fingerType] = -1;
+                _fingerContacts[fingerType]          = -1;
+                _fingerContactsLeft[fingerType]      = -1;
+                _fingerContactsRight[fingerType]     = -1;
+            }
 
-                    if (element != UxrControllerElements.None && element != UxrControllerElements.Everything)
+            foreach (UxrElement element in _controllerElements)
+            {
+                if (element.ElementObject == null)
+                {
+                    continue;
+                }
+
+                // Restore initial pos/rot
+
+                element.ElementObject.transform.localPosition = element.InitialLocalPos;
+                element.ElementObject.transform.localRotation = element.InitialLocalRot;
+
+                // Restore original material
+
+                if (_hashedElements.ContainsKey(element.Element))
+                {
+                    Renderer componentRenderer = element.ElementObject.GetComponent<Renderer>();
+                    if (componentRenderer != null && _hashedElementsOriginalMaterial.TryGetValue(element.Element, out Material originalMaterial))
                     {
-                        yield return element;
+                        componentRenderer.sharedMaterial = originalMaterial;
+                    }
+                }
+
+                // Disable visual contact object if it exists
+
+                if (element.FingerContactPoint != null)
+                {
+                    element.FingerContactPoint.transform.localPosition = element.FingerContactInitialLocalPos;
+
+                    if (element.FingerContactPoint != element.ElementObject)
+                    {
+                        element.FingerContactPoint.SetActive(false);
                     }
                 }
             }
         }
 
-        private readonly Dictionary<UxrControllerElements, GameObject>   _hashedElements                 = new Dictionary<UxrControllerElements, GameObject>();
-        private readonly Dictionary<UxrControllerElements, Material>     _hashedElementsOriginalMaterial = new Dictionary<UxrControllerElements, Material>();
-        private readonly Dictionary<UxrFingerType, UxrFingerContactInfo> _fingerContacts                 = new Dictionary<UxrFingerType, UxrFingerContactInfo>();
-        private readonly Dictionary<UxrFingerType, UxrFingerContactInfo> _fingerContactsLeft             = new Dictionary<UxrFingerType, UxrFingerContactInfo>();
-        private readonly Dictionary<UxrFingerType, UxrFingerContactInfo> _fingerContactsRight            = new Dictionary<UxrFingerType, UxrFingerContactInfo>();
+        #endregion
+
+        #region Private Types & Data
+
+        private readonly Dictionary<UxrControllerElements, GameObject> _hashedElements                 = new Dictionary<UxrControllerElements, GameObject>();
+        private readonly Dictionary<UxrControllerElements, Material>   _hashedElementsOriginalMaterial = new Dictionary<UxrControllerElements, Material>();
+        private readonly Dictionary<UxrFingerType, int>                _lastFingerContacts             = new Dictionary<UxrFingerType, int>();
+        private readonly Dictionary<UxrFingerType, int>                _lastFingerContactsLeft         = new Dictionary<UxrFingerType, int>();
+        private readonly Dictionary<UxrFingerType, int>                _lastFingerContactsRight        = new Dictionary<UxrFingerType, int>();
+        private          Dictionary<UxrFingerType, int>                _fingerContacts                 = new Dictionary<UxrFingerType, int>();
+        private          Dictionary<UxrFingerType, int>                _fingerContactsLeft             = new Dictionary<UxrFingerType, int>();
+        private          Dictionary<UxrFingerType, int>                _fingerContactsRight            = new Dictionary<UxrFingerType, int>();
+
+        private UxrFingerType[] _fingerTypeEnums;
 
         private UxrAvatar _avatar;
         private bool      _isControllerVisible = true;

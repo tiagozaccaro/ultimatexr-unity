@@ -157,14 +157,16 @@ namespace UltimateXR.Avatar.Controllers
         /// </summary>
         protected void UpdateInputDevice()
         {
-            foreach (UxrControllerInput controllerInput in Avatar.EnabledControllerInputs)
+            for (int i = 0; i < Avatar.ControllerInputs.Count; i++)
             {
-                // Call method using internal interface
-                ((IUxrControllerInputUpdater)controllerInput).UpdateInput();
-            }
+                UxrControllerInput controllerInput = Avatar.ControllerInputs[i];
 
-            // Refresh render mode
-            Avatar.RenderMode = Avatar.RenderMode;
+                if (controllerInput && controllerInput.isActiveAndEnabled)
+                {
+                    // Call method using internal interface
+                    ((IUxrControllerInputUpdater)controllerInput).UpdateInput();
+                }
+            }
         }
 
         /// <summary>
@@ -172,9 +174,10 @@ namespace UltimateXR.Avatar.Controllers
         /// </summary>
         protected void UpdateTrackingDevices()
         {
-            foreach (UxrTrackingDevice trackingDevice in Avatar.TrackingDevices)
+            for (int i = 0; i < Avatar.TrackingDevices.Count; i++)
             {
-                if (trackingDevice && trackingDevice.enabled)
+                UxrTrackingDevice trackingDevice = Avatar.TrackingDevices[i];
+                if (trackingDevice && trackingDevice.isActiveAndEnabled)
                 {
                     // Update tracking by calling internal interface
                     ((IUxrTrackingUpdater)trackingDevice).UpdateSensors();
@@ -187,9 +190,10 @@ namespace UltimateXR.Avatar.Controllers
         /// </summary>
         protected void UpdateAvatarUsingTrackingDevices()
         {
-            foreach (UxrTrackingDevice trackingDevice in Avatar.TrackingDevices)
+            for (int i = 0; i < Avatar.TrackingDevices.Count; i++)
             {
-                if (trackingDevice && trackingDevice.enabled)
+                UxrTrackingDevice trackingDevice = Avatar.TrackingDevices[i];
+                if (trackingDevice && trackingDevice.isActiveAndEnabled)
                 {
                     // Update avatar by calling internal interface
                     ((IUxrTrackingUpdater)trackingDevice).UpdateAvatar();
@@ -202,9 +206,10 @@ namespace UltimateXR.Avatar.Controllers
         /// </summary>
         protected void UpdateLocomotion()
         {
-            foreach (UxrLocomotion locomotion in UxrLocomotion.GetComponents<UxrLocomotion>(Avatar))
+            for (int i = 0; i < Avatar.Locomotions.Count; i++)
             {
-                if (locomotion.gameObject.activeInHierarchy && locomotion.enabled)
+                UxrLocomotion locomotion = Avatar.Locomotions[i];
+                if (locomotion && locomotion.isActiveAndEnabled)
                 {
                     ((IUxrLocomotionUpdater)locomotion).UpdateLocomotion();
                 }

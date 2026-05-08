@@ -9,16 +9,31 @@ namespace UltimateXR.Manipulation
 {
     public partial class UxrGrabbableObjectAnchor
     {
-        protected override void SerializeState(bool isReading, int stateSerializationVersion, UxrStateSaveLevel level, UxrStateSaveOptions options)
+        #region Protected Overrides UxrComponent
+
+        protected override void SerializeState(bool isReading, UxrStateSaveLevel level, UxrStateSaveOptions options)
         {
-            base.SerializeState(isReading, stateSerializationVersion, level, options);
+            base.SerializeState(isReading, level, options);
 
-            // Manipulations are already handled through events, we don't serialize them in incremental changes
+            // Version
 
-            if (level > UxrStateSaveLevel.ChangesSincePreviousSave)
+            SerializeStateVersion(level, options, StateSerializationVersion, out int effectiveVersion);
+
+            if (level <= UxrStateSaveLevel.ChangesSincePreviousSave)
             {
-                SerializeStateValue(level, options, nameof(_currentPlacedObject), ref _currentPlacedObject);
+                // Process all save levels above time sampling. Time sampling is not needed and covered by event synchronization.
+                return;
             }
+
+            SerializeStateValue(level, options, nameof(_currentPlacedObject), ref _currentPlacedObject);
         }
+
+        #endregion
+
+        #region Private Types & Data
+
+        private const int StateSerializationVersion = 0;
+
+        #endregion
     }
 }

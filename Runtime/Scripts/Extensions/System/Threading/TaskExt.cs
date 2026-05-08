@@ -262,7 +262,7 @@ namespace UltimateXR.Extensions.System.Threading
         }
 
         /// <summary>
-        ///     Provides a one-liner method to await until a task is cancelled.
+        ///     Provides a one-liner method to await until a task is canceled.
         /// </summary>
         /// <param name="ct">Cancellation token</param>
         /// <returns>Awaitable <see cref="Task" /></returns>
@@ -272,6 +272,30 @@ namespace UltimateXR.Extensions.System.Threading
             {
                 await Task.Yield();
             }
+        }
+
+        /// <summary>
+        ///     Asynchronously waits until the cancellation token is triggered or a timeout is reached,
+        ///     and returns a result indicating which condition occurred.
+        /// </summary>
+        /// <param name="seconds">The maximum time to wait, in seconds</param>
+        /// <param name="ct">The <see cref="CancellationToken" /> to observe for cancellation</param>
+        /// <returns>
+        ///     A <see cref="WaitResult" /> value indicating whether the wait ended due to cancellation or timeout.
+        /// </returns>
+        public static async Task<WaitResult> WaitUntilCancelledOrTimeout(float seconds, CancellationToken ct)
+        {
+            Task timeoutTask      = Delay(seconds);
+            Task cancellationTask = WaitUntilCancelled(ct);
+
+            Task completed = await Task.WhenAny(cancellationTask, timeoutTask);
+
+            if (completed == cancellationTask)
+            {
+                return WaitResult.Cancelled;
+            }
+
+            return WaitResult.Timeout;
         }
 
         /// <summary>

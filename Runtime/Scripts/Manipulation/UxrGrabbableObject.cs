@@ -1,4 +1,4 @@
-﻿// --------------------------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 // <copyright file="UxrGrabbableObject.cs" company="VRMADA">
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
@@ -130,6 +130,9 @@ namespace UltimateXR.Manipulation
         [SerializeField] private bool                     _dropProximityTransformUseSelf = true;
         [SerializeField] private Transform                _dropProximityTransform;
 
+        // Internal
+        [SerializeField][HideInInspector] private bool _awakeCalled;
+
         #endregion
 
         #region Public Types & Data
@@ -154,6 +157,11 @@ namespace UltimateXR.Manipulation
         ///     position/rotation to, for example, apply manipulation haptic feedback.
         /// </summary>
         public event EventHandler<UxrApplyConstraintsEventArgs> ConstraintsFinished;
+
+        /// <summary>
+        ///     Gets the list of colliders, enabled or not, on this grabbable object or any of its children.
+        /// </summary>
+        public IReadOnlyList<Collider> Colliders => _colliders;
 
         /// <summary>
         ///     <para>
@@ -294,28 +302,20 @@ namespace UltimateXR.Manipulation
         /// <summary>
         ///     Gets the local axes that the object can be translated in.
         /// </summary>
+        /// <remarks>
+        ///     This property allocates memory due to the use of <c>yield</c>.
+        ///     For a zero-allocation alternative, use <see cref="GetRangeOfMotionTranslationAxes"/>.
+        /// </remarks>
         public IEnumerable<UxrAxis> RangeOfMotionTranslationAxes
         {
             get
             {
-                if (TranslationConstraint == UxrTranslationConstraintMode.Free)
-                {
-                    yield return UxrAxis.X;
-                    yield return UxrAxis.Y;
-                    yield return UxrAxis.Z;
-                }
+                UxrAxis[] axes = new UxrAxis[3];
+                int count = GetRangeOfMotionTranslationAxes(axes);
 
-                if (TranslationConstraint == UxrTranslationConstraintMode.Locked)
+                for (int i = 0; i < count; ++i)
                 {
-                    yield break;
-                }
-
-                for (int axisIndex = 0; axisIndex < 3; ++axisIndex)
-                {
-                    if (!Mathf.Approximately(_translationLimitsMin[axisIndex], _translationLimitsMax[axisIndex]))
-                    {
-                        yield return axisIndex;
-                    }
+                    yield return axes[i];
                 }
             }
         }
@@ -323,72 +323,64 @@ namespace UltimateXR.Manipulation
         /// <summary>
         ///     Gets the local axes that the object can rotate around.
         /// </summary>
+        /// <remarks>
+        ///     This property allocates memory due to the use of <c>yield</c>.
+        ///     For a zero-allocation alternative, use <see cref="GetRangeOfMotionRotationAxes"/>.
+        /// </remarks>
         public IEnumerable<UxrAxis> RangeOfMotionRotationAxes
         {
             get
             {
-                if (RotationConstraint == UxrRotationConstraintMode.Free)
-                {
-                    yield return UxrAxis.X;
-                    yield return UxrAxis.Y;
-                    yield return UxrAxis.Z;
-                }
+                UxrAxis[] axes  = new UxrAxis[3];
+                int       count = GetRangeOfMotionRotationAxes(axes);
 
-                if (RotationConstraint == UxrRotationConstraintMode.Locked)
+                for (int i = 0; i < count; ++i)
                 {
-                    yield break;
-                }
-
-                for (int axisIndex = 0; axisIndex < 3; ++axisIndex)
-                {
-                    if (!Mathf.Approximately(_rotationAngleLimitsMin[axisIndex], _rotationAngleLimitsMax[axisIndex]))
-                    {
-                        yield return axisIndex;
-                    }
+                    yield return axes[i];
                 }
             }
         }
 
         /// <summary>
-        ///     Gets the local axes that the object can be translated in with limited range of motion (not freely, nor locked).
+        ///     Gets the local axes that the object can be translated in with a limited range of
+        ///     motion (not freely, nor locked).
         /// </summary>
+        /// <remarks>
+        ///     This property allocates memory due to the use of <c>yield</c>.
+        ///     For a zero-allocation alternative, use <see cref="GetLimitedRangeOfMotionTranslationAxes"/>.
+        /// </remarks>
         public IEnumerable<UxrAxis> LimitedRangeOfMotionTranslationAxes
         {
             get
             {
-                if (TranslationConstraint == UxrTranslationConstraintMode.Free || TranslationConstraint == UxrTranslationConstraintMode.Locked)
-                {
-                    yield break;
-                }
+                UxrAxis[] axes  = new UxrAxis[3];
+                int       count = GetLimitedRangeOfMotionTranslationAxes(axes);
 
-                for (int axisIndex = 0; axisIndex < 3; ++axisIndex)
+                for (int i = 0; i < count; ++i)
                 {
-                    if (!Mathf.Approximately(_translationLimitsMin[axisIndex], _translationLimitsMax[axisIndex]))
-                    {
-                        yield return axisIndex;
-                    }
+                    yield return axes[i];
                 }
             }
         }
 
         /// <summary>
-        ///     Gets the local axes that the object can rotate around with limited range of motion (not freely, nor locked).
+        ///     Gets the local axes that the object can rotate around with a limited range of
+        ///     motion (not freely, nor locked).
         /// </summary>
+        /// <remarks>
+        ///     This property allocates memory due to the use of <c>yield</c>.
+        ///     For a zero-allocation alternative, use <see cref="GetLimitedRangeOfMotionRotationAxes"/>.
+        /// </remarks>
         public IEnumerable<UxrAxis> LimitedRangeOfMotionRotationAxes
         {
             get
             {
-                if (RotationConstraint == UxrRotationConstraintMode.Free || RotationConstraint == UxrRotationConstraintMode.Locked)
-                {
-                    yield break;
-                }
+                UxrAxis[] axes  = new UxrAxis[3];
+                int       count = GetLimitedRangeOfMotionRotationAxes(axes);
 
-                for (int axisIndex = 0; axisIndex < 3; ++axisIndex)
+                for (int i = 0; i < count; ++i)
                 {
-                    if (!Mathf.Approximately(_rotationAngleLimitsMin[axisIndex], _rotationAngleLimitsMax[axisIndex]))
-                    {
-                        yield return axisIndex;
-                    }
+                    yield return axes[i];
                 }
             }
         }
@@ -508,6 +500,56 @@ namespace UltimateXR.Manipulation
         public UxrGrabbableObjectAnchor StartAnchor => _startAnchor;
 
         /// <summary>
+        ///     Gets the minimum allowed offset for objects that have a single translational degree of freedom.
+        /// </summary>
+        public float MinSingleTranslationOffset
+        {
+            get
+            {
+                int singleTranslationAxisIndex = SingleTranslationAxisIndex;
+                return singleTranslationAxisIndex == -1 ? 0.0f : _translationLimitsMin[singleTranslationAxisIndex];
+            }
+            set
+            {
+                int singleTranslationAxisIndex = SingleTranslationAxisIndex;
+
+                if (singleTranslationAxisIndex == -1)
+                {
+                    return;
+                }
+                
+                BeginSync();
+                _translationLimitsMin[singleTranslationAxisIndex] = value;
+                EndSyncProperty(value);
+            }
+        }
+
+        /// <summary>
+        ///     Gets the maximum allowed offset for objects that have a single translational degree of freedom.
+        /// </summary>
+        public float MaxSingleTranslationOffset
+        {
+            get
+            {
+                int singleTranslationAxisIndex = SingleTranslationAxisIndex;
+                return singleTranslationAxisIndex == -1 ? 0.0f : _translationLimitsMax[singleTranslationAxisIndex];
+            }
+            set
+            {
+                int singleTranslationAxisIndex = SingleTranslationAxisIndex;
+
+                if (singleTranslationAxisIndex == -1)
+                {
+                    return;
+                }
+
+                BeginSync();
+                _translationLimitsMax[singleTranslationAxisIndex] = value;
+                EndSyncProperty(value);
+            }
+        }
+        
+        /// <summary>
         ///     Gets the minimum allowed angle in degrees for objects that have a single rotational degree of freedom.
         /// </summary>
         public float MinSingleRotationDegrees
@@ -516,6 +558,22 @@ namespace UltimateXR.Manipulation
             {
                 int singleRotationAxisIndex = SingleRotationAxisIndex;
                 return singleRotationAxisIndex == -1 ? 0.0f : _rotationAngleLimitsMin[singleRotationAxisIndex];
+            }
+            set
+            {
+                int singleRotationAxisIndex = SingleRotationAxisIndex;
+
+                if (singleRotationAxisIndex == -1)
+                {
+                    return;
+                }
+                
+                BeginSync();
+                
+                _singleRotationAngleCumulative                   -= value - MinSingleRotationDegrees;
+                _rotationAngleLimitsMin[singleRotationAxisIndex] =  value;
+                
+                EndSyncProperty(value);
             }
         }
 
@@ -528,6 +586,19 @@ namespace UltimateXR.Manipulation
             {
                 int singleRotationAxisIndex = SingleRotationAxisIndex;
                 return singleRotationAxisIndex == -1 ? 0.0f : _rotationAngleLimitsMax[singleRotationAxisIndex];
+            }
+            set
+            {
+                int singleRotationAxisIndex = SingleRotationAxisIndex;
+
+                if (singleRotationAxisIndex == -1)
+                {
+                    return;
+                }
+                
+                BeginSync();
+                _rotationAngleLimitsMax[singleRotationAxisIndex] = value;
+                EndSyncProperty(value);
             }
         }
 
@@ -545,12 +616,66 @@ namespace UltimateXR.Manipulation
         ///     Gets the rotation provider. The rotation provider is used in objects with constrained position to know
         ///     which element drives the rotation.
         /// </summary>
-        public UxrRotationProvider RotationProvider => HasTranslationConstraint && LimitedRangeOfMotionRotationAxes.Any() ? _rotationProvider : UxrRotationProvider.HandOrientation;
+        public UxrRotationProvider RotationProvider
+        {
+            get
+            {
+                if (RotationConstraint == UxrRotationConstraintMode.Free || RotationConstraint == UxrRotationConstraintMode.Locked)
+                {
+                    return UxrRotationProvider.HandOrientation;
+                }
+
+                bool hasLimitedRangeOfRotation = false;
+
+                for (int axisIndex = 0; axisIndex < 3; ++axisIndex)
+                {
+                    if (!Mathf.Approximately(_rotationAngleLimitsMin[axisIndex], _rotationAngleLimitsMax[axisIndex]))
+                    {
+                        hasLimitedRangeOfRotation = true;
+                        break;
+                    }
+                }
+
+                return HasTranslationConstraint && hasLimitedRangeOfRotation ? _rotationProvider : UxrRotationProvider.HandOrientation;
+            }
+        }
 
         /// <summary>
         ///     Gets which axis is the longitudinal axis (x, y or z) in a rotation with constraints on two or more axes.
         /// </summary>
         public UxrAxis RotationLongitudinalAxis => _rotationLongitudinalAxis;
+
+        /// <summary>
+        ///     Gets or sets the offset for objects that have a single translational degree of freedom.
+        /// </summary>
+        /// <remarks>
+        ///     Internally it calls <see cref="UxrGrabManager.GetObjectSingleTranslationAxisOffset" /> and
+        ///     <see cref="UxrGrabManager.SetObjectSingleTranslationAxisOffset" />.
+        /// </remarks>
+        public float SingleTranslationAxisOffset
+        {
+            get => UxrGrabManager.Instance.GetObjectSingleTranslationAxisOffset(this);
+            set => UxrGrabManager.Instance.SetObjectSingleTranslationAxisOffset(this, value);
+        }
+
+        /// <summary>
+        ///     Same as <see cref="SingleTranslationAxisOffset"/> but normalized to the range [0, 1].
+        /// </summary>
+        public float SingleTranslationAxisT
+        {
+            get
+            {
+                int singleTranslationAxisIndex = SingleTranslationAxisIndex;
+
+                if (singleTranslationAxisIndex == -1)
+                {
+                    return 0.0f;
+                }
+
+                float offset = UxrGrabManager.Instance.GetObjectSingleTranslationAxisOffset(this);
+                return (offset - _translationLimitsMin[singleTranslationAxisIndex]) / (_translationLimitsMax[singleTranslationAxisIndex] - _translationLimitsMin[singleTranslationAxisIndex]);
+            }
+        }
 
         /// <summary>
         ///     Gets or sets the rotation angle in degrees for objects that have a single rotational degree of freedom.
@@ -566,14 +691,45 @@ namespace UltimateXR.Manipulation
         }
 
         /// <summary>
+        ///     Same as <see cref="SingleRotationAxisDegrees"/> but normalized to the range [0, 1].
+        /// </summary>
+        public float SingleRotationAxisT
+        {
+            get
+            {
+                int singleRotationAxisIndex = SingleRotationAxisIndex;
+
+                if (singleRotationAxisIndex == -1)
+                {
+                    return 0.0f;
+                }
+                
+                float degrees = UxrGrabManager.Instance.GetObjectSingleRotationAxisDegrees(this);
+                return (degrees - _rotationAngleLimitsMin[singleRotationAxisIndex]) / (_rotationAngleLimitsMax[singleRotationAxisIndex] - _rotationAngleLimitsMin[singleRotationAxisIndex]); 
+            }
+        }
+
+        /// <summary>
         ///     Gets the <see cref="UxrGrabbableObjectAnchor" /> where the object is actually placed or null if it's not placed on
         ///     any.
         /// </summary>
         public UxrGrabbableObjectAnchor CurrentAnchor
         {
             get => _currentAnchor;
-            internal set => _currentAnchor = value;
+            internal set
+            {
+                if (value != null)
+                {
+                    MostRecentAnchor = value;
+                }
+                _currentAnchor = value;
+            }
         }
+
+        /// <summary>
+        ///     Gets the most recent <see cref="UxrGrabbableObjectAnchor" /> where the object has been placed.
+        /// </summary>
+        public UxrGrabbableObjectAnchor MostRecentAnchor { get; private set; }
 
         /// <summary>
         ///     Gets or sets whether the object can be placed on an <see cref="UxrGrabbableObjectAnchor" />.
@@ -604,8 +760,8 @@ namespace UltimateXR.Manipulation
         ///     Gets or sets the object priority. The priority is used to control which object will be grabbed when multiple
         ///     objects are in reach and the user performs the grab gesture.
         ///     The default behaviour is to use the distance and orientation to the objects in reach to select the one with the
-        ///     closest grip. The priority can override this behaviour
-        ///     by selecting the one with the highest priority value. By default all objects have priority 0.
+        ///     closest grip. The priority can override this behaviour by selecting the one with the highest priority value.
+        ///     By default, all objects have priority 0.
         /// </summary>
         public int Priority
         {
@@ -624,6 +780,17 @@ namespace UltimateXR.Manipulation
         }
 
         /// <summary>
+        ///     Gets or sets whether the object will automatically create a <see cref="UxrGrabbableObjectAnchor"/> where it
+        ///     will initially be placed. The setter can be used on the original object when duplicating it so that the
+        ///     duplicate doesn't inherit this behavior. 
+        /// </summary>
+        public bool AutoCreateStartAnchor
+        {
+            get => _autoCreateStartAnchor;
+            set => _autoCreateStartAnchor = value;
+        }
+        
+        /// <summary>
         ///     Gets or sets the string that identifies which <see cref="UxrGrabbableObjectAnchor" /> components are
         ///     compatible for placement. A <see cref="UxrGrabbableObject" /> can be placed on an
         ///     <see cref="UxrGrabbableObjectAnchor" /> only if:
@@ -641,7 +808,15 @@ namespace UltimateXR.Manipulation
         public string Tag
         {
             get => _tag;
-            set => _tag = value;
+            set
+            {
+                if (_tag != value)
+                {
+                    BeginSync();
+                    _tag = value;
+                    EndSyncProperty(value);
+                }
+            }
         }
 
         /// <summary>
@@ -680,7 +855,15 @@ namespace UltimateXR.Manipulation
         public Vector3 TranslationLimitsMin
         {
             get => _translationLimitsMin;
-            set => _translationLimitsMin = value;
+            set
+            {
+                if (_translationLimitsMin != value)
+                {
+                    BeginSync();
+                    _translationLimitsMin = value;
+                    EndSyncProperty(value);
+                }
+            }
         }
 
         /// <summary>
@@ -690,7 +873,15 @@ namespace UltimateXR.Manipulation
         public Vector3 TranslationLimitsMax
         {
             get => _translationLimitsMax;
-            set => _translationLimitsMax = value;
+            set
+            {
+                if (_translationLimitsMax != value)
+                {
+                    BeginSync();
+                    _translationLimitsMax = value;
+                    EndSyncProperty(value);
+                }
+            }
         }
 
         /// <summary>
@@ -699,7 +890,15 @@ namespace UltimateXR.Manipulation
         public UxrRotationConstraintMode RotationConstraint
         {
             get => _rotationConstraintMode;
-            set => _rotationConstraintMode = value;
+            set
+            {
+                if (_rotationConstraintMode != value)
+                {
+                    BeginSync();
+                    _rotationConstraintMode = value;
+                    EndSyncProperty(value);
+                }
+            } 
         }
 
         /// <summary>
@@ -709,7 +908,15 @@ namespace UltimateXR.Manipulation
         public Vector3 RotationAngleLimitsMin
         {
             get => _rotationAngleLimitsMin;
-            set => _rotationAngleLimitsMin = value;
+            set
+            {
+                if (_rotationAngleLimitsMin != value)
+                {
+                    BeginSync();
+                    _rotationAngleLimitsMin = value;
+                    EndSyncProperty(value);
+                }
+            }
         }
 
         /// <summary>
@@ -719,7 +926,15 @@ namespace UltimateXR.Manipulation
         public Vector3 RotationAngleLimitsMax
         {
             get => _rotationAngleLimitsMax;
-            set => _rotationAngleLimitsMax = value;
+            set
+            {
+                if (_rotationAngleLimitsMax != value)
+                {
+                    BeginSync();
+                    _rotationAngleLimitsMax = value;
+                    EndSyncProperty(value);
+                }
+            }
         }
 
         /// <summary>
@@ -729,7 +944,15 @@ namespace UltimateXR.Manipulation
         public float TranslationResistance
         {
             get => _translationResistance;
-            set => _translationResistance = value;
+            set
+            {
+                if (!Mathf.Approximately(_translationResistance, value))
+                {
+                    BeginSync();
+                    _translationResistance = value;
+                    EndSyncProperty(value);
+                }
+            }
         }
 
         /// <summary>
@@ -739,7 +962,15 @@ namespace UltimateXR.Manipulation
         public float RotationResistance
         {
             get => _rotationResistance;
-            set => _rotationResistance = value;
+            set
+            {
+                if (!Mathf.Approximately(_rotationResistance, value))
+                {
+                    BeginSync();
+                    _rotationResistance = value;
+                    EndSyncProperty(value);
+                }
+            }
         }
 
         /// <summary>
@@ -854,6 +1085,11 @@ namespace UltimateXR.Manipulation
             get => _placementOptions;
             set => _placementOptions = value;
         }
+        
+        /// <summary>
+        ///     Gets or sets the anchor where the object should be placed once the object gets re-enabled.
+        /// </summary>
+        internal UxrGrabbableObjectAnchor AnchorOnEnable { get; set; }
 
         #endregion
 
@@ -921,6 +1157,8 @@ namespace UltimateXR.Manipulation
             {
                 UxrGrabManager.Instance.PlaceObject(this, _startAnchor, UxrPlacementOptions.None, propagateEvents);
             }
+
+            _singleRotationAngleCumulative = 0.0f;
         }
 
         /// <inheritdoc />
@@ -1095,13 +1333,13 @@ namespace UltimateXR.Manipulation
         ///     Checks whether the object can be grabbed by a <see cref="UxrGrabber" />.
         /// </summary>
         /// <param name="grabber">Grabber</param>
-        /// <param name="grabPoint">Grab point index to check</param>
+        /// <param name="grabPoint">Grab point index to consider</param>
         /// <returns>Whether the object can be grabbed by the grabber using the given grab point</returns>
         public bool CanBeGrabbedByGrabber(UxrGrabber grabber, int grabPoint)
         {
             if (_grabPointEnabledStates.ContainsKey(grabPoint))
             {
-                // It always is false when it exists. This has manually been set up by SetGrabPointEnabled()
+                // It is always false when it exists. This has manually been set up by SetGrabPointEnabled()
                 return false;
             }
 
@@ -1118,13 +1356,13 @@ namespace UltimateXR.Manipulation
                 return false;
             }
 
-            if (AllChildrenLookAts.Any() && IsDummyGrabbableParent)
+            if (AllChildrenLookAts.Count > 0 && IsDummyGrabbableParent)
             {
                 // Dummy grabbable parents cannot be grabbed
                 return false;
             }
 
-            bool isBeingGrabbedByOtherPoint = GrabPointCount > 1 && UxrGrabManager.Instance.IsBeingGrabbed(this) && !UxrGrabManager.Instance.IsBeingGrabbed(this, grabPoint);
+            bool isBeingGrabbedByOtherPoint = GrabPointCount > 1                      && UxrGrabManager.Instance.IsBeingGrabbed(this) && !UxrGrabManager.Instance.IsBeingGrabbed(this, grabPoint);
             bool isBeingGrabbedBySameShape  = _grabPointShapes.ContainsKey(grabPoint) && UxrGrabManager.Instance.IsBeingGrabbed(this, grabPoint);
 
             if (!AllowMultiGrab && (isBeingGrabbedByOtherPoint || isBeingGrabbedBySameShape))
@@ -1155,16 +1393,16 @@ namespace UltimateXR.Manipulation
 
         /// <summary>
         ///     Computes the position/rotation that a <see cref="UxrGrabber" /> would have to hold the object using the current
-        ///     object position/orientation.
+        ///     object position/orientation. For the position/rotation of the hand itself, check <see cref="ComputeRequiredHandTransform"/>.
         /// </summary>
-        /// <param name="grabber">Grabber to check</param>
+        /// <param name="grabber">Grabber to consider</param>
         /// <param name="grabPoint">Grab point</param>
         /// <param name="grabberPosition">Returns the grabber position</param>
         /// <param name="grabberRotation">Returns the grabber orientation</param>
         /// <param name="includeAlignToController">
         ///     Whether to include the rotation required for AlignToController if the grab point has it.
         /// </param>
-        /// <returns>Whether the returned data is meaningful</returns>
+        /// <returns>Whether the method returned any data</returns>
         public bool ComputeRequiredGrabberTransform(UxrGrabber grabber, int grabPoint, out Vector3 grabberPosition, out Quaternion grabberRotation, bool includeAlignToController = true)
         {
             grabberPosition = grabber.transform.position;
@@ -1203,7 +1441,7 @@ namespace UltimateXR.Manipulation
                 if (controller3DModel != null)
                 {
                     Quaternion relativeTrackerRotation = Quaternion.Inverse(grabber.transform.rotation) * controller3DModel.ForwardTrackingRotation;
-                    Quaternion trackerRotation         = grabberRotation * relativeTrackerRotation;
+                    Quaternion trackerRotation         = grabberRotation                                * relativeTrackerRotation;
                     Quaternion sourceAlignAxes         = grabPointInfo.AlignToControllerAxes != null ? grabPointInfo.AlignToControllerAxes.rotation : transform.rotation;
 
                     grabberRotation = sourceAlignAxes * Quaternion.Inverse(trackerRotation) * grabberRotation;
@@ -1214,9 +1452,40 @@ namespace UltimateXR.Manipulation
         }
 
         /// <summary>
+        ///     Computes the position/rotation that an avatar hand would have to hold the object using the current
+        ///     object position/orientation.
+        /// </summary>
+        /// <param name="grabber">Grabber to consider</param>
+        /// <param name="grabPoint">Grab point</param>
+        /// <param name="handPosition">Returns the hand position</param>
+        /// <param name="handRotation">Returns the hand orientation</param>
+        /// <param name="includeAlignToController">
+        ///     Whether to include the rotation required for AlignToController if the grab point has it.
+        /// </param>
+        /// <returns>Whether the method returned any data</returns>
+        public bool ComputeRequiredHandTransform(UxrGrabber grabber, int grabPoint, out Vector3 handPosition, out Quaternion handRotation, bool includeAlignToController = true)
+        {
+            handPosition = Vector3.zero;
+            handRotation = Quaternion.identity;
+            
+            // First compute grabber position and then transform it to hand bone 
+
+            if (ComputeRequiredGrabberTransform(grabber, grabPoint, out Vector3 grabberPosition, out Quaternion grabberRotation, includeAlignToController))
+            {
+                Matrix4x4 transformMatrix = Matrix4x4.TRS(grabberPosition, grabberRotation, grabber.transform.localScale);
+                handPosition = transformMatrix.MultiplyPoint(grabber.HandBoneRelativePos);
+                handRotation = transformMatrix.rotation * grabber.HandBoneRelativeRot;
+
+                return true;   
+            }
+
+            return false;
+        }
+
+        /// <summary>
         ///     Checks whether the object is near enough to be placed on the given <see cref="UxrGrabbableObjectAnchor" />.
         /// </summary>
-        /// <param name="anchor">Anchor to check</param>
+        /// <param name="anchor">Anchor to consider</param>
         /// <returns>Whether it is near enough to be placed</returns>
         public bool CanBePlacedOnAnchor(UxrGrabbableObjectAnchor anchor)
         {
@@ -1226,7 +1495,7 @@ namespace UltimateXR.Manipulation
         /// <summary>
         ///     Checks whether the object is near enough to be placed on the given <see cref="UxrGrabbableObjectAnchor" />.
         /// </summary>
-        /// <param name="anchor">Anchor to check</param>
+        /// <param name="anchor">Anchor to consider</param>
         /// <param name="distance">Returns the euclidean distance to the anchor</param>
         /// <returns>Whether it is near enough to be placed</returns>
         public bool CanBePlacedOnAnchor(UxrGrabbableObjectAnchor anchor, out float distance)
@@ -1263,6 +1532,168 @@ namespace UltimateXR.Manipulation
         public void KeepGripsInPlace()
         {
             UxrGrabManager.Instance.KeepGripsInPlace(this);
+        }
+
+        /// <summary>
+        ///     Gets the local axes that the object can be translated in, writing the result into a caller-provided buffer.
+        ///     This method performs zero allocations.
+        ///     
+        ///     Example:
+        ///     <code>
+        ///     Span&lt;UxrAxis&gt; axes = stackalloc UxrAxis[3];
+        ///     int count = grabPoint.GetRangeOfMotionTranslationAxes(axes);
+        ///     for (int i = 0; i &lt; count; ++i)
+        ///     {
+        ///         UxrAxis axis = axes[i];
+        ///     }
+        ///     </code>
+        /// </summary>
+        /// <param name="axes">Destination buffer with capacity for at least 3 elements.</param>
+        /// <returns>The number of axes written into <paramref name="axes"/>.</returns>
+        public int GetRangeOfMotionTranslationAxes(Span<UxrAxis> axes)
+        {
+            if (TranslationConstraint == UxrTranslationConstraintMode.Locked)
+            {
+                return 0;
+            }
+
+            if (TranslationConstraint == UxrTranslationConstraintMode.Free)
+            {
+                axes[0] = UxrAxis.X;
+                axes[1] = UxrAxis.Y;
+                axes[2] = UxrAxis.Z;
+                return 3;
+            }
+
+            int count = 0;
+
+            for (int axisIndex = 0; axisIndex < 3; ++axisIndex)
+            {
+                if (!Mathf.Approximately(_translationLimitsMin[axisIndex], _translationLimitsMax[axisIndex]))
+                {
+                    axes[count++] = axisIndex;
+                }
+            }
+
+            return count;
+        }
+
+        /// <summary>
+        ///     Gets the local axes that the object can rotate around, writing the result into a caller-provided buffer.
+        ///     This method performs zero allocations.
+        ///     
+        ///     Example:
+        ///     <code>
+        ///     Span&lt;UxrAxis&gt; axes = stackalloc UxrAxis[3];
+        ///     int count = grabPoint.GetRangeOfMotionRotationAxes(axes);
+        ///     for (int i = 0; i &lt; count; ++i)
+        ///     {
+        ///         UxrAxis axis = axes[i];
+        ///     }
+        ///     </code>
+        /// </summary>
+        /// <param name="axes">Destination buffer with capacity for at least 3 elements.</param>
+        /// <returns>The number of axes written into <paramref name="axes"/>.</returns>
+        public int GetRangeOfMotionRotationAxes(Span<UxrAxis> axes)
+        {
+            if (RotationConstraint == UxrRotationConstraintMode.Locked)
+            {
+                return 0;
+            }
+
+            if (RotationConstraint == UxrRotationConstraintMode.Free)
+            {
+                axes[0] = UxrAxis.X;
+                axes[1] = UxrAxis.Y;
+                axes[2] = UxrAxis.Z;
+                return 3;
+            }
+
+            int count = 0;
+
+            for (int axisIndex = 0; axisIndex < 3; ++axisIndex)
+            {
+                if (!Mathf.Approximately(_rotationAngleLimitsMin[axisIndex], _rotationAngleLimitsMax[axisIndex]))
+                {
+                    axes[count++] = axisIndex;
+                }
+            }
+
+            return count;
+        }
+
+        /// <summary>
+        ///     Gets the local axes that the object can be translated in with limited range of motion (not freely, nor locked),
+        ///     writing the result into a caller-provided buffer.
+        ///     This method performs zero allocations.
+        ///     
+        ///     Example:
+        ///     <code>
+        ///     Span&lt;UxrAxis&gt; axes = stackalloc UxrAxis[3];
+        ///     int count = grabPoint.GetLimitedRangeOfMotionTranslationAxes(axes);
+        ///     for (int i = 0; i &lt; count; ++i)
+        ///     {
+        ///         UxrAxis axis = axes[i];
+        ///     }
+        ///     </code>
+        /// </summary>
+        /// <param name="axes">Destination buffer with capacity for at least 3 elements.</param>
+        /// <returns>The number of axes written into <paramref name="axes"/>.</returns>
+        public int GetLimitedRangeOfMotionTranslationAxes(Span<UxrAxis> axes)
+        {
+            if (TranslationConstraint == UxrTranslationConstraintMode.Free || TranslationConstraint == UxrTranslationConstraintMode.Locked)
+            {
+                return 0;
+            }
+
+            int count = 0;
+
+            for (int axisIndex = 0; axisIndex < 3; ++axisIndex)
+            {
+                if (!Mathf.Approximately(_translationLimitsMin[axisIndex], _translationLimitsMax[axisIndex]))
+                {
+                    axes[count++] = axisIndex;
+                }
+            }
+
+            return count;
+        }
+
+        /// <summary>
+        ///     Gets the local axes that the object can rotate around with limited range of motion (not freely, nor locked),
+        ///     writing the result into a caller-provided buffer.
+        ///     This method performs zero allocations.
+        ///     
+        ///     Example:
+        ///     <code>
+        ///     Span&lt;UxrAxis&gt; axes = stackalloc UxrAxis[3];
+        ///     int count = grabPoint.GetLimitedRangeOfMotionRotationAxes(axes);
+        ///     for (int i = 0; i &lt; count; ++i)
+        ///     {
+        ///         UxrAxis axis = axes[i];
+        ///     }
+        ///     </code>
+        /// </summary>
+        /// <param name="axes">Destination buffer with capacity for at least 3 elements.</param>
+        /// <returns>The number of axes written into <paramref name="axes"/>.</returns>
+        public int GetLimitedRangeOfMotionRotationAxes(Span<UxrAxis> axes)
+        {
+            if (RotationConstraint == UxrRotationConstraintMode.Free || RotationConstraint == UxrRotationConstraintMode.Locked)
+            {
+                return 0;
+            }
+
+            int count = 0;
+
+            for (int axisIndex = 0; axisIndex < 3; ++axisIndex)
+            {
+                if (!Mathf.Approximately(_rotationAngleLimitsMin[axisIndex], _rotationAngleLimitsMax[axisIndex]))
+                {
+                    axes[count++] = axisIndex;
+                }
+            }
+
+            return count;
         }
 
         /// <summary>
@@ -1376,6 +1807,14 @@ namespace UltimateXR.Manipulation
             StopSmoothManipulationTransition();
             StopSmoothConstrain();
             StopSmoothAnchorPlacement();
+        }
+
+        /// <summary>
+        ///     Recomputes the list of colliders (<see cref="Colliders"/>) on this object and all children.
+        /// </summary>
+        public void RecomputeColliderList()
+        {
+            _colliders = GetComponentsInChildren<Collider>(true).ToList();
         }
 
         #endregion
@@ -1618,7 +2057,7 @@ namespace UltimateXR.Manipulation
             if (controller3DModel != null)
             {
                 Quaternion relativeTrackerRotation = Quaternion.Inverse(grabber.transform.rotation) * controller3DModel.ForwardTrackingRotation;
-                Quaternion trackerRotation         = grabber.transform.rotation * relativeTrackerRotation;
+                Quaternion trackerRotation         = grabber.transform.rotation                     * relativeTrackerRotation;
                 Quaternion sourceAlignAxes         = grabPointInfo.AlignToControllerAxes != null ? grabPointInfo.AlignToControllerAxes.rotation : transform.rotation;
                 Quaternion grabberTargetRotation   = sourceAlignAxes * Quaternion.Inverse(trackerRotation) * grabber.transform.rotation;
 
@@ -1633,9 +2072,10 @@ namespace UltimateXR.Manipulation
         /// </summary>
         /// <param name="grabber">Grabber responsible for grabbing the object</param>
         /// <param name="grabPoint">Point that was grabbed</param>
+        /// <param name="grabOptions">Grab options</param>
         /// <param name="snapPosition">The grabber snap position to use</param>
         /// <param name="snapRotation">The grabber snap rotation to use</param>
-        internal void NotifyBeginGrab(UxrGrabber grabber, int grabPoint, Vector3 snapPosition, Quaternion snapRotation)
+        internal void NotifyBeginGrab(UxrGrabber grabber, int grabPoint, UxrGrabOptions grabOptions, Vector3 snapPosition, Quaternion snapRotation)
         {
         }
 
@@ -1844,6 +2284,9 @@ namespace UltimateXR.Manipulation
 
             // Make sure singleton is created so that grabbable objects get registered
             UxrGrabManager.Instance.Poke();
+            
+            // Create the list of colliders
+            RecomputeColliderList();
 
             // Fix some common mistakes just in case
             Vector3 fixedMin = Vector3.Min(_translationLimitsMin, _translationLimitsMax);
@@ -1872,10 +2315,14 @@ namespace UltimateXR.Manipulation
                     newAnchor.AddCompatibleTags(Tag);
                 }
 
-                _startAnchor = newAnchor;
+                _startAnchor  = newAnchor;
+                CurrentAnchor = newAnchor;
             }
-
-            CurrentAnchor = _startAnchor;
+            else if (!_awakeCalled)
+            {
+                // We use _awakeCalled to avoid doing this in copies
+                CurrentAnchor = _startAnchor;                
+            }
 
             if (CurrentAnchor != null)
             {
@@ -1894,13 +2341,9 @@ namespace UltimateXR.Manipulation
 
             foreach (UxrGrabPointShape grabPointShape in grabPointShapes)
             {
-                if (_grabPointShapes.ContainsKey(grabPointShape.GrabPoint))
+                if (!_grabPointShapes.TryAdd(grabPointShape.GrabPoint, grabPointShape))
                 {
                     Debug.LogWarning($"{UxrConstants.ManipulationModule}: Object " + name + " has duplicated GrabPointShape for " + UxrGrabPointIndex.GetIndexDisplayName(this, grabPointShape.GrabPoint));
-                }
-                else
-                {
-                    _grabPointShapes.Add(grabPointShape.GrabPoint, grabPointShape);
                 }
             }
 
@@ -1910,6 +2353,14 @@ namespace UltimateXR.Manipulation
             }
 
             UpdateGrabbableDependencies();
+
+            // Cache event to avoid allocations
+            _constrainEventArgs = new UxrApplyConstraintsEventArgs(this);
+            
+            
+            _awakeCalled = true;
+            
+            UxrGrabManager.Instance.OnObjectRegistered(this);
         }
 
         /// <summary>
@@ -1923,6 +2374,24 @@ namespace UltimateXR.Manipulation
             {
                 UxrGrabManager.Instance.ReleaseGrabs(this, true);
             }
+
+            UxrGrabManager.Instance.OnObjectUnregistered(this);
+        }
+
+        /// <summary>
+        ///     Called when the component is enabled.
+        /// </summary>
+        protected override void OnEnable()
+        {
+            base.OnEnable();
+
+            if (AnchorOnEnable != null && AnchorOnEnable.IsCompatibleObject(this) && AnchorOnEnable.CurrentPlacedObject == null)
+            {
+                UxrGrabManager.Instance.PlaceObject(this, AnchorOnEnable, UxrPlacementOptions.None, true);
+                AnchorOnEnable = null;
+            }
+            
+            UxrGrabManager.Instance.OnObjectEnabled(this);
         }
 
         /// <summary>
@@ -1935,6 +2404,8 @@ namespace UltimateXR.Manipulation
             SmoothManipulationTimer = -1.0f;
             SmoothPlacementTimer    = -1.0f;
             SmoothConstrainTimer    = -1.0f;
+
+            UxrGrabManager.Instance.OnObjectDisabled(this);
         }
 
         /// <summary>
@@ -1965,7 +2436,7 @@ namespace UltimateXR.Manipulation
             {
                 bool isSleeping = _rigidBodySource.IsSleeping();
 
-                UpdateRigidbody(grabber, isSleeping, transform.position, transform.rotation, _rigidBodySource.velocity, _rigidBodySource.angularVelocity);
+                UpdateRigidbody(grabber, isSleeping, transform.position, transform.rotation, _rigidBodySource.linearVelocity, _rigidBodySource.angularVelocity);
 
                 if (isSleeping)
                 {
@@ -1985,36 +2456,33 @@ namespace UltimateXR.Manipulation
         /// <summary>
         ///     Event trigger for <see cref="ConstraintsApplying" />.
         /// </summary>
-        /// <param name="e">Event parameters</param>
-        internal void RaiseConstraintsApplying(UxrApplyConstraintsEventArgs e)
+        internal void RaiseConstraintsApplying()
         {
             if (UxrGrabManager.Instance.Features.HasFlag(UxrManipulationFeatures.UserConstraints))
             {
-                ConstraintsApplying?.Invoke(this, e);
+                ConstraintsApplying?.Invoke(this, _constrainEventArgs);
             }
         }
 
         /// <summary>
         ///     Event trigger for <see cref="ConstraintsApplied" />.
         /// </summary>
-        /// <param name="e">Event parameters</param>
-        internal void RaiseConstraintsApplied(UxrApplyConstraintsEventArgs e)
+        internal void RaiseConstraintsApplied()
         {
             if (UxrGrabManager.Instance.Features.HasFlag(UxrManipulationFeatures.UserConstraints))
             {
-                ConstraintsApplied?.Invoke(this, e);
+                ConstraintsApplied?.Invoke(this, _constrainEventArgs);
             }
         }
 
         /// <summary>
         ///     Event trigger for <see cref="ConstraintsFinished" />.
         /// </summary>
-        /// <param name="e">Event parameters</param>
-        internal void RaiseConstraintsFinished(UxrApplyConstraintsEventArgs e)
+        internal void RaiseConstraintsFinished()
         {
             if (UxrGrabManager.Instance.Features.HasFlag(UxrManipulationFeatures.UserConstraints))
             {
-                ConstraintsFinished?.Invoke(this, e);
+                ConstraintsFinished?.Invoke(this, _constrainEventArgs);
             }
         }
 
@@ -2059,14 +2527,14 @@ namespace UltimateXR.Manipulation
         {
             // Check whether the object was released, is in a networking environment and requires manually keep physics in sync through messages
 
-            if (UxrGlobalSettings.Instance.SyncGrabbablePhysics &&
-                _rigidBodySource != null &&
-                _rigidBodyDynamicOnRelease &&
-                !IsBeingGrabbed &&
-                e.Grabber != null &&
+            if (UxrGlobalSettings.Instance.SyncGrabbablePhysics                                       &&
+                _rigidBodySource != null                                                              &&
+                _rigidBodyDynamicOnRelease                                                            &&
+                !IsBeingGrabbed                                                                       &&
+                e.Grabber != null                                                                     &&
                 e.Grabber.Avatar.GetComponent<IUxrNetworkAvatar>() is IUxrNetworkAvatar networkAvatar &&
-                networkAvatar.IsLocal &&
-                UxrNetworkManager.HasInstance &&
+                networkAvatar.IsLocal                                                                 &&
+                UxrNetworkManager.HasInstance                                                         &&
                 !UxrNetworkManager.Instance.NetworkImplementation.HasNetworkTransformSyncComponents(gameObject))
             {
                 if (_regularPhysicsSyncCoroutine != null)
@@ -2170,6 +2638,11 @@ namespace UltimateXR.Manipulation
 
             foreach (UxrGrabbableObject child in children)
             {
+                if (child == grabbableObject)
+                {
+                    continue;
+                }
+                
                 bool validControl = !(onlyUseDependency && !child.UsesGrabbableParentDependency);
 
                 if (onlyControlDirection && !child.ControlParentDirection)
@@ -2219,7 +2692,7 @@ namespace UltimateXR.Manipulation
             {
                 _rigidBodySource.transform.position = transformPosition;
                 _rigidBodySource.transform.rotation = transformRotation;
-                _rigidBodySource.velocity           = velocity;
+                _rigidBodySource.linearVelocity     = velocity;
                 _rigidBodySource.angularVelocity    = angularVelocity;
 
                 if (isSleeping)
@@ -2228,7 +2701,7 @@ namespace UltimateXR.Manipulation
                 }
             }
 
-            EndSyncMethod(new object[] { grabber, isSleeping, transformPosition, transformRotation, velocity, angularVelocity });
+            EndSyncMethod(SyncParams(grabber, isSleeping, transformPosition, transformRotation, velocity, angularVelocity));
         }
 
         /// <summary>
@@ -2319,6 +2792,7 @@ namespace UltimateXR.Manipulation
 
         // Backing fields for public properties
 
+        private List<Collider>           _colliders = new List<Collider>();
         private UxrGrabbableObjectAnchor _currentAnchor;
         private bool                     _isPlaceable = true;
         private bool                     _isLockedInPlace;
@@ -2341,6 +2815,10 @@ namespace UltimateXR.Manipulation
         // Coroutines
 
         private Coroutine _regularPhysicsSyncCoroutine;
+        
+        // Events
+
+        private UxrApplyConstraintsEventArgs _constrainEventArgs;
 
         #endregion
 
@@ -2614,7 +3092,7 @@ namespace UltimateXR.Manipulation
         /// <summary>
         ///     Checks whether the object has a grab point with the given <see cref="Transform" /> for alignment.
         /// </summary>
-        /// <param name="snapTransform">Transform to check</param>
+        /// <param name="snapTransform">Transform to consider</param>
         /// <returns>Whether the given <see cref="Transform" /> is present in any of the grab point alignments</returns>
         public bool Editor_HasGrabPointWithGrabAlignTransform(Transform snapTransform)
         {
@@ -2638,7 +3116,7 @@ namespace UltimateXR.Manipulation
         ///     Checks whether the object has a grab point with the given <see cref="Transform" /> for alignment registered using
         ///     the given prefab.
         /// </summary>
-        /// <param name="snapTransform">Transform to check</param>
+        /// <param name="snapTransform">Transform to consider</param>
         /// <param name="avatarPrefab">Avatar prefab</param>
         /// <returns>
         ///     Whether the given <see cref="Transform" /> is present in any of the grab point alignments registered using the

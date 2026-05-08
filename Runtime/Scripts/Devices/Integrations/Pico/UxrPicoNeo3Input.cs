@@ -33,12 +33,12 @@ namespace UltimateXR.Devices.Integrations.Pico
         public override bool HasControllerElements(UxrHandSide handSide, UxrControllerElements controllerElements)
         {
             uint validElements = (uint)(UxrControllerElements.Joystick |
-                                        UxrControllerElements.Grip |
-                                        UxrControllerElements.Trigger |
-                                        UxrControllerElements.Button1 |
-                                        UxrControllerElements.Button2 |
-                                        UxrControllerElements.Menu |
-                                        UxrControllerElements.Back |
+                                        UxrControllerElements.Grip     |
+                                        UxrControllerElements.Trigger  |
+                                        UxrControllerElements.Button1  |
+                                        UxrControllerElements.Button2  |
+                                        UxrControllerElements.Menu     |
+                                        UxrControllerElements.Back     |
                                         UxrControllerElements.DPad);
 
             return (validElements & (uint)controllerElements) == (uint)controllerElements;
@@ -46,10 +46,10 @@ namespace UltimateXR.Devices.Integrations.Pico
 
         #endregion
 
-        #region Public Overrides UxrUnityXRControllerInput
+        #region Protected Overrides UxrUnityXRControllerInput
 
         /// <inheritdoc />
-        public override IEnumerable<string> ControllerNames
+        protected override IEnumerable<string> ControllerNames
         {
             get
             {

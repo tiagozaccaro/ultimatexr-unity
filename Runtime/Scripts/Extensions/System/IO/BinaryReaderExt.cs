@@ -267,7 +267,7 @@ namespace UltimateXR.Extensions.System.IO
 
             if (firstException != null)
             {
-                // This helps debugging UxrMethodInvokedSyncEventArgs. We keep deserializing event parameters even if there are errors.
+                // This helps debug UxrMethodInvokedSyncEventArgs. We keep deserializing event parameters even if there are errors.
                 throw firstException;
             }
 
@@ -589,20 +589,24 @@ namespace UltimateXR.Extensions.System.IO
         /// <param name="serializationVersion">The serialization version, to provide backwards compatibility</param>
         /// <returns>Component that implements the <see cref="IUxrUniqueId" /> interface</returns>
         /// <exception cref="UxrComponentNotFoundException">The given component could not be found using the Id</exception>
-        public static IUxrUniqueId ReadUniqueComponent(this BinaryReader reader, int serializationVersion)
+        public static IUxrUniqueId ReadUniqueIdComponent(this BinaryReader reader, int serializationVersion)
         {
-            // Serialized as: null-check (bool), Guid
+            UxrUniqueIdComponentSaveFlags saveFlags = (UxrUniqueIdComponentSaveFlags)reader.ReadByte();
 
-            bool nullCheck = reader.ReadBoolean();
-
-            if (!nullCheck)
+            if (!saveFlags.HasFlag(UxrUniqueIdComponentSaveFlags.NonNull))
             {
                 return null;
             }
 
-            Guid componentId = reader.ReadGuid(serializationVersion);
+            Guid   componentId = reader.ReadGuid(serializationVersion);
+            string debugInfo   = null;
 
-            if (componentId == default)
+            if (saveFlags.HasFlag(UxrUniqueIdComponentSaveFlags.DebugInfo))
+            {
+                debugInfo = reader.ReadString();
+            }
+
+            if (componentId == Guid.Empty)
             {
                 return null;
             }
@@ -611,8 +615,25 @@ namespace UltimateXR.Extensions.System.IO
             {
                 return component;
             }
+            
+            // Try to solve using debug info
 
-            throw new UxrComponentNotFoundException(componentId);
+            if (debugInfo == null)
+            {
+                UxrUniqueIdImplementer.TryGetUniqueIdComponentDebugInfo(componentId, out debugInfo);
+            }
+
+            if (!string.IsNullOrEmpty(debugInfo))
+            {
+                component = UxrUniqueIdImplementer.TryGetUniqueIdComponentUsingDebugInfo(componentId, debugInfo);
+
+                if (component != null)
+                {
+                    return component;
+                }
+            }
+
+            throw new UxrComponentNotFoundException(componentId, debugInfo);
         }
 
         /// <summary>
@@ -623,9 +644,9 @@ namespace UltimateXR.Extensions.System.IO
         /// <param name="serializationVersion">The serialization version, to provide backwards compatibility</param>
         /// <returns>Component that implements the <see cref="IUxrUniqueId" /> interface</returns>
         /// <exception cref="UxrComponentNotFoundException">The given component could not be found using the Id</exception>
-        public static T ReadUniqueComponent<T>(this BinaryReader reader, int serializationVersion) where T : Component, IUxrUniqueId
+        public static T ReadUniqueIdComponent<T>(this BinaryReader reader, int serializationVersion) where T : Component, IUxrUniqueId
         {
-            return ReadUniqueComponent(reader, serializationVersion) as T;
+            return ReadUniqueIdComponent(reader, serializationVersion) as T;
         }
 
         /// <summary>
@@ -935,9 +956,9 @@ namespace UltimateXR.Extensions.System.IO
                 return reader.ReadMatrix(serializationVersion);
             }
 
-            if (varType is UxrVarType.IUxrUnique)
+            if (varType is UxrVarType.IUxrUniqueId)
             {
-                return reader.ReadUniqueComponent(serializationVersion);
+                return reader.ReadUniqueIdComponent(serializationVersion);
             }
 
             if (varType is UxrVarType.IUxrSerializable)
@@ -1141,7 +1162,7 @@ namespace UltimateXR.Extensions.System.IO
 
             if (typeof(IUxrUniqueId).IsAssignableFrom(type))
             {
-                return reader.ReadUniqueComponent(serializationVersion);
+                return reader.ReadUniqueIdComponent(serializationVersion);
             }
 
             if (typeof(IUxrSerializable).IsAssignableFrom(type))

@@ -36,13 +36,13 @@ namespace UltimateXR.Networking
         public abstract void SetupAvatar(UxrAvatar avatar, out List<GameObject> newGameObjects, out List<Component> newComponents);
 
         /// <inheritdoc />
-        public abstract void SetupPostProcess(IEnumerable<UxrAvatar> avatarPrefabs);
+        public abstract void SetupPostProcess(List<UxrAvatar> avatarPrefabs);
 
         /// <inheritdoc />
-        public abstract IEnumerable<Behaviour> AddNetworkTransform(GameObject gameObject, bool worldSpace, UxrNetworkTransformFlags networkTransformFlags);
+        public abstract List<Behaviour> AddNetworkTransform(GameObject gameObject, bool worldSpace, UxrNetworkTransformFlags networkTransformFlags);
 
         /// <inheritdoc />
-        public abstract IEnumerable<Behaviour> AddNetworkRigidbody(GameObject gameObject, bool worldSpace, UxrNetworkRigidbodyFlags networkRigidbodyFlags);
+        public abstract List<Behaviour> AddNetworkRigidbody(GameObject gameObject, bool worldSpace, UxrNetworkRigidbodyFlags networkRigidbodyFlags);
 
         /// <inheritdoc />
         public abstract void EnableNetworkTransform(GameObject gameObject, bool enable);
@@ -80,17 +80,16 @@ namespace UltimateXR.Networking
         /// <param name="worldSpace">Whether to use world-space coordinates or local-space coordinates</param>
         /// <param name="flags">Option flags</param>
         /// <returns>List of components that were added, usually a NetworkTransform and NetworkObject or similar</returns>
-        protected IEnumerable<Behaviour> SetupNetworkTransform(GameObject go, bool worldSpace, UxrNetworkTransformFlags flags)
+        protected List<Behaviour> SetupNetworkTransform(GameObject go, bool worldSpace, UxrNetworkTransformFlags flags)
         {
+            List<Behaviour> newComponents = new List<Behaviour>();
+
             if (go != null)
             {
-                IEnumerable<Behaviour> newComponents = ((IUxrNetworkImplementation)this).AddNetworkTransform(go, worldSpace, flags);
-
-                foreach (Behaviour newBehaviour in newComponents)
-                {
-                    yield return newBehaviour;
-                }
+                newComponents.AddRange(((IUxrNetworkImplementation)this).AddNetworkTransform(go, worldSpace, flags));
             }
+
+            return newComponents;
         }
 
         #endregion

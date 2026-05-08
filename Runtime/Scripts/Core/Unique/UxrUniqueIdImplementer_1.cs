@@ -1,4 +1,4 @@
-﻿// --------------------------------------------------------------------------------------------------------------------
+﻿﻿// --------------------------------------------------------------------------------------------------------------------
 // <copyright file="UxrUniqueIdImplementer_1.cs" company="VRMADA">
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
@@ -103,6 +103,12 @@ namespace UltimateXR.Core.Unique
                                                   Action<T>                       onRegistered  = null,
                                                   Guid                            defaultGuid   = default)
         {
+            if (HasDontRegisterAttribute(component))
+            {
+                // This type registration is ignored.
+                return;
+            }
+            
             UxrUniqueIdImplementer implementer = getImplementer(component);
 
             if (ReferenceEquals(implementer.InitializedComponent, component))
@@ -126,11 +132,15 @@ namespace UltimateXR.Core.Unique
                 }
                 else
                 {
-                    // Fallback: Generate ID using unique scene path.
+                    // Fallback: Generate ID using a unique scene path.
+                    // This is normally the result of a component added at runtime, where there is no pre-existing unique ID information.
                     // Warning: This is not 100% safe for several reasons:
                     //   -In Unity root GameObjects don't have a sibling index at runtime
                     //   -Index in root GameObjects is not consistent across platforms
                     //   -Can create collisions when instantiating, but these are taken care of in RegisterUniqueId().
+                    // 
+                    // For components that are created this way, we recommend using ChangeUniqueId after using a well-known ID and
+                    // using CombineUniqueId if there are multiple instances to ensure uniqueness.
                     assignId(component, component.GetUniqueScenePath().GetGuid());
                 }
             }
@@ -180,6 +190,12 @@ namespace UltimateXR.Core.Unique
                                    Action<T>                       onRegistering = null,
                                    Action<T>                       onRegistered  = null)
         {
+            if (HasDontRegisterAttribute(_targetComponent))
+            {
+                // This type registration is ignored.
+                return Guid.Empty;
+            }
+
             // If called during edit-time, simply generate unique IDs
 
             if (!Application.isPlaying)
@@ -195,6 +211,8 @@ namespace UltimateXR.Core.Unique
 
             // Register new ID.
             RegisterUniqueId(_targetComponent, assignId, onChanging, onChanged, onRegistering, onRegistered, newUniqueId);
+
+            OriginalUniqueId = _targetComponent.UniqueId;
 
             return _targetComponent.UniqueId;
         }
@@ -241,6 +259,12 @@ namespace UltimateXR.Core.Unique
 
             foreach (T unique in components)
             {
+                if (HasDontRegisterAttribute(unique))
+                {
+                    // This type registration is ignored.
+                    continue;
+                }
+
                 // Make sure original ID has been initialized.
                 InitializeUniqueIdIfNecessary(unique, getImplementer, assignId, onChanging, onChanged, onRegistering, onRegistered);
 
@@ -273,7 +297,7 @@ namespace UltimateXR.Core.Unique
         ///     is instantiated in the scene
         /// </param>
         /// <param name="refPrefabGuid">
-        ///     Reference to the string that will tell the GUID assigned by Unity to the prefab, if the
+        ///     Reference to the string that will tell the GUID assigned by Unity to the prefab if the
         ///     component lies in a prefab
         /// </param>
         public void NotifyOnValidate(Action<T, Guid> assignId, ref bool refIsInPrefab, ref string refPrefabGuid)
@@ -284,7 +308,7 @@ namespace UltimateXR.Core.Unique
             {
                 if (_targetComponent.UniqueIdIsTypeName)
                 {
-                    // Unique ID will be based on the type name. This is useful for singletons that are instantiated dynamically, in order to ensure same values on all devices.
+                    // Unique ID will be based on the type name. This is useful for singletons that are instantiated dynamically, to ensure the same values on all devices.
                     return _targetComponent.GetType().FullName.GetGuid();
                 }
 
@@ -306,7 +330,7 @@ namespace UltimateXR.Core.Unique
 
                 bool setDirty = false;
 
-                if (_targetComponent.UniqueId == default)
+                if (_targetComponent.UniqueId == Guid.Empty)
                 {
                     // Generate unique ID
                     assignId(_targetComponent, InternalGetUniqueId());
@@ -422,6 +446,12 @@ namespace UltimateXR.Core.Unique
                                              Action<T>             onRegistered,
                                              Guid                  requestedId)
         {
+            if (HasDontRegisterAttribute(component))
+            {
+                // This type registration is ignored.
+                return Guid.Empty;
+            }
+
             Guid unprocessedId = requestedId == default ? GetNewUniqueId() : requestedId;
             Guid newId         = unprocessedId;
             Guid unregisterId  = default;
@@ -444,7 +474,7 @@ namespace UltimateXR.Core.Unique
                 while (ComponentsById.ContainsKey(newId))
                 {
                     int collisionCount = s_idCollisions[unprocessedId];
-
+                    
                     collisionCount++;
                     collisionIterations++;
                     newId = GuidExt.Combine(unprocessedId, $"Collision{collisionCount}".GetGuid());

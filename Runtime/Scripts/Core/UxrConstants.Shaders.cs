@@ -3,6 +3,8 @@
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
+using UnityEngine;
+
 namespace UltimateXR.Core
 {
     public static partial class UxrConstants
@@ -41,6 +43,11 @@ namespace UltimateXR.Core
             public const int    BlendModePremultiply = 1;
             public const int    BlendModeAdditive    = 2;
             public const int    BlendModeMultiply    = 3;
+
+            /// <summary>
+            ///     Shader property to enable/disable rendering of first-person-only effects.
+            /// </summary>
+            public static readonly int UxrRenderFirstPersonEffectsId = Shader.PropertyToID("_UxrRenderFirstPersonEffects");
 
             #endregion
         }

@@ -14,7 +14,7 @@ namespace UltimateXR.Core
     public enum UxrUpdateStage
     {
         /// <summary>
-        ///     Stage where avatars update their internal state, input, tracking and locomotion (root avatar
+        ///     Stage where avatars update their internal state, input, tracking, and locomotion (root avatar
         ///     <see cref="Transform" />).
         /// </summary>
         Update,

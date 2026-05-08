@@ -13,6 +13,9 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
+#if ULTIMATEXR_UNITY_TMPRO
+using TMPro;
+#endif
 
 #pragma warning disable 67 // Disable warnings due to unused events
 
@@ -25,16 +28,15 @@ namespace UltimateXR.UI.UnityInputModule.Controls
     {
         #region Inspector Properties/Serialized Fields
 
-        [FormerlySerializedAs("_initialStateIsSelected")] [SerializeField] private InitState             _initialState = InitState.DontChange;
-        [SerializeField]                                                   private bool                  _canToggleOnlyOnce;
-        [SerializeField]                                                   private Text                  _text;
-        [SerializeField]                                                   private List<GameObject>      _enableWhenSelected;
-        [SerializeField]                                                   private List<GameObject>      _enableWhenNotSelected;
-        [SerializeField]                                                   private List<TextColorChange> _textColorChanges;
-        [SerializeField]                                                   private AudioClip             _audioToggleOn;
-        [SerializeField]                                                   private AudioClip             _audioToggleOff;
-        [SerializeField] [Range(0, 1)]                                     private float                 _audioToggleOnVolume  = 1.0f;
-        [SerializeField] [Range(0, 1)]                                     private float                 _audioToggleOffVolume = 1.0f;
+        [FormerlySerializedAs("_initialStateIsSelected")] [SerializeField] private InitState         _initialState = InitState.DontChange;
+        [SerializeField]                                                   private bool              _canToggleOnlyOnce;
+        [SerializeField]                                                   private List<GameObject>  _enableWhenSelected;
+        [SerializeField]                                                   private List<GameObject>  _enableWhenNotSelected;
+        [FormerlySerializedAs("_textColorChanges")] [SerializeField]       private List<ColorChange> _colorChanges;
+        [SerializeField]                                                   private AudioClip         _audioToggleOn;
+        [SerializeField]                                                   private AudioClip         _audioToggleOff;
+        [SerializeField] [Range(0, 1)]                                     private float             _audioToggleOnVolume  = 1.0f;
+        [SerializeField] [Range(0, 1)]                                     private float             _audioToggleOffVolume = 1.0f;
 
         #endregion
 
@@ -66,13 +68,40 @@ namespace UltimateXR.UI.UnityInputModule.Controls
         /// </summary>
         public string Text
         {
-            get => _text != null ? _text.text : string.Empty;
+            get
+            {
+                Text textComponent = GetComponentInChildren<Text>();
+                if (textComponent != null)
+                {
+                    return textComponent.text;
+                }
+
+#if ULTIMATEXR_UNITY_TMPRO
+                TextMeshProUGUI tmproComponent = GetComponentInChildren<TextMeshProUGUI>();
+
+                if (tmproComponent != null)
+                {
+                    return tmproComponent.text;
+                }
+#endif
+                return null;
+            }
             set
             {
-                if (_text != null)
+                Text textComponent = GetComponentInChildren<Text>();
+                if (textComponent != null)
                 {
-                    _text.text = value;
+                    textComponent.text = value;
                 }
+
+#if ULTIMATEXR_UNITY_TMPRO
+                TextMeshProUGUI tmproComponent = GetComponentInChildren<TextMeshProUGUI>();
+
+                if (tmproComponent != null)
+                {
+                    tmproComponent.text = value;
+                }
+#endif
             }
         }
 
@@ -92,7 +121,7 @@ namespace UltimateXR.UI.UnityInputModule.Controls
             {
                 return;
             }
-            
+
             _isSelected = value;
 
             foreach (GameObject goToEnable in _enableWhenSelected)
@@ -125,9 +154,9 @@ namespace UltimateXR.UI.UnityInputModule.Controls
                 }
             }
 
-            foreach (TextColorChange textEntry in _textColorChanges)
+            foreach (ColorChange colorChange in _colorChanges)
             {
-                textEntry.TextComponent.color = _isSelected ? textEntry.ColorSelected : textEntry.ColorNotSelected;
+                colorChange.GraphicComponent.color = _isSelected ? colorChange.ColorSelected : colorChange.ColorNotSelected;
             }
 
             _isInitialized = true;
@@ -164,10 +193,9 @@ namespace UltimateXR.UI.UnityInputModule.Controls
         {
             base.OnDestroy();
 
-            _text                  = null;
             _enableWhenSelected    = null;
             _enableWhenNotSelected = null;
-            _textColorChanges      = null;
+            _colorChanges          = null;
         }
 
         /// <summary>

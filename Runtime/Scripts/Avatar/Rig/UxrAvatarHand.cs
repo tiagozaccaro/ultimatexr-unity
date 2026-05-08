@@ -211,7 +211,7 @@ namespace UltimateXR.Avatar.Rig
             Vector3 b = Wrist.InverseTransformPoint(Index.Proximal.position);
             Vector3 c = Wrist.InverseTransformPoint(Little.Proximal.position);
 
-            center = _wrist.TransformPoint(Vector3Ext.Average(a, b, c));
+            center = _wrist.TransformPoint(Vector3Ext.Average(new[] {a, b, c}));
             return true;
         }
 

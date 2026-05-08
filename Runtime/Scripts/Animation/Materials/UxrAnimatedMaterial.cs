@@ -73,15 +73,6 @@ namespace UltimateXR.Animation.Materials
         }
 
         /// <summary>
-        ///     Gets or sets the material mode, whether to use the instanced material or the shared material.
-        /// </summary>
-        public UxrMaterialMode MaterialMode
-        {
-            get => _materialMode;
-            set => _materialMode = value;
-        }
-
-        /// <summary>
         ///     Gets or sets the material's parameter type.
         /// </summary>
         public UxrMaterialParameterType ParameterType
@@ -160,7 +151,6 @@ namespace UltimateXR.Animation.Materials
                 component._finishedCallback    = finishedCallback;
                 component.Initialize();
                 component.StartTimer();
-                
             }
 
             return component;
@@ -445,63 +435,35 @@ namespace UltimateXR.Animation.Materials
         /// </returns>
         protected override Vector4 GetParameterValue()
         {
-            if (_renderer && _materialSlot < _renderer.sharedMaterials.Length)
+            if (_renderer && ((_originalMaterial != null && _materialSlot == 0) || (_originalMaterials != null && _materialSlot < _originalMaterials.Length)))
             {
                 switch (_parameterType)
                 {
                     case UxrMaterialParameterType.Int:
 
-                        if (_materialMode == UxrMaterialMode.InstanceOnly)
-                        {
-                            return _materialSlot == 0 ? new Vector4(_renderer.material.GetInt(_parameterName), 0, 0, 0) : new Vector4(_renderer.materials[_materialSlot].GetInt(_parameterName), 0, 0, 0);
-                        }
-                        else
-                        {
-                            return _materialSlot == 0 ? new Vector4(_renderer.sharedMaterial.GetInt(_parameterName), 0, 0, 0) : new Vector4(_renderer.sharedMaterials[_materialSlot].GetInt(_parameterName), 0, 0, 0);
-                        }
+                        return _materialSlot == 0 ? new Vector4(_material.GetInt(_parameterName), 0, 0, 0) : new Vector4(_materials[_materialSlot].GetInt(_parameterName), 0, 0, 0);
 
                     case UxrMaterialParameterType.Float:
 
-                        if (_materialMode == UxrMaterialMode.InstanceOnly)
-                        {
-                            return _materialSlot == 0 ? new Vector4(_renderer.material.GetFloat(_parameterName), 0, 0, 0) : new Vector4(_renderer.materials[_materialSlot].GetFloat(_parameterName), 0, 0, 0);
-                        }
-                        else
-                        {
-                            return _materialSlot == 0 ? new Vector4(_renderer.sharedMaterial.GetFloat(_parameterName), 0, 0, 0) : new Vector4(_renderer.sharedMaterials[_materialSlot].GetFloat(_parameterName), 0, 0, 0);
-                        }
+                        return _materialSlot == 0 ? new Vector4(_material.GetFloat(_parameterName), 0, 0, 0) : new Vector4(_materials[_materialSlot].GetFloat(_parameterName), 0, 0, 0);
 
                     case UxrMaterialParameterType.Vector2:
                     case UxrMaterialParameterType.Vector3:
                     case UxrMaterialParameterType.Vector4:
 
-                        if (_materialMode == UxrMaterialMode.InstanceOnly)
-                        {
-                            return _materialSlot == 0 ? _renderer.material.GetVector(_parameterName) : _renderer.materials[_materialSlot].GetVector(_parameterName);
-                        }
-                        else
-                        {
-                            return _materialSlot == 0 ? _renderer.sharedMaterial.GetVector(_parameterName) : _renderer.sharedMaterials[_materialSlot].GetVector(_parameterName);
-                        }
+                        return _materialSlot == 0 ? _material.GetVector(_parameterName) : _materials[_materialSlot].GetVector(_parameterName);
 
                     case UxrMaterialParameterType.Color:
 
-                        if (_materialMode == UxrMaterialMode.InstanceOnly)
-                        {
-                            return _materialSlot == 0 ? _renderer.material.GetColor(_parameterName) : _renderer.materials[_materialSlot].GetColor(_parameterName);
-                        }
-                        else
-                        {
-                            return _materialSlot == 0 ? _renderer.sharedMaterial.GetColor(_parameterName) : _renderer.sharedMaterials[_materialSlot].GetColor(_parameterName);
-                        }
+                        return _materialSlot == 0 ? _material.GetColor(_parameterName) : _materials[_materialSlot].GetColor(_parameterName);
                 }
             }
 
             if (UxrGlobalSettings.Instance.LogLevelAnimation >= UxrLogLevel.Warnings)
             {
-                Debug.LogWarning($"{UxrConstants.AnimationModule} Material slot {_materialSlot} for {this.GetPathUnderScene()} is not valid");
+                Debug.LogWarning($"{UxrConstants.AnimationModule} Material slot {_materialSlot} parameter type {_parameterType} for {this.GetPathUnderScene()} is not valid");
             }
-            
+
             return Vector4.zero;
         }
 
@@ -513,70 +475,32 @@ namespace UltimateXR.Animation.Materials
         /// </param>
         protected override void SetParameterValue(Vector4 value)
         {
-            Material[] materials = null;
-
-            if (_renderer && _materialSlot < _renderer.sharedMaterials.Length)
+            if (_renderer && ((_originalMaterial != null && _materialSlot == 0) || (_originalMaterials != null && _materialSlot < _originalMaterials.Length)))
             {
                 switch (_parameterType)
                 {
                     case UxrMaterialParameterType.Int:
 
-                        if (_materialMode == UxrMaterialMode.InstanceOnly)
+                        if (_materialSlot == 0)
                         {
-                            if (_materialSlot == 0)
-                            {
-                                _renderer.material.SetInt(_parameterName, Mathf.RoundToInt(value.x));
-                            }
-                            else
-                            {
-                                materials = _renderer.materials;
-                                materials[_materialSlot].SetInt(_parameterName, Mathf.RoundToInt(value.x));
-                                _renderer.materials = materials;
-                            }
+                            _material.SetInt(_parameterName, Mathf.RoundToInt(value.x));
                         }
                         else
                         {
-                            if (_materialSlot == 0)
-                            {
-                                _renderer.sharedMaterial.SetInt(_parameterName, Mathf.RoundToInt(value.x));
-                            }
-                            else
-                            {
-                                materials = _renderer.sharedMaterials;
-                                materials[_materialSlot].SetInt(_parameterName, Mathf.RoundToInt(value.x));
-                                _renderer.sharedMaterials = materials;
-                            }
+                            _materials[_materialSlot].SetInt(_parameterName, Mathf.RoundToInt(value.x));
                         }
 
                         return;
 
                     case UxrMaterialParameterType.Float:
 
-                        if (_materialMode == UxrMaterialMode.InstanceOnly)
+                        if (_materialSlot == 0)
                         {
-                            if (_materialSlot == 0)
-                            {
-                                _renderer.material.SetFloat(_parameterName, value.x);
-                            }
-                            else
-                            {
-                                materials = _renderer.materials;
-                                materials[_materialSlot].SetFloat(_parameterName, value.x);
-                                _renderer.materials = materials;
-                            }
+                            _material.SetFloat(_parameterName, value.x);
                         }
                         else
                         {
-                            if (_materialSlot == 0)
-                            {
-                                _renderer.sharedMaterial.SetFloat(_parameterName, value.x);
-                            }
-                            else
-                            {
-                                materials = _renderer.sharedMaterials;
-                                materials[_materialSlot].SetFloat(_parameterName, value.x);
-                                _renderer.sharedMaterials = materials;
-                            }
+                            _materials[_materialSlot].SetFloat(_parameterName, value.x);
                         }
 
                         return;
@@ -585,62 +509,26 @@ namespace UltimateXR.Animation.Materials
                     case UxrMaterialParameterType.Vector3:
                     case UxrMaterialParameterType.Vector4:
 
-                        if (_materialMode == UxrMaterialMode.InstanceOnly)
+                        if (_materialSlot == 0)
                         {
-                            if (_materialSlot == 0)
-                            {
-                                _renderer.material.SetVector(_parameterName, value);
-                            }
-                            else
-                            {
-                                materials = _renderer.materials;
-                                materials[_materialSlot].SetVector(_parameterName, value);
-                                _renderer.materials = materials;
-                            }
+                            _material.SetVector(_parameterName, value);
                         }
                         else
                         {
-                            if (_materialSlot == 0)
-                            {
-                                _renderer.sharedMaterial.SetVector(_parameterName, value);
-                            }
-                            else
-                            {
-                                materials = _renderer.sharedMaterials;
-                                materials[_materialSlot].SetVector(_parameterName, value);
-                                _renderer.sharedMaterials = materials;
-                            }
+                            _materials[_materialSlot].SetVector(_parameterName, value);
                         }
 
                         return;
 
                     case UxrMaterialParameterType.Color:
 
-                        if (_materialMode == UxrMaterialMode.InstanceOnly)
+                        if (_materialSlot == 0)
                         {
-                            if (_materialSlot == 0)
-                            {
-                                _renderer.material.SetColor(_parameterName, value);
-                            }
-                            else
-                            {
-                                materials = _renderer.materials;
-                                materials[_materialSlot].SetColor(_parameterName, value);
-                                _renderer.materials = materials;
-                            }
+                            _material.SetColor(_parameterName, value);
                         }
                         else
                         {
-                            if (_materialSlot == 0)
-                            {
-                                _renderer.sharedMaterial.SetColor(_parameterName, value);
-                            }
-                            else
-                            {
-                                materials = _renderer.sharedMaterials;
-                                materials[_materialSlot].SetColor(_parameterName, value);
-                                _renderer.sharedMaterials = materials;
-                            }
+                            _materials[_materialSlot].SetColor(_parameterName, value);
                         }
 
                         return;
@@ -649,7 +537,7 @@ namespace UltimateXR.Animation.Materials
 
             if (UxrGlobalSettings.Instance.LogLevelAnimation >= UxrLogLevel.Warnings)
             {
-                Debug.LogWarning($"{UxrConstants.AnimationModule} Material slot " + _materialSlot + " for object " + name + " is not valid");
+                Debug.LogWarning($"{UxrConstants.AnimationModule} Material slot {_materialSlot} parameter type {_parameterType} for {this.GetPathUnderScene()} is not valid");
             }
         }
 
@@ -671,10 +559,24 @@ namespace UltimateXR.Animation.Materials
                     if (_materialSlot == 0)
                     {
                         _originalMaterial = _renderer.sharedMaterial;
+                        _material         = _originalMaterial;
                     }
                     else
                     {
                         _originalMaterials = _renderer.sharedMaterials;
+                        _materials         = _originalMaterials;
+                    }
+
+                    if (MaterialMode == UxrMaterialMode.InstanceOnly)
+                    {
+                        if (_materialSlot == 0)
+                        {
+                            _material = _renderer.material;
+                        }
+                        else
+                        {
+                            _materials = _renderer.materials;
+                        }
                     }
                 }
             }
@@ -690,9 +592,16 @@ namespace UltimateXR.Animation.Materials
 
         #region Private Types & Data
 
+        /// <summary>
+        ///     Gets the material mode, whether to use the instanced material or the shared material.
+        /// </summary>
+        private UxrMaterialMode MaterialMode => _materialMode;
+
         private Renderer   _renderer;
         private Material   _originalMaterial;
         private Material[] _originalMaterials;
+        private Material   _material;
+        private Material[] _materials;
         private bool       _valueBeforeAnimationInitialized;
         private Vector4    _valueBeforeAnimation;
         private Action     _finishedCallback;

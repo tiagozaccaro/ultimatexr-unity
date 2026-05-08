@@ -3,6 +3,7 @@
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -31,20 +32,35 @@ namespace UltimateXR.Extensions.Unity.Math
         #region Public Methods
 
         /// <summary>
-        ///     Compares two Unity Quaternion objects for equality with a specified precision threshold.
+        ///     Determines whether two <see cref="Quaternion" /> objects are approximately equal
+        ///     based on a specified precision threshold.
         /// </summary>
-        /// <param name="a">The first Quaternion to compare</param>
-        /// <param name="b">The second Quaternion to compare</param>
+        /// <param name="a">The first <see cref="Quaternion" /> to compare</param>
+        /// <param name="b">The second <see cref="Quaternion" /> to compare</param>
         /// <param name="precisionThreshold">
-        ///     The precision threshold for float comparisons. Defaults to
-        ///     <see cref="UxrConstants.Math.DefaultPrecisionThreshold" />.
+        ///     The allowable difference between each quaternion component to consider them equal.
+        ///     Defaults to <see cref="UxrConstants.Math.DefaultPrecisionThreshold" />.
         /// </param>
         /// <returns>
-        ///     <c>true</c> if the Quaternion objects are equal; otherwise, <c>false</c>.
+        ///     <c>true</c> if all components of the two quaternions are within the specified precision threshold;
+        ///     otherwise, <c>false</c>.
         /// </returns>
         /// <remarks>
-        ///     This method performs a component-wise comparison between two Quaternion objects.
-        ///     Each component is compared using the specified precision threshold for float comparisons.
+        ///     <para>
+        ///         This method performs a component-wise comparison of two quaternions.
+        ///         Unlike <see cref="Quaternion.Angle" />, which checks rotational difference, this method
+        ///         directly compares the quaternion components (<c>x, y, z, w</c>) using absolute differences.
+        ///     </para>
+        ///     <para>
+        ///         Limitations:
+        ///         <list type="bullet">
+        ///             <item>
+        ///                 This method does <b>not</b> consider quaternions equivalent if they represent the same rotation
+        ///                 but have opposite signs (i.e., <c>q</c> and <c>-q</c> are mathematically the same rotation).
+        ///             </item>
+        ///             <item>For rotation-based precision checking, consider using <see cref="Quaternion.Angle" />.</item>
+        ///         </list>
+        ///     </para>
         /// </remarks>
         public static bool EqualsUsingPrecision(this Quaternion a, Quaternion b, float precisionThreshold = UxrConstants.Math.DefaultPrecisionThreshold)
         {
@@ -52,6 +68,18 @@ namespace UltimateXR.Extensions.Unity.Math
                    Mathf.Abs(a.y - b.y) <= precisionThreshold &&
                    Mathf.Abs(a.z - b.z) <= precisionThreshold &&
                    Mathf.Abs(a.w - b.w) <= precisionThreshold;
+        }
+
+        /// <summary>
+        ///     Determines whether two quaternions are approximately equal within a given precision in degrees.
+        /// </summary>
+        /// <param name="q1">The first quaternion</param>
+        /// <param name="q2">The second quaternion</param>
+        /// <param name="precisionDegrees">The allowed difference in degrees to consider the quaternions equal</param>
+        /// <returns>True if the quaternions are within the specified precision, false otherwise.</returns>
+        public static bool EqualsUsingAngle(this Quaternion q1, Quaternion q2, float precisionDegrees)
+        {
+            return Quaternion.Angle(q1, q2) <= precisionDegrees;
         }
 
         /// <summary>
@@ -144,6 +172,41 @@ namespace UltimateXR.Extensions.Unity.Math
         }
 
         /// <summary>
+        ///     Computes the average quaternion from a list (<see cref="ReadOnlySpan"/> version).
+        /// </summary>
+        /// <param name="quaternions">List of quaternions</param>
+        /// <param name="defaultIfEmpty">The default value to return if the list of quaternions is empty</param>
+        /// <returns>Average quaternion</returns>
+        /// <remarks>
+        ///     From
+        ///     https://gamedev.stackexchange.com/questions/119688/calculate-average-of-arbitrary-amount-of-quaternions-recursion
+        /// </remarks>
+        public static Quaternion Average(ReadOnlySpan<Quaternion> quaternions, Quaternion defaultIfEmpty = default)
+        {
+            if (quaternions.Length == 0)
+            {
+                return defaultIfEmpty;
+            }
+
+            float x = 0.0f;
+            float y = 0.0f;
+            float z = 0.0f;
+            float w = 0.0f;
+
+            for (int i = 0; i < quaternions.Length; ++i)
+            {
+                Quaternion q = quaternions[i];
+                x += q.x;
+                y += q.y;
+                z += q.z;
+                w += q.w;
+            }
+
+            float k = 1.0f          / Mathf.Sqrt(x * x + y * y + z * z + w * w);
+            return new Quaternion(x * k, y * k, z * k, w * k);
+        }
+
+        /// <summary>
         ///     Computes the average quaternion from a list.
         /// </summary>
         /// <param name="quaternions">List of quaternions</param>
@@ -153,7 +216,7 @@ namespace UltimateXR.Extensions.Unity.Math
         ///     From
         ///     https://gamedev.stackexchange.com/questions/119688/calculate-average-of-arbitrary-amount-of-quaternions-recursion
         /// </remarks>
-        public static Quaternion Average(IEnumerable<Quaternion> quaternions, Quaternion defaultIfEmpty = default)
+        public static Quaternion Average(IReadOnlyList<Quaternion> quaternions, Quaternion defaultIfEmpty = default)
         {
             if (quaternions == null || !quaternions.Any())
             {
@@ -173,7 +236,7 @@ namespace UltimateXR.Extensions.Unity.Math
                 w += q.w;
             }
 
-            float k = 1.0f / Mathf.Sqrt(x * x + y * y + z * z + w * w);
+            float k = 1.0f          / Mathf.Sqrt(x * x + y * y + z * z + w * w);
             return new Quaternion(x * k, y * k, z * k, w * k);
         }
 
@@ -191,6 +254,41 @@ namespace UltimateXR.Extensions.Unity.Math
             Quaternion relative        = Quaternion.Inverse(sourceRotation) * self;
             Quaternion result          = Quaternion.Slerp(self, rotationTowards * relative, t);
             self.Set(result.x, result.y, result.z, result.w);
+        }
+
+        /// <summary>
+        ///     Gets the pitch of a rotation.
+        /// </summary>
+        /// <param name="rotation">The rotation to get the pitch of</param>
+        /// <returns>Pitch in degrees</returns>
+        public static float GetPitch(Quaternion rotation)
+        {
+            Vector3 forward = rotation * Vector3.forward;
+            return Mathf.Asin(forward.y) * Mathf.Rad2Deg;
+        }
+
+        /// <summary>
+        ///     Clamps the input rotation so that the forward vector does not look up or down beyond the specified thresholds.
+        /// </summary>
+        /// <param name="rotation">The input Quaternion rotation</param>
+        /// <param name="maxUpAngle">Maximum allowed upward tilt in degrees</param>
+        /// <param name="maxDownAngle">Maximum allowed downward tilt in degrees</param>
+        /// <returns>Clamped Quaternion rotation</returns>
+        public static Quaternion ClampPitch(Quaternion rotation, float maxUpAngle, float maxDownAngle)
+        {
+            Vector3 forward = rotation * Vector3.forward;
+
+            // Get the pitch angle from the forward vector
+            float pitch = Mathf.Asin(forward.y) * Mathf.Rad2Deg;
+
+            // Clamp the pitch angle
+            pitch = Mathf.Clamp(pitch, -maxDownAngle, maxUpAngle);
+
+            // Reconstruct the rotation with the clamped pitch
+            Vector3    projectedForward = new Vector3(forward.x, Mathf.Sin(pitch * Mathf.Deg2Rad), forward.z).normalized;
+            Quaternion clampedRotation  = Quaternion.LookRotation(projectedForward, Vector3.up);
+
+            return clampedRotation;
         }
 
         /// <summary>
@@ -217,8 +315,8 @@ namespace UltimateXR.Extensions.Unity.Math
                                            NumberStyles.Float,
                                            CultureInfo.InvariantCulture.NumberFormat,
                                            out float f)
-                                        ? f
-                                        : float.NaN;
+                                ? f
+                                : float.NaN;
             }
 
             return result.ToQuaternion();
@@ -254,11 +352,11 @@ namespace UltimateXR.Extensions.Unity.Math
         {
             return data.Length switch
                    {
-                               0 => NaN,
-                               1 => new Quaternion(data[0], float.NaN, float.NaN, float.NaN),
-                               2 => new Quaternion(data[0], data[1],   float.NaN, float.NaN),
-                               3 => new Quaternion(data[0], data[1],   data[2],   float.NaN),
-                               _ => new Quaternion(data[0], data[1],   data[2],   data[3])
+                       0 => NaN,
+                       1 => new Quaternion(data[0], float.NaN, float.NaN, float.NaN),
+                       2 => new Quaternion(data[0], data[1],   float.NaN, float.NaN),
+                       3 => new Quaternion(data[0], data[1],   data[2],   float.NaN),
+                       _ => new Quaternion(data[0], data[1],   data[2],   data[3])
                    };
         }
 

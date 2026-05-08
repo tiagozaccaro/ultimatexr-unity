@@ -4,6 +4,7 @@
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
 using System;
+using UltimateXR.Avatar;
 using UltimateXR.Core;
 using UltimateXR.Core.Components.Composite;
 using UnityEngine;
@@ -83,6 +84,15 @@ namespace UltimateXR.Animation.IK
 
         #region Unity
 
+        /// <inheritdoc/>
+        protected override void Awake()
+        {
+            base.Awake();
+            
+            // Caches the avatar if it exists, to avoid unnecessary lookups when IK solver is not on an avatar.
+            _cachedAvatar = GetComponentInParent<UxrAvatar>();
+        }
+
         /// <summary>
         ///     Subscribes to events
         /// </summary>
@@ -111,7 +121,7 @@ namespace UltimateXR.Animation.IK
         /// </summary>
         private void UxrManager_StageUpdating(UxrUpdateStage stage)
         {
-            if (stage == UxrUpdateStage.PostProcess && Avatar == null && NeedsAutoUpdate)
+            if (stage == UxrUpdateStage.PostProcess && _cachedAvatar == null && NeedsAutoUpdate)
             {
                 SolveIK();
             }
@@ -127,5 +137,7 @@ namespace UltimateXR.Animation.IK
         protected abstract void InternalSolveIK();
 
         #endregion
+        
+        private UxrAvatar _cachedAvatar;
     }
 }

@@ -30,8 +30,8 @@ namespace UltimateXR.Exceptions
         ///     Constructor.
         /// </summary>
         /// <param name="uniqueId">The unique ID of the component that was going to be retrieved</param>
-        /// <param name="message">Exception message</param>
-        public UxrComponentNotFoundException(Guid uniqueId, string message = null) : base(FormatMessage(uniqueId, message))
+        /// <param name="debugInfo">Debug info (if available)</param>
+        public UxrComponentNotFoundException(Guid uniqueId, string debugInfo = null) : base(FormatMessage(uniqueId, debugInfo))
         {
             UniqueId = uniqueId;
         }
@@ -44,12 +44,27 @@ namespace UltimateXR.Exceptions
         ///     Gets a formatted exception message.
         /// </summary>
         /// <param name="uniqueId">The unique ID of the component that was going to be retrieved</param>
-        /// <param name="message">Original message</param>
+        /// <param name="debugInfo">Debug info (if available)</param>
         /// <returns>Exception message</returns>
-        private static string FormatMessage(Guid uniqueId, string message)
+        private static string FormatMessage(Guid uniqueId, string debugInfo)
         {
-            string prefix = string.IsNullOrEmpty(message) ? $"{message}: " : string.Empty;
-            return $"{prefix}Could not find the given component using {nameof(UxrUniqueIdImplementer)}.{nameof(UxrUniqueIdImplementer.TryGetComponentById)}(). Id is {(uniqueId != null ? uniqueId == default ? "empty" : uniqueId : "null")}.";
+            string formattedDebugInfo = string.Empty;
+
+            // If no debug information was included in the exception, try to get it using the debug info providers.
+
+            if (debugInfo == null)
+            {
+                UxrUniqueIdImplementer.TryGetUniqueIdComponentDebugInfo(uniqueId, out debugInfo);
+            }
+            
+            // Format the message.
+
+            if (!string.IsNullOrEmpty(debugInfo))
+            {
+                return $"Could not find component with UniqueId {(uniqueId == Guid.Empty ? "empty" : uniqueId)}. Component should be: {debugInfo}.";
+            }
+
+            return $"Could not find component with UniqueId {(uniqueId == Guid.Empty ? "empty" : uniqueId)}. Consider enabling debug information (menu Tools->UltimateXR->Global Settings) during development to have this message print the name of the object/component that could not be found.";                
         }
 
         #endregion

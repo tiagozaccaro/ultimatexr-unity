@@ -48,6 +48,12 @@ namespace UltimateXR.Networking
         #region Public Types & Data
 
         /// <summary>
+        ///     Event raised when the current <see cref="NetworkVoiceImplementation" /> adds an
+        ///     <see cref="AudioSource" /> for a remote player that has been spawned in the session.
+        /// </summary>
+        public static event Action<AudioSource> RemoteVoiceAdded;
+
+        /// <summary>
         ///     Event called right after the authority of the local user over a GameObject was requested.
         /// </summary>
         public event Action<GameObject> LocalAuthorityRequested;
@@ -71,7 +77,7 @@ namespace UltimateXR.Networking
         ///     Gets whether the current user is owner of the session. This can be either because there is no multiplayer session
         ///     active or because the local user is the server.
         /// </summary>
-        public static bool NoSessionOrSessionOwner => Instance == null || Instance._networkImplementation == null || Instance._networkImplementation.IsServer;
+        public static bool NoSessionOrSessionOwner => !HasInstance || Instance._networkImplementation == null || Instance._networkImplementation.IsServer || !IsSessionActive;
 
         /// <summary>
         ///     Gets whether there is a network session active and the local user is the host (client and server at the same time).
@@ -84,7 +90,8 @@ namespace UltimateXR.Networking
         public static bool IsServer => HasInstance && Instance._networkImplementation != null && Instance._networkImplementation.IsServer;
 
         /// <summary>
-        ///     Gets whether there is a network session active and the local user is a dedicated server, a server without being a client, and thus has no local avatar.
+        ///     Gets whether there is a network session active and the local user is a dedicated server, a server without being a
+        ///     client, and thus has no local avatar.
         /// </summary>
         public static bool IsServerOnly => IsServer && !IsClient;
 
@@ -94,7 +101,8 @@ namespace UltimateXR.Networking
         public static bool IsClient => HasInstance && Instance._networkImplementation != null && Instance._networkImplementation.IsClient;
 
         /// <summary>
-        ///     Gets whether there is a network session active and the local user is a client connected to a server which is not local, so it's not the host.
+        ///     Gets whether there is a network session active and the local user is a client connected to a server which is not
+        ///     local, so it's not the host.
         /// </summary>
         public static bool IsClientOnly => !IsServer && IsClient;
 
@@ -328,6 +336,20 @@ namespace UltimateXR.Networking
             }
 
             LocalAuthorityRequested?.Invoke(gameObject);
+        }
+
+        /// <summary>
+        ///     Raises the <see cref="RemoteVoiceAdded" /> event.
+        /// </summary>
+        /// <param name="audioSource">The AudioSource created for the remote player's voice</param>
+        internal static void RaiseRemoteVoiceAdded(AudioSource audioSource)
+        {
+            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Relevant)
+            {
+                Debug.Log($"{UxrConstants.NetworkingModule} Remote voice AudioSource added on GameObject {audioSource.gameObject.GetPathUnderScene()}.");
+            }
+
+            RemoteVoiceAdded?.Invoke(audioSource);
         }
 
         #endregion

@@ -144,12 +144,12 @@ namespace UltimateXR.Manipulation
             {
                 serializer.Serialize(ref _hadCompatibleObjectNearLastFrame);
                 serializer.Serialize(ref _hasCompatibleObjectNear);
-                serializer.SerializeUniqueComponent(ref _grabberNear);
-                serializer.SerializeUniqueComponent(ref _lastValidGrabberNear);
+                serializer.SerializeUniqueIdComponent(ref _grabberNear);
+                serializer.SerializeUniqueIdComponent(ref _lastValidGrabberNear);
                 serializer.Serialize(ref _grabPointNear);
                 serializer.Serialize(ref _lastValidGrabPointNear);
-                serializer.SerializeUniqueComponent(ref _fullGrabberNear);
-                serializer.SerializeUniqueComponent(ref _lastFullGrabberNear);
+                serializer.SerializeUniqueIdComponent(ref _fullGrabberNear);
+                serializer.SerializeUniqueIdComponent(ref _lastFullGrabberNear);
             }
 
             #endregion

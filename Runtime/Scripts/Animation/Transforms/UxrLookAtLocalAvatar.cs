@@ -67,35 +67,14 @@ namespace UltimateXR.Animation.Transforms
             set => _onlyOnce = true;
         }
 
+        /// <summary>
+        ///     Gets or sets an override transform that will be used, if non-null, instead of the local avatar camera.
+        /// </summary>
+        public Transform OverrideTargetTransform { get; set; }
+
         #endregion
 
         #region Public Methods
-
-        /// <summary>
-        ///     Makes an object look at the local avatar continuously over time.
-        /// </summary>
-        /// <param name="gameObject">The object that will look at the local avatar</param>
-        /// <param name="allowRotateAroundVerticalAxis">
-        ///     Should the lookAt alter the rotation around the vertical axis?
-        /// </param>
-        /// <param name="allowRotateAroundHorizontalAxis">
-        ///     Should the lookAt alter the rotation around the horizontal axis?
-        /// </param>
-        /// <param name="invertedForwardAxis">
-        ///     If true, the target's forward axis will try to point at the opposite direction where the avatar is. By default this
-        ///     is false, meaning the forward vector will try to point at the avatar
-        /// </param>
-        /// <returns>The look-at component</returns>
-        public UxrLookAtLocalAvatar MakeLookAt(GameObject gameObject, bool allowRotateAroundVerticalAxis, bool allowRotateAroundHorizontalAxis, bool invertedForwardAxis)
-        {
-            UxrLookAtLocalAvatar lookAtComponent = gameObject.GetOrAddComponent<UxrLookAtLocalAvatar>();
-
-            lookAtComponent._allowRotateAroundY  = allowRotateAroundVerticalAxis;
-            lookAtComponent._allowRotateAroundX  = allowRotateAroundHorizontalAxis;
-            lookAtComponent._invertedForwardAxis = invertedForwardAxis;
-
-            return lookAtComponent;
-        }
 
         /// <summary>
         ///     Makes an object look at the local avatar a single time.
@@ -113,7 +92,7 @@ namespace UltimateXR.Animation.Transforms
         /// </param>
         public static void MakeLookAtOnlyOnce(GameObject gameObject, bool allowRotateAroundVerticalAxis, bool allowRotateAroundHorizontalAxis, bool invertedForwardAxis)
         {
-            PerformLookAt(gameObject.transform, allowRotateAroundVerticalAxis, allowRotateAroundHorizontalAxis, invertedForwardAxis);
+            PerformLookAt(gameObject.transform, null, allowRotateAroundVerticalAxis, allowRotateAroundHorizontalAxis, invertedForwardAxis);
         }
 
         /// <summary>
@@ -131,6 +110,32 @@ namespace UltimateXR.Animation.Transforms
                     Destroy(lookAtComponent);
                 }
             }
+        }
+
+        /// <summary>
+        ///     Makes an object look at the local avatar continuously over time.
+        /// </summary>
+        /// <param name="sourceObject">The object that will look at the local avatar</param>
+        /// <param name="allowRotateAroundVerticalAxis">
+        ///     Should the lookAt alter the rotation around the vertical axis?
+        /// </param>
+        /// <param name="allowRotateAroundHorizontalAxis">
+        ///     Should the lookAt alter the rotation around the horizontal axis?
+        /// </param>
+        /// <param name="invertedForwardAxis">
+        ///     If true, the target's forward axis will try to point at the opposite direction where the avatar is. By default this
+        ///     is false, meaning the forward vector will try to point at the avatar
+        /// </param>
+        /// <returns>The look-at component</returns>
+        public UxrLookAtLocalAvatar MakeLookAt(GameObject sourceObject, bool allowRotateAroundVerticalAxis, bool allowRotateAroundHorizontalAxis, bool invertedForwardAxis)
+        {
+            UxrLookAtLocalAvatar lookAtComponent = sourceObject.GetOrAddComponent<UxrLookAtLocalAvatar>();
+
+            lookAtComponent._allowRotateAroundY  = allowRotateAroundVerticalAxis;
+            lookAtComponent._allowRotateAroundX  = allowRotateAroundHorizontalAxis;
+            lookAtComponent._invertedForwardAxis = invertedForwardAxis;
+
+            return lookAtComponent;
         }
 
         #endregion
@@ -168,7 +173,7 @@ namespace UltimateXR.Animation.Transforms
         {
             if (_repeat)
             {
-                PerformLookAt(transform, _allowRotateAroundY, _allowRotateAroundX, _invertedForwardAxis);
+                PerformLookAt(transform, OverrideTargetTransform, _allowRotateAroundY, _allowRotateAroundX, _invertedForwardAxis);
 
                 if (_onlyOnce)
                 {
@@ -185,6 +190,7 @@ namespace UltimateXR.Animation.Transforms
         ///     Performs look at.
         /// </summary>
         /// <param name="transform">The Transform that will look at the local avatar</param>
+        /// <param name="overrideTargetTransform">If non-null, it will be used as lookAt target instead of local avatar camera</param>
         /// <param name="allowRotateAroundVerticalAxis">
         ///     Should the lookAt alter the rotation around the vertical axis?
         /// </param>
@@ -195,16 +201,16 @@ namespace UltimateXR.Animation.Transforms
         ///     If true, the target's forward axis will try to point at the opposite direction where the avatar is. By default this
         ///     is false, meaning the forward vector will try to point at the avatar
         /// </param>
-        private static void PerformLookAt(Transform transform, bool allowRotateAroundVerticalAxis, bool allowRotateAroundHorizontalAxis, bool invertedForwardAxis)
+        private static void PerformLookAt(Transform transform, Transform overrideTargetTransform, bool allowRotateAroundVerticalAxis, bool allowRotateAroundHorizontalAxis, bool invertedForwardAxis)
         {
-            Camera currentCamera = UxrAvatar.LocalOrFirstEnabledCamera;
+            Transform targetTransform = overrideTargetTransform ?? UxrAvatar.LocalOrFirstEnabledCamera?.transform;
 
-            if (currentCamera == null)
+            if (targetTransform == null)
             {
                 return;
             }
-            
-            Vector3 lookAt = currentCamera.transform.position - transform.position;
+
+            Vector3 lookAt = targetTransform.position - transform.position;
 
             if (allowRotateAroundHorizontalAxis == false)
             {

@@ -7,6 +7,9 @@ using System;
 using System.Threading;
 using UltimateXR.Extensions.System.Threading;
 using UnityEngine;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace UltimateXR.Core.Threading.TaskControllers
 {
@@ -43,6 +46,9 @@ namespace UltimateXR.Core.Threading.TaskControllers
         protected UxrCancellableController()
         {
             Application.quitting += Application_quitting;
+#if UNITY_EDITOR
+            EditorApplication.playModeStateChanged += EditorApplication_PlayModeStateChanged;
+#endif
         }
 
         #endregion
@@ -122,9 +128,12 @@ namespace UltimateXR.Core.Threading.TaskControllers
                 return;
             }
 
-            _cts.Cancel();
-            _cts.Dispose();
-            _cts = null;
+            if (_cts != null)
+            {
+                _cts.Cancel();
+                _cts.Dispose();
+                _cts = null;
+            }
         }
 
         /// <summary>
@@ -157,6 +166,20 @@ namespace UltimateXR.Core.Threading.TaskControllers
         {
             Stop();
         }
+
+#if UNITY_EDITOR
+        /// <summary>
+        ///     Unity Editor callback when the play mode state changes.
+        /// </summary>
+        /// <param name="playModeState">The new play mode state.</param>
+        private void EditorApplication_PlayModeStateChanged(PlayModeStateChange playModeState)
+        {
+            if (playModeState == PlayModeStateChange.ExitingPlayMode)
+            {
+                Application_quitting();
+            }
+        }
+#endif
 
         #endregion
 

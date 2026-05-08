@@ -238,7 +238,7 @@ namespace UltimateXR.Haptics.Helpers
                     SendHapticClip(UxrHandSide.Left);
                 }
 
-                yield return new WaitForSeconds(UxrConstants.InputControllers.HapticSampleDurationSeconds);
+                yield return _waitSampleDurationSeconds;
             }
         }
 
@@ -257,7 +257,7 @@ namespace UltimateXR.Haptics.Helpers
                     SendHapticClip(UxrHandSide.Right);
                 }
 
-                yield return new WaitForSeconds(UxrConstants.InputControllers.HapticSampleDurationSeconds);
+                yield return _waitSampleDurationSeconds;
             }
         }
 
@@ -388,7 +388,7 @@ namespace UltimateXR.Haptics.Helpers
                 return;
             }
 
-            float speed        = _useExternalRigidbody && _externalRigidbody ? _externalRigidbody.velocity.magnitude : _linearSpeed;
+            float speed        = _useExternalRigidbody && _externalRigidbody ? _externalRigidbody.linearVelocity.magnitude : _linearSpeed;
             float angularSpeed = _useExternalRigidbody && _externalRigidbody ? _externalRigidbody.angularVelocity.magnitude : _angularSpeed;
 
             float quantityPos = _maxSpeed - _minSpeed <= 0.0f ? 0.0f : (speed - _minSpeed) / (_maxSpeed - _minSpeed);
@@ -415,6 +415,7 @@ namespace UltimateXR.Haptics.Helpers
         private Quaternion _previousLocalRotation;
         private float      _linearSpeed;
         private float      _angularSpeed;
+        private WaitForSeconds _waitSampleDurationSeconds = new WaitForSeconds(UxrConstants.InputControllers.HapticSampleDurationSeconds);
 
         #endregion
     }

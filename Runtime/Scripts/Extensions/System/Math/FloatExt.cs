@@ -37,29 +37,29 @@ namespace UltimateXR.Extensions.System.Math
         /// </summary>
         /// <param name="self">Seconds to convert</param>
         /// <param name="excludeHoursIfZero">Whether to exclude the hours from the string if they are 0</param>
-        /// <param name="includeMilliseconds">Whether to include the milliseconds in the string</param>
+        /// <param name="includeHundredthsOfASecond">Whether to include the hundreds of a second in the string</param>
         /// <returns>
         ///     Formatted time hh:mm::ss:mmm applying <paramref name="excludeHoursIfZero" /> and
-        ///     <paramref name="includeMilliseconds" /> constraints.
+        ///     <paramref name="includeHundredthsOfASecond" /> constraints.
         /// </returns>
-        public static string SecondsToTimeString(this float self, bool excludeHoursIfZero = false, bool includeMilliseconds = false)
+        public static string SecondsToTimeString(this float self, bool excludeHoursIfZero = false, bool includeHundredthsOfASecond = false)
         {
             int hours        = Mathf.FloorToInt(self / 3600.0f);
             int minutes      = Mathf.FloorToInt((self - hours * 3600.0f) / 60.0f);
             int seconds      = Mathf.FloorToInt(self - hours * 3600.0f - minutes * 60.0f);
-            int milliseconds = (int)(self * 1000 % 1000);
+            int milliseconds = (int)(self * 100 % 100);
 
             if (hours >= 1)
             {
-                return includeMilliseconds ? $"{hours:D2}:{minutes:D2}:{seconds:D2}:{milliseconds:D3}" : $"{hours:D2}:{minutes:D2}:{seconds:D2}";
+                return includeHundredthsOfASecond ? $"{hours:D2}:{minutes:D2}:{seconds:D2}:{milliseconds:D2}" : $"{hours:D2}:{minutes:D2}:{seconds:D2}";
             }
 
             if (excludeHoursIfZero)
             {
-                return includeMilliseconds ? $"{minutes:D2}:{seconds:D2}:{milliseconds:D3}" : $"{minutes:D2}:{seconds:D2}";
+                return includeHundredthsOfASecond ? $"{minutes:D2}:{seconds:D2}:{milliseconds:D2}" : $"{minutes:D2}:{seconds:D2}";
             }
 
-            return includeMilliseconds ? $"{hours:D2}:{minutes:D2}:{seconds:D2}:{milliseconds:D3}" : $"{hours:D2}:{minutes:D2}:{seconds:D2}";
+            return includeHundredthsOfASecond ? $"{hours:D2}:{minutes:D2}:{seconds:D2}:{milliseconds:D2}" : $"{hours:D2}:{minutes:D2}:{seconds:D2}";
         }
 
         /// <summary>
@@ -92,6 +92,30 @@ namespace UltimateXR.Extensions.System.Math
             }
 
             return angle;
+        }
+
+        /// <summary>
+        ///     Converts a normalized control value into a sensitivity multiplier using an exponential mapping,
+        ///     so that adjustments feel uniform across the entire range.
+        /// </summary>
+        /// <remarks>
+        ///     Directly using a linear multiplier (e.g., 0.5 = half, 2.0 = double) produces uneven perceived changes,
+        ///     with higher values feeling disproportionately stronger. This method remaps a normalized input so that
+        ///     equal steps result in consistent perceptual changes.
+        ///     
+        ///     The mapping is centered around a neutral point:
+        ///     - For a [0,1] input: 0.5 yields a multiplier of 1.0 (no change)
+        ///     - Values below 0.5 reduce sensitivity while values above 0.5 increase it
+        ///     
+        ///     This approach is commonly used for input sensitivity (mouse, controller) where perceptual linearity
+        ///     is preferred over mathematical linearity.
+        /// </remarks>
+        public static float ToSensitivityMultiplier(this float centeredValue, float maxMultiplier = 4.0f)
+        {
+            centeredValue = Mathf.Clamp(centeredValue, -1.0f, 1.0f);
+            maxMultiplier = Mathf.Max(1.0f, maxMultiplier);
+
+            return Mathf.Pow(maxMultiplier, centeredValue);
         }
 
         /// <summary>

@@ -190,7 +190,7 @@ namespace UltimateXR.Core.Serialization
 
             if (obj is IUxrUniqueId)
             {
-                return UxrVarType.IUxrUnique;
+                return UxrVarType.IUxrUniqueId;
             }
 
             if (obj is IUxrSerializable)

@@ -169,11 +169,9 @@ namespace UltimateXR.Rendering.LOD
         /// <param name="e">Event parameters</param>
         private void UxrAvatar_GlobalAvatarMoved(object sender, UxrAvatarMoveEventArgs e)
         {
-            UxrAvatar avatar = sender as UxrAvatar;
-
-            if (avatar == UxrAvatar.LocalAvatar && !_isSmoothLocomotionEnabled)
+            if (e.Avatar == UxrAvatar.LocalAvatar && !_isSmoothLocomotionEnabled)
             {
-                EnableLevelRenderers(avatar.CameraComponent);
+                EnableLevelRenderers(e.Avatar.CameraComponent);
             }
         }
 

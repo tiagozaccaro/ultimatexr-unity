@@ -61,7 +61,7 @@ namespace UltimateXR.Core.Serialization
 
         // UXR
 
-        IUxrUnique       = 200,
+        IUxrUniqueId     = 200,
         IUxrSerializable = 201,
         UxrAxis          = 202
     }

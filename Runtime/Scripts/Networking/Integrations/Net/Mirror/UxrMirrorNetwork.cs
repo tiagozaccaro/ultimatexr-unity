@@ -117,10 +117,10 @@ namespace UltimateXR.Networking.Integrations.Net.Mirror
             UxrMirrorAvatar mirrorAvatar = avatar.GetOrAddComponent<UxrMirrorAvatar>();
             newComponents.Add(mirrorAvatar);
 
-            IEnumerable<Behaviour> avatarComponents    = SetupNetworkTransform(avatar.gameObject,                                  true, UxrNetworkTransformFlags.ChildAll);
-            IEnumerable<Behaviour> cameraComponents    = SetupNetworkTransform(avatar.CameraComponent.gameObject,                  true, UxrNetworkTransformFlags.ChildPositionAndRotation);
-            IEnumerable<Behaviour> leftHandComponents  = SetupNetworkTransform(avatar.GetHand(UxrHandSide.Left).Wrist.gameObject,  true, UxrNetworkTransformFlags.ChildPositionAndRotation);
-            IEnumerable<Behaviour> rightHandComponents = SetupNetworkTransform(avatar.GetHand(UxrHandSide.Right).Wrist.gameObject, true, UxrNetworkTransformFlags.ChildPositionAndRotation);
+            List<Behaviour> avatarComponents    = SetupNetworkTransform(avatar.gameObject,                                  true, UxrNetworkTransformFlags.ChildAll);
+            List<Behaviour> cameraComponents    = SetupNetworkTransform(avatar.CameraComponent.gameObject,                  true, UxrNetworkTransformFlags.ChildPositionAndRotation);
+            List<Behaviour> leftHandComponents  = SetupNetworkTransform(avatar.GetHand(UxrHandSide.Left).Wrist.gameObject,  true, UxrNetworkTransformFlags.ChildPositionAndRotation);
+            List<Behaviour> rightHandComponents = SetupNetworkTransform(avatar.GetHand(UxrHandSide.Right).Wrist.gameObject, true, UxrNetworkTransformFlags.ChildPositionAndRotation);
 
             newComponents.AddRange(avatarComponents.ToList().Concat(cameraComponents).Concat(leftHandComponents).Concat(rightHandComponents));
             newComponents.Add(avatarNetworkIdentity);
@@ -139,7 +139,7 @@ namespace UltimateXR.Networking.Integrations.Net.Mirror
         }
 
         /// <inheritdoc />
-        public override void SetupPostProcess(IEnumerable<UxrAvatar> avatarPrefabs)
+        public override void SetupPostProcess(List<UxrAvatar> avatarPrefabs)
         {
 #if ULTIMATEXR_USE_MIRROR_SDK && UNITY_EDITOR
 
@@ -155,8 +155,10 @@ namespace UltimateXR.Networking.Integrations.Net.Mirror
         }
 
         /// <inheritdoc />
-        public override IEnumerable<Behaviour> AddNetworkTransform(GameObject gameObject, bool worldSpace, UxrNetworkTransformFlags networkTransformFlags)
+        public override List<Behaviour> AddNetworkTransform(GameObject gameObject, bool worldSpace, UxrNetworkTransformFlags networkTransformFlags)
         {
+            List<Behaviour> newComponents = new List<Behaviour>();
+
 #if ULTIMATEXR_USE_MIRROR_SDK && UNITY_EDITOR
 
             NetworkIdentity networkIdentity = null;
@@ -172,21 +174,23 @@ namespace UltimateXR.Networking.Integrations.Net.Mirror
             networkTransform.syncRotation    = networkTransformFlags.HasFlag(UxrNetworkTransformFlags.RotationX) | networkTransformFlags.HasFlag(UxrNetworkTransformFlags.RotationY) | networkTransformFlags.HasFlag(UxrNetworkTransformFlags.RotationZ);
             networkTransform.syncScale       = networkTransformFlags.HasFlag(UxrNetworkTransformFlags.ScaleX) | networkTransformFlags.HasFlag(UxrNetworkTransformFlags.ScaleY) | networkTransformFlags.HasFlag(UxrNetworkTransformFlags.ScaleZ);
             networkTransform.positionSensitivity = 0.001f;
-            yield return networkTransform;
+            newComponents.Add(networkTransform);
 
             if (networkIdentity)
             {
                 // return after the transform, so that when they are removed, the transform is removed before. Otherwise Mirror complains about transform requiring identity.
-                yield return networkIdentity;
+                newComponents.Add(networkIdentity);
             }
-#else
-            yield break;
 #endif
+
+            return newComponents;
         }
 
         /// <inheritdoc />
-        public override IEnumerable<Behaviour> AddNetworkRigidbody(GameObject gameObject, bool worldSpace, UxrNetworkRigidbodyFlags networkRigidbodyFlags)
+        public override List<Behaviour> AddNetworkRigidbody(GameObject gameObject, bool worldSpace, UxrNetworkRigidbodyFlags networkRigidbodyFlags)
         {
+            List<Behaviour> newComponents = new List<Behaviour>();
+
 #if ULTIMATEXR_USE_MIRROR_SDK && UNITY_EDITOR
 
             UxrGrabbableObject grabbableObject = gameObject.GetComponent<UxrGrabbableObject>();
@@ -203,26 +207,21 @@ namespace UltimateXR.Networking.Integrations.Net.Mirror
                         Debug.LogWarning($"{UxrConstants.NetworkingModule} Ignoring physics-driven grabbable object {grabbableObject.GetPathUnderScene()} because there is already a parent physics-driven grabbable object ({physicsDrivenParent.GetPathUnderScene()}) and Mirror doesn't support nested NetworkIdentity components. UltimateXR will sync the rigidbody using RPC calls.");
                     }
 
-                    yield break;
+                    return newComponents;
                 }
             }
 
-            // Building list forces evaluation of AddNetworkTransform IEnumerable and creates the components
-            List<Behaviour> networkTransformComponents = new List<Behaviour>(AddNetworkTransform(gameObject, worldSpace, UxrNetworkTransformFlags.All));
+            List<Behaviour> networkTransformComponents = AddNetworkTransform(gameObject, worldSpace, UxrNetworkTransformFlags.All);
 
             NetworkRigidbodyUnreliable networkRigidbody = gameObject.GetOrAddComponent<NetworkRigidbodyUnreliable>();
-            yield return networkRigidbody;
+            newComponents.Add(networkRigidbody);
 
             // Return transform components after, so that when removing the components the NetworkRigidbody is removed before the identity. Otherwise Mirror will complain.  
 
-            foreach (Behaviour newBehaviour in networkTransformComponents)
-            {
-                yield return newBehaviour;
-            }
-
-#else
-            yield break;
+            newComponents.AddRange(networkTransformComponents);
 #endif
+
+            return newComponents;
         }
 
         /// <inheritdoc />

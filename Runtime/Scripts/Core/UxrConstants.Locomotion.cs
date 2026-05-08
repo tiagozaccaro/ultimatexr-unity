@@ -9,8 +9,16 @@ namespace UltimateXR.Core
     {
         #region Public Types & Data
 
-        public const float TeleportTranslationSeconds = 0.2f;
-        public const float TeleportRotationSeconds    = 0.1f;
+        public static class Locomotion
+        {
+            #region Public Types & Data
+
+            public const float HeadRadius                 = 0.2f;
+            public const float DiscreteTranslationSeconds = 0.2f;
+            public const float DiscreteTurnSeconds        = 0.1f;
+
+            #endregion
+        }
 
         #endregion
     }

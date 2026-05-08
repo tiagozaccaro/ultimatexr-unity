@@ -1,4 +1,4 @@
-﻿// --------------------------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 // <copyright file="UxrControllerInput.cs" company="VRMADA">
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
@@ -21,6 +21,9 @@ using UltimateXR.Extensions.Unity;
 using UltimateXR.Haptics;
 using UltimateXR.Manipulation;
 using UnityEngine;
+#if ULTIMATEXR_UNITY_XR_MANAGEMENT
+using UnityEngine.XR.Management;
+#endif
 
 namespace UltimateXR.Devices
 {
@@ -42,6 +45,31 @@ namespace UltimateXR.Devices
         #endregion
 
         #region Public Types & Data
+
+        /// <summary>
+        ///     The supported hand sides.
+        /// </summary>
+        public static IReadOnlyList<UxrHandSide> SupportedHandSides => s_supportedHandSides;
+
+        /// <summary>
+        ///     The supported controller elements.
+        /// </summary>
+        public static IReadOnlyList<UxrControllerElements> SupportedControllerElements => s_supportedControllerElements;
+        
+        /// <summary>
+        ///     The supported controller buttons.
+        /// </summary>
+        public static IReadOnlyList<UxrInputButtons> SupportedInputButtons => s_supportedInputButtons;
+        
+        /// <summary>
+        ///     The supported 1D controls in a controller.
+        /// </summary>
+        public static IReadOnlyList<UxrInput1D> Supported1DControls => s_supported1DControls;
+        
+        /// <summary>
+        ///     The supported 2D controls in a controller.
+        /// </summary>
+        public static IReadOnlyList<UxrInput2D> Supported2DControls => s_supported2DControls;
 
         /// <summary>
         ///     Event called whenever any controller input device is connected or disconnected
@@ -482,7 +510,7 @@ namespace UltimateXR.Devices
 
             controller3DModel.GetElements(controllerElements).ForEach(go => UxrObjectBlink.StartBlinking(go, emissionColor, blinksPerSec, durationSeconds));
             
-            EndSyncMethod(new object[] { handSide, controllerElements, emissionColor, blinksPerSec, durationSeconds });
+            EndSyncMethod(SyncParams(handSide, controllerElements, emissionColor, blinksPerSec, durationSeconds));
         }
 
         /// <inheritdoc />
@@ -497,7 +525,7 @@ namespace UltimateXR.Devices
                 controller3DModel.GetElements(controllerElements).ForEach(UxrObjectBlink.StopBlinking);
             }
 
-            EndSyncMethod(new object[] { handSide, controllerElements });
+            EndSyncMethod(SyncParams(handSide, controllerElements));
         }
 
         /// <inheritdoc />
@@ -513,7 +541,13 @@ namespace UltimateXR.Devices
 
             if (controller3DModel != null)
             {
-                return controller3DModel.GetElements(controllerElements).Any(UxrObjectBlink.CheckBlinking);
+                foreach (GameObject go in controller3DModel.GetElements(controllerElements))
+                {
+                    if (UxrObjectBlink.CheckBlinking(go))
+                    {
+                        return true;
+                    }
+                }
             }
 
             return false;
@@ -526,7 +560,15 @@ namespace UltimateXR.Devices
 
             if (controller3DModel != null)
             {
-                return controller3DModel.GetElements(controllerElements).All(UxrObjectBlink.CheckBlinking);
+                foreach (GameObject go in controller3DModel.GetElements(controllerElements))
+                {
+                    if (!UxrObjectBlink.CheckBlinking(go))
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
             }
 
             return false;
@@ -571,7 +613,7 @@ namespace UltimateXR.Devices
             // In devices where there is no handedness, UxrControllerInput.UpdateInput() should update the left button flags
             // and this method will take care of copying them to the right so that both hands return the same input.
 
-            if (IsHandednessSupported == false)
+            if (!IsHandednessSupported)
             {
                 _buttonTouchFlagsRight = _buttonTouchFlagsLeft;
                 _buttonPressFlagsRight = _buttonPressFlagsLeft;
@@ -598,7 +640,61 @@ namespace UltimateXR.Devices
         #endregion
 
         #region Public Methods
+        /// <summary>
+        ///     Tries to get the active XR loader.
+        /// </summary>
+        /// <param name="loaderTypeName">The type name of the active loader, e.g. "UnityEngine.XR.OpenXR.OpenXRLoader".</param>
+        /// <returns>True if the active loader was successfully retrieved, false otherwise.</returns>
+        public static bool TryGetActiveLoader(out string loaderTypeName)
+        {
+#if ULTIMATEXR_UNITY_XR_MANAGEMENT
 
+            loaderTypeName = null;
+            
+            if (s_activeLoaderName != null)
+            {
+                loaderTypeName = s_activeLoaderName;
+                return true;
+            }
+
+            XRManagerSettings manager = XRGeneralSettings.Instance?.Manager;
+            if (manager == null)
+            {
+                return false;
+            }
+
+            XRLoader loader = manager.activeLoader;
+            if (loader == null)
+            {
+                if (UxrGlobalSettings.Instance.LogLevelDevices >= UxrLogLevel.Warnings)
+                {
+                    Debug.LogError($"{UxrConstants.DevicesModule}: {nameof(UxrControllerInput)}.{nameof(TryGetActiveLoader)}: XR not initialized yet, or XR disabled.");
+                }
+                
+                return false;
+            }
+
+            loaderTypeName = loader.GetType().FullName; // e.g. UnityEngine.XR.OpenXR.OpenXRLoader
+            return true;
+#else
+            if (UxrGlobalSettings.Instance.LogLevelDevices >= UxrLogLevel.Errors)
+            {
+                Debug.LogError($"{UxrConstants.DevicesModule}: {nameof(UxrControllerInput)}.{nameof(TryGetActiveLoader)} needs the Unity XR Management package installed.");
+            }
+
+            return false;
+#endif
+        }
+
+        /// <summary>
+        ///     Determines whether the active XR loader is OpenXR.
+        /// </summary>
+        /// <returns>True if the active XR loader is OpenXR, false otherwise.</returns>
+        public static bool IsActiveLoaderOpenXR()
+        {
+            return TryGetActiveLoader(out string name) && name == OpenXRLoaderTypeName;
+        }
+        
         /// <summary>
         ///     Gets whether the given controller input should be ignored.
         /// </summary>
@@ -673,41 +769,44 @@ namespace UltimateXR.Devices
         /// </returns>
         public static UxrControllerElements ButtonToControllerElement(UxrInputButtons button)
         {
-            switch (button)
+            if (s_mapButtonToElement == null)
             {
-                case UxrInputButtons.Joystick:       return UxrControllerElements.Joystick;
-                case UxrInputButtons.JoystickLeft:   return UxrControllerElements.Joystick;
-                case UxrInputButtons.JoystickRight:  return UxrControllerElements.Joystick;
-                case UxrInputButtons.JoystickUp:     return UxrControllerElements.Joystick;
-                case UxrInputButtons.JoystickDown:   return UxrControllerElements.Joystick;
-                case UxrInputButtons.Joystick2:      return UxrControllerElements.Joystick2;
-                case UxrInputButtons.Joystick2Left:  return UxrControllerElements.Joystick2;
-                case UxrInputButtons.Joystick2Right: return UxrControllerElements.Joystick2;
-                case UxrInputButtons.Joystick2Up:    return UxrControllerElements.Joystick2;
-                case UxrInputButtons.Joystick2Down:  return UxrControllerElements.Joystick2;
-                case UxrInputButtons.DPadLeft:       return UxrControllerElements.DPad;
-                case UxrInputButtons.DPadRight:      return UxrControllerElements.DPad;
-                case UxrInputButtons.DPadUp:         return UxrControllerElements.DPad;
-                case UxrInputButtons.DPadDown:       return UxrControllerElements.DPad;
-                case UxrInputButtons.Trigger:        return UxrControllerElements.Trigger;
-                case UxrInputButtons.Trigger2:       return UxrControllerElements.Trigger2;
-                case UxrInputButtons.Grip:           return UxrControllerElements.Grip;
-                case UxrInputButtons.ThumbCapSense:  return UxrControllerElements.ThumbCapSense;
-                case UxrInputButtons.IndexCapSense:  return UxrControllerElements.IndexCapSense;
-                case UxrInputButtons.MiddleCapSense: return UxrControllerElements.MiddleCapSense;
-                case UxrInputButtons.RingCapSense:   return UxrControllerElements.RingCapSense;
-                case UxrInputButtons.LittleCapSense: return UxrControllerElements.LittleCapSense;
-                case UxrInputButtons.Button1:        return UxrControllerElements.Button1;
-                case UxrInputButtons.Button2:        return UxrControllerElements.Button2;
-                case UxrInputButtons.Button3:        return UxrControllerElements.Button3;
-                case UxrInputButtons.Button4:        return UxrControllerElements.Button4;
-                case UxrInputButtons.Bumper:         return UxrControllerElements.Bumper;
-                case UxrInputButtons.Bumper2:        return UxrControllerElements.Bumper2;
-                case UxrInputButtons.Back:           return UxrControllerElements.Back;
-                case UxrInputButtons.Menu:           return UxrControllerElements.Menu;
+                s_mapButtonToElement = new Dictionary<UxrInputButtons, UxrControllerElements>
+                                       {
+                                           { UxrInputButtons.Joystick, UxrControllerElements.Joystick },
+                                           { UxrInputButtons.JoystickLeft, UxrControllerElements.Joystick },
+                                           { UxrInputButtons.JoystickRight, UxrControllerElements.Joystick },
+                                           { UxrInputButtons.JoystickUp, UxrControllerElements.Joystick },
+                                           { UxrInputButtons.JoystickDown, UxrControllerElements.Joystick },
+                                           { UxrInputButtons.Joystick2, UxrControllerElements.Joystick2 },
+                                           { UxrInputButtons.Joystick2Left, UxrControllerElements.Joystick2 },
+                                           { UxrInputButtons.Joystick2Right, UxrControllerElements.Joystick2 },
+                                           { UxrInputButtons.Joystick2Up, UxrControllerElements.Joystick2 },
+                                           { UxrInputButtons.Joystick2Down, UxrControllerElements.Joystick2 },
+                                           { UxrInputButtons.DPadLeft, UxrControllerElements.DPad },
+                                           { UxrInputButtons.DPadRight, UxrControllerElements.DPad },
+                                           { UxrInputButtons.DPadUp, UxrControllerElements.DPad },
+                                           { UxrInputButtons.DPadDown, UxrControllerElements.DPad },
+                                           { UxrInputButtons.Trigger, UxrControllerElements.Trigger },
+                                           { UxrInputButtons.Trigger2, UxrControllerElements.Trigger2 },
+                                           { UxrInputButtons.Grip, UxrControllerElements.Grip },
+                                           { UxrInputButtons.ThumbCapSense, UxrControllerElements.ThumbCapSense },
+                                           { UxrInputButtons.IndexCapSense, UxrControllerElements.IndexCapSense },
+                                           { UxrInputButtons.MiddleCapSense, UxrControllerElements.MiddleCapSense },
+                                           { UxrInputButtons.RingCapSense, UxrControllerElements.RingCapSense },
+                                           { UxrInputButtons.LittleCapSense, UxrControllerElements.LittleCapSense },
+                                           { UxrInputButtons.Button1, UxrControllerElements.Button1 },
+                                           { UxrInputButtons.Button2, UxrControllerElements.Button2 },
+                                           { UxrInputButtons.Button3, UxrControllerElements.Button3 },
+                                           { UxrInputButtons.Button4, UxrControllerElements.Button4 },
+                                           { UxrInputButtons.Bumper, UxrControllerElements.Bumper },
+                                           { UxrInputButtons.Bumper2, UxrControllerElements.Bumper2 },
+                                           { UxrInputButtons.Back, UxrControllerElements.Back },
+                                           { UxrInputButtons.Menu, UxrControllerElements.Menu }
+                                       };
             }
-
-            return UxrControllerElements.None;
+            
+            return s_mapButtonToElement.GetValueOrDefault(button, UxrControllerElements.None);
         }
 
         /// <summary>
@@ -861,35 +960,21 @@ namespace UltimateXR.Devices
 
             // Reset event dictionaries. We use these for sending only a single zero value event when a input1D/2D is not being pressed.
 
-            foreach (UxrInput1D input1D in Enum.GetValues(typeof(UxrInput1D)))
+            foreach (UxrInput1D input1D in s_supported1DControls)
             {
-                if (HasControllerElements(UxrHandSide.Left, Input1DToControllerElement(input1D)) && _controllers1DResetLeft.ContainsKey(input1D) == false)
-                {
-                    _controllers1DResetLeft.Add(input1D, true);
-                }
-
-                if (HasControllerElements(UxrHandSide.Right, Input1DToControllerElement(input1D)) && _controllers1DResetRight.ContainsKey(input1D) == false)
-                {
-                    _controllers1DResetRight.Add(input1D, true);
-                }
+                _controllers1DResetLeft.TryAdd(input1D, true);
+                _controllers1DResetRight.TryAdd(input1D, true);
             }
 
-            foreach (UxrInput2D input2D in Enum.GetValues(typeof(UxrInput2D)))
+            foreach (UxrInput2D input2D in s_supported2DControls)
             {
-                if (HasControllerElements(UxrHandSide.Left, Input2DToControllerElement(input2D)) && _controllers2DResetLeft.ContainsKey(input2D) == false)
-                {
-                    _controllers2DResetLeft.Add(input2D, true);
-                }
-
-                if (HasControllerElements(UxrHandSide.Right, Input2DToControllerElement(input2D)) && _controllers2DResetRight.ContainsKey(input2D) == false)
-                {
-                    _controllers2DResetRight.Add(input2D, true);
-                }
+                _controllers2DResetLeft.TryAdd(input2D, true);
+                _controllers2DResetRight.TryAdd(input2D, true);
             }
         }
 
         /// <summary>
-        ///     Sets events to null in order to help remove unused references
+        ///     Sets events to null to help remove unused references
         /// </summary>
         protected override void OnDestroy()
         {
@@ -911,10 +996,7 @@ namespace UltimateXR.Devices
         {
             base.Start();
 
-            if (RaiseConnectOnStart)
-            {
-                OnDeviceConnected(new UxrDeviceConnectEventArgs(true));
-            }
+            RaiseConnectOnStartEvents?.ForEach(OnDeviceConnected);
         }
 
         #endregion
@@ -1120,15 +1202,15 @@ namespace UltimateXR.Devices
             if (ButtonStateChanged != null || GlobalButtonStateChanged != null)
             {
                 // Button events
-                foreach (UxrInputButtons button in Enum.GetValues(typeof(UxrInputButtons)))
+                foreach (UxrInputButtons button in s_supportedInputButtons)
                 {
                     UxrControllerElements controllerElement = ButtonToControllerElement(button);
 
-                    foreach (UxrHandSide handSide in Enum.GetValues(typeof(UxrHandSide)))
+                    foreach (UxrHandSide handSide in s_supportedHandSides)
                     {
-                        if (controllerElement != UxrControllerElements.None && HasControllerElements(handSide, controllerElement))
+                        if (HasControllerElements(handSide, controllerElement))
                         {
-                            foreach (UxrButtonEventType eventType in Enum.GetValues(typeof(UxrButtonEventType)))
+                            foreach (UxrButtonEventType eventType in s_supportedInputButtons)
                             {
                                 if (GetButtonsEvent(handSide, button, eventType))
                                 {
@@ -1143,47 +1225,60 @@ namespace UltimateXR.Devices
             if (Input1DChanged != null || GlobalInput1DChanged != null)
             {
                 // UxrInput1D events
-                foreach (UxrInput1D input1D in Enum.GetValues(typeof(UxrInput1D)))
+                foreach (UxrInput1D input1D in s_supported1DControls)
                 {
                     UxrControllerElements controllerElement = Input1DToControllerElement(input1D);
 
-                    if (controllerElement != UxrControllerElements.None)
+                    if (HasControllerElements(UxrHandSide.Left, controllerElement))
                     {
-                        if (HasControllerElements(UxrHandSide.Left, controllerElement))
-                        {
-                            float input1DValue = GetInput1D(UxrHandSide.Left, input1D);
+                        float input1DValue = GetInput1D(UxrHandSide.Left, input1D);
+                        bool  raiseEvent   = true;
 
-                            if (input1DValue == 0.0f)
+                        if (input1DValue == 0.0f)
+                        {
+                            if (!_controllers1DResetLeft[input1D])
                             {
-                                if (_controllers1DResetLeft[input1D] == false)
-                                {
-                                    _controllers1DResetLeft[input1D] = true;
-                                }
+                                _controllers1DResetLeft[input1D] = true;
                             }
                             else
                             {
-                                _controllers1DResetLeft[input1D] = false;
+                                raiseEvent = false;
                             }
-
-                            OnInput1DChanged(new UxrInput1DEventArgs(UxrHandSide.Left, input1D, input1DValue));
+                        }
+                        else
+                        {
+                            _controllers1DResetLeft[input1D] = false;
                         }
 
-                        if (HasControllerElements(UxrHandSide.Right, controllerElement))
+                        if (raiseEvent)
                         {
-                            float input1DValue = GetInput1D(UxrHandSide.Right, input1D);
+                            OnInput1DChanged(new UxrInput1DEventArgs(UxrHandSide.Left, input1D, input1DValue));
+                        }
+                    }
 
-                            if (input1DValue == 0.0f)
+                    if (HasControllerElements(UxrHandSide.Right, controllerElement))
+                    {
+                        float input1DValue = GetInput1D(UxrHandSide.Right, input1D);
+                        bool  raiseEvent   = true;
+
+                        if (input1DValue == 0.0f)
+                        {
+                            if (!_controllers1DResetRight[input1D])
                             {
-                                if (_controllers1DResetRight[input1D] == false)
-                                {
-                                    _controllers1DResetRight[input1D] = true;
-                                }
+                                _controllers1DResetRight[input1D] = true;
                             }
                             else
                             {
-                                _controllers1DResetRight[input1D] = false;
+                                raiseEvent = false;
                             }
+                        }
+                        else
+                        {
+                            _controllers1DResetRight[input1D] = false;
+                        }
 
+                        if (raiseEvent)
+                        {
                             OnInput1DChanged(new UxrInput1DEventArgs(UxrHandSide.Right, input1D, input1DValue));
                         }
                     }
@@ -1193,47 +1288,60 @@ namespace UltimateXR.Devices
             if (Input2DChanged != null || GlobalInput2DChanged != null)
             {
                 // UxrInput2D events
-                foreach (UxrInput2D input2D in Enum.GetValues(typeof(UxrInput2D)))
+                foreach (UxrInput2D input2D in s_supported2DControls)
                 {
                     UxrControllerElements controllerElement = Input2DToControllerElement(input2D);
 
-                    if (controllerElement != UxrControllerElements.None)
+                    if (HasControllerElements(UxrHandSide.Left, controllerElement))
                     {
-                        if (HasControllerElements(UxrHandSide.Left, controllerElement))
-                        {
-                            Vector2 input2DValue = GetInput2D(UxrHandSide.Left, input2D);
+                        Vector2 input2DValue = GetInput2D(UxrHandSide.Left, input2D);
+                        bool    raiseEvent   = true;
 
-                            if (input2DValue == Vector2.zero)
+                        if (input2DValue == Vector2.zero)
+                        {
+                            if (!_controllers2DResetLeft[input2D])
                             {
-                                if (_controllers2DResetLeft[input2D] == false)
-                                {
-                                    _controllers2DResetLeft[input2D] = true;
-                                }
+                                _controllers2DResetLeft[input2D] = true;
                             }
                             else
                             {
-                                _controllers2DResetLeft[input2D] = false;
+                                raiseEvent = false;
                             }
-
-                            OnInput2DChanged(new UxrInput2DEventArgs(UxrHandSide.Left, input2D, input2DValue));
+                        }
+                        else
+                        {
+                            _controllers2DResetLeft[input2D] = false;
                         }
 
-                        if (HasControllerElements(UxrHandSide.Right, controllerElement))
+                        if (raiseEvent)
                         {
-                            Vector2 input2DValue = GetInput2D(UxrHandSide.Right, input2D);
+                            OnInput2DChanged(new UxrInput2DEventArgs(UxrHandSide.Left, input2D, input2DValue));
+                        }
+                    }
 
-                            if (input2DValue == Vector2.zero)
+                    if (HasControllerElements(UxrHandSide.Right, controllerElement))
+                    {
+                        Vector2 input2DValue = GetInput2D(UxrHandSide.Right, input2D);
+                        bool    raiseEvent   = true;
+
+                        if (input2DValue == Vector2.zero)
+                        {
+                            if (!_controllers2DResetRight[input2D])
                             {
-                                if (_controllers2DResetRight[input2D] == false)
-                                {
-                                    _controllers2DResetRight[input2D] = true;
-                                }
+                                _controllers2DResetRight[input2D] = true;
                             }
                             else
                             {
-                                _controllers2DResetRight[input2D] = false;
+                                raiseEvent = false;
                             }
+                        }
+                        else
+                        {
+                            _controllers2DResetRight[input2D] = false;
+                        }
 
+                        if (raiseEvent)
+                        {
                             OnInput2DChanged(new UxrInput2DEventArgs(UxrHandSide.Right, input2D, input2DValue));
                         }
                     }
@@ -1491,13 +1599,14 @@ namespace UltimateXR.Devices
         #region Protected Types & Data
 
         /// <summary>
+        ///     Gets the <see cref="OnDeviceConnected"/> events that will be raised during Start().
         ///     Used by child classes to notify that the Connect event should be forcefully raised during Start().
         ///     This is required to propagate Connect events properly when a new scene is loaded and the devices are already
         ///     connected and thus not sending any events. We still need to get Connect notifications, so child classes
         ///     need to detect during Awake() if the device(s) are already connected and if so, notify that the
         ///     Connect event needs to be raised.
         /// </summary>
-        protected bool RaiseConnectOnStart { get; set; }
+        protected List<UxrDeviceConnectEventArgs> RaiseConnectOnStartEvents { get; set; }
 
         /// <summary>
         ///     Minimum axis value required to consider an analog input as a DPad digital press in any direction.
@@ -1512,12 +1621,43 @@ namespace UltimateXR.Devices
         #endregion
 
         #region Private Types & Data
+        
+        private const string OpenXRLoaderTypeName = "UnityEngine.XR.OpenXR.OpenXRLoader";
+
+        private static string s_activeLoaderName;
+
+        private static readonly UxrHandSide[] s_supportedHandSides = new UxrHandSide[] { UxrHandSide.Left, UxrHandSide.Right };
+
+        private static readonly UxrControllerElements[] s_supportedControllerElements = Enum.GetValues(typeof(UxrControllerElements))
+                                                                                            .Cast<UxrControllerElements>()
+                                                                                            .Where(b => b != UxrControllerElements.None &&
+                                                                                                        b != UxrControllerElements.Everything)
+                                                                                            .ToArray();
+
+        private static readonly UxrInputButtons[] s_supportedInputButtons = Enum.GetValues(typeof(UxrInputButtons))
+                                                                                .Cast<UxrInputButtons>()
+                                                                                .Where(b => b != UxrInputButtons.None       &&
+                                                                                            b != UxrInputButtons.Everything &&
+                                                                                            b != UxrInputButtons.Any)
+                                                                                .ToArray();
+
+        private static readonly UxrInput1D[] s_supported1DControls = Enum.GetValues(typeof(UxrInput1D))
+                                                                                .Cast<UxrInput1D>()
+                                                                                .Where(b => b != UxrInput1D.None)
+                                                                                .ToArray();
+
+        private static readonly UxrInput2D[] s_supported2DControls = Enum.GetValues(typeof(UxrInput2D))
+                                                                         .Cast<UxrInput2D>()
+                                                                         .Where(b => b != UxrInput2D.None)
+                                                                         .ToArray();
 
         private static readonly Dictionary<UxrHandSide, bool> s_ignoreControllerInput = new Dictionary<UxrHandSide, bool>
                                                                                         {
-                                                                                                    { UxrHandSide.Left, false },
-                                                                                                    { UxrHandSide.Right, false }
+                                                                                            { UxrHandSide.Left, false },
+                                                                                            { UxrHandSide.Right, false }
                                                                                         };
+
+        private static Dictionary<UxrInputButtons, UxrControllerElements> s_mapButtonToElement;
 
         private readonly Dictionary<UxrInput1D, bool> _controllers1DResetLeft  = new Dictionary<UxrInput1D, bool>();
         private readonly Dictionary<UxrInput1D, bool> _controllers1DResetRight = new Dictionary<UxrInput1D, bool>();

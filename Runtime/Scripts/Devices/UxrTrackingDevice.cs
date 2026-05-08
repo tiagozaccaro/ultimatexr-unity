@@ -131,19 +131,21 @@ namespace UltimateXR.Devices
         /// <returns>Whether the device was found</returns>
         public static bool GetHeadsetDevice(out InputDevice inputDevice)
         {
-            var inputDevices = new List<InputDevice>();
-            InputDevices.GetDevices(inputDevices);
+            s_inputDevices.Clear();
+            InputDevices.GetDevices(s_inputDevices);
 
-            foreach (var device in inputDevices)
+            for (int i = 0; i < s_inputDevices.Count; ++i)
             {
-                if (device.characteristics.HasFlag(InputDeviceCharacteristics.HeadMounted))
+                InputDevice device = s_inputDevices[i];
+
+                if ((device.characteristics & InputDeviceCharacteristics.HeadMounted) != 0)
                 {
                     inputDevice = device;
                     return true;
                 }
             }
 
-            inputDevice = new InputDevice();
+            inputDevice = default;
             return false;
         }
 
@@ -152,7 +154,7 @@ namespace UltimateXR.Devices
         #region Unity
 
         /// <summary>
-        ///     Sets events to null in order to help remove unused references.
+        ///     Sets events to null to help remove unused references.
         /// </summary>
         protected override void OnDestroy()
         {
@@ -170,7 +172,7 @@ namespace UltimateXR.Devices
         #region Event Trigger Methods
 
         /// <summary>
-        ///     Event trigger for the <see cref="DeviceConnected" /> event. Can be used to override in child classes in order to
+        ///     Event trigger for the <see cref="DeviceConnected" /> event. Can be used to override in child classes to
         ///     use the event without subscribing to the parent.
         /// </summary>
         /// <param name="e">Event parameters</param>
@@ -181,14 +183,14 @@ namespace UltimateXR.Devices
             
             if (e.IsConnected && IsMixedRealityDevice && _hideAvatarInPassthrough)
             {
-                Avatar.RenderMode = UxrAvatarRenderModes.None;
+                Avatar.RenderMode = UxrAvatarRenderMode.None;
             }
             
             DeviceConnected?.Invoke(this, e);
         }
 
         /// <summary>
-        ///     Event trigger for the <see cref="AvatarUpdating" /> event. Can be used to override in child classes in order to use
+        ///     Event trigger for the <see cref="AvatarUpdating" /> event. Can be used to override in child classes to use
         ///     the event without subscribing to the parent.
         /// </summary>
         /// <param name="e">Event parameters</param>
@@ -199,7 +201,7 @@ namespace UltimateXR.Devices
         }
 
         /// <summary>
-        ///     Event trigger for the <see cref="AvatarUpdated" /> event. Can be used to override in child classes in order to use
+        ///     Event trigger for the <see cref="AvatarUpdated" /> event. Can be used to override in child classes to use
         ///     the event without subscribing to the parent.
         /// </summary>
         /// <param name="e">Event parameters</param>
@@ -210,7 +212,7 @@ namespace UltimateXR.Devices
         }
 
         /// <summary>
-        ///     Event trigger for the <see cref="SensorsUpdating" /> event. Can be used to override in child classes in order to
+        ///     Event trigger for the <see cref="SensorsUpdating" /> event. Can be used to override in child classes to
         ///     use the event without subscribing to the parent.
         /// </summary>
         /// <param name="e">Event parameters</param>
@@ -221,7 +223,7 @@ namespace UltimateXR.Devices
         }
 
         /// <summary>
-        ///     Event trigger for the <see cref="SensorsUpdated" /> event. Can be used to override in child classes in order to use
+        ///     Event trigger for the <see cref="SensorsUpdated" /> event. Can be used to override in child classes to use
         ///     the event without subscribing to the parent.
         /// </summary>
         /// <param name="e">Event parameters</param>
@@ -248,6 +250,12 @@ namespace UltimateXR.Devices
         protected virtual void UpdateAvatar()
         {
         }
+
+        #endregion
+
+        #region Private Types & Data
+
+        private static readonly List<InputDevice> s_inputDevices = new List<InputDevice>();
 
         #endregion
     }

@@ -6,6 +6,7 @@
 using System;
 using System.Collections.Generic;
 using UltimateXR.Core.Serialization;
+using UltimateXR.Core.StateSave;
 using UltimateXR.Extensions.System.Math;
 using UnityEngine;
 
@@ -27,34 +28,6 @@ namespace UltimateXR.Manipulation
         private sealed class RuntimeManipulationInfo : IUxrSerializable
         {
             #region Public Types & Data
-
-            /// <summary>
-            ///     Gets the grabbers currently manipulating the object.
-            /// </summary>
-            public IEnumerable<UxrGrabber> Grabbers
-            {
-                get
-                {
-                    foreach (RuntimeGrabInfo grabInfo in Grabs)
-                    {
-                        yield return grabInfo.Grabber;
-                    }
-                }
-            }
-
-            /// <summary>
-            ///     Gets the points currently being grabbed on the object.
-            /// </summary>
-            public IEnumerable<int> GrabbedPoints
-            {
-                get
-                {
-                    foreach (RuntimeGrabInfo grabInfo in Grabs)
-                    {
-                        yield return grabInfo.GrabbedPoint;
-                    }
-                }
-            }
 
             /// <summary>
             ///     Gets the current grabs manipulating the object.
@@ -115,10 +88,11 @@ namespace UltimateXR.Manipulation
             /// </summary>
             /// <param name="grabber">Grabber of the grab</param>
             /// <param name="grabPoint">Grab point index of the <see cref="UxrGrabbableObject" /> that was grabbed.</param>
+            /// <param name="grabOptions">The grab options</param>
             /// <param name="sourceAnchor">Target if the grabbed object was placed on any.</param>
-            public RuntimeManipulationInfo(UxrGrabber grabber, int grabPoint, UxrGrabbableObjectAnchor sourceAnchor = null)
+            public RuntimeManipulationInfo(UxrGrabber grabber, int grabPoint, UxrGrabOptions grabOptions, UxrGrabbableObjectAnchor sourceAnchor = null)
             {
-                Grabs.Add(new RuntimeGrabInfo(grabber, grabPoint));
+                _grabs.Add(new RuntimeGrabInfo(grabber, grabPoint, grabOptions));
 
                 _grabbableObject = grabber.GrabbedObject;
                 _sourceAnchor    = sourceAnchor;
@@ -142,8 +116,8 @@ namespace UltimateXR.Manipulation
             public void Serialize(IUxrSerializer serializer, int serializationVersion)
             {
                 serializer.Serialize(ref _grabs);
-                serializer.SerializeUniqueComponent(ref _sourceAnchor);
-                serializer.SerializeUniqueComponent(ref _grabbableObject);
+                serializer.SerializeUniqueIdComponent(ref _sourceAnchor);
+                serializer.SerializeUniqueIdComponent(ref _grabbableObject);
                 serializer.Serialize(ref _localManipulationRotationPivot);
             }
 
@@ -152,26 +126,45 @@ namespace UltimateXR.Manipulation
             #region Public Methods
 
             /// <summary>
+            ///     Determines whether a specific grab point is being used in the current manipulation.
+            /// </summary>
+            /// <param name="grabPoint">The index of the grab point to check.</param>
+            /// <returns>True if the specified grab point is currently grabbed; otherwise, false.</returns>
+            public bool ContainsGrabPoint(int grabPoint)
+            {
+                foreach (RuntimeGrabInfo grabInfo in _grabs)
+                {
+                    if (grabInfo.GrabbedPoint == grabPoint)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
+            /// <summary>
             ///     Registers a new grab.
             /// </summary>
             /// <param name="grabber">Grabber that performed the grab</param>
             /// <param name="grabPoint">The point of the <see cref="UxrGrabbableObject" /> that was grabbed.</param>
+            /// <param name="grabOptions">Grab options</param>
             /// <param name="append">
             ///     Whether to append or insert at the beginning. If there is more than one grab point and none of
             ///     them is the 0 index (main grab), the main grab will be the first one in the list.
             /// </param>
             /// <returns>The newly created grab info entry</returns>
-            public RuntimeGrabInfo RegisterNewGrab(UxrGrabber grabber, int grabPoint, bool append = true)
+            public RuntimeGrabInfo RegisterNewGrab(UxrGrabber grabber, int grabPoint, UxrGrabOptions grabOptions, bool append = true)
             {
-                RuntimeGrabInfo runtimeGrabInfo = new RuntimeGrabInfo(grabber, grabPoint);
+                RuntimeGrabInfo runtimeGrabInfo = new RuntimeGrabInfo(grabber, grabPoint, grabOptions);
 
                 if (append)
                 {
-                    Grabs.Add(runtimeGrabInfo);
+                    _grabs.Add(runtimeGrabInfo);
                 }
                 else
                 {
-                    Grabs.Insert(0, runtimeGrabInfo);
+                    _grabs.Insert(0, runtimeGrabInfo);
                 }
 
                 return runtimeGrabInfo;
@@ -183,7 +176,7 @@ namespace UltimateXR.Manipulation
             /// <param name="grabber">Grabber that released the grab</param>
             public void RemoveGrab(UxrGrabber grabber)
             {
-                Grabs.RemoveAll(g => g.Grabber == grabber);
+                _grabs.RemoveAll(g => g.Grabber == grabber);
             }
 
             /// <summary>
@@ -191,7 +184,7 @@ namespace UltimateXR.Manipulation
             /// </summary>
             public void RemoveAll()
             {
-                Grabs.Clear();
+                _grabs.Clear();
             }
 
             /// <summary>
@@ -200,6 +193,7 @@ namespace UltimateXR.Manipulation
             /// <param name="grabber">Grabber responsible for grabbing the object</param>
             /// <param name="grabbableObject">The object being grabbed</param>
             /// <param name="grabPoint">Point that was grabbed</param>
+            /// <param name="grabOptions">Grab options</param>
             /// <param name="snapPosition">The grabber snap position to use</param>
             /// <param name="snapRotation">The grabber snap rotation to use</param>
             /// <param name="sourceGrabEventArgs">
@@ -207,13 +201,13 @@ namespace UltimateXR.Manipulation
             ///     it is performed in exactly the same way. This is used in multi-player environments.
             /// </param>
             /// <returns>Grab information</returns>
-            public RuntimeGrabInfo NotifyBeginGrab(UxrGrabber grabber, UxrGrabbableObject grabbableObject, int grabPoint, Vector3 snapPosition, Quaternion snapRotation, UxrManipulationEventArgs sourceGrabEventArgs = null)
+            public RuntimeGrabInfo NotifyBeginGrab(UxrGrabber grabber, UxrGrabbableObject grabbableObject, int grabPoint, UxrGrabOptions grabOptions, Vector3 snapPosition, Quaternion snapRotation, UxrManipulationEventArgs sourceGrabEventArgs = null)
             {
                 RuntimeGrabInfo grabInfo = GetGrabInfo(grabber);
 
                 if (grabInfo == null)
                 {
-                    grabInfo = RegisterNewGrab(grabber, grabPoint);
+                    grabInfo = RegisterNewGrab(grabber, grabPoint, grabOptions);
                 }
 
                 // If it's an object constrained to a single rotation axis, accumulate current contributions first
@@ -222,7 +216,7 @@ namespace UltimateXR.Manipulation
 
                 // Compute data
 
-                grabbableObject.NotifyBeginGrab(grabber, grabPoint, snapPosition, snapRotation);
+                grabbableObject.NotifyBeginGrab(grabber, grabPoint, grabOptions, snapPosition, snapRotation);
                 grabInfo.Compute(grabber, grabbableObject, grabPoint, snapPosition, snapRotation, sourceGrabEventArgs);
 
                 // Smooth transitions
@@ -265,7 +259,7 @@ namespace UltimateXR.Manipulation
                     {
                         grabbableObject.StartSmoothManipulationTransition();
                     }
-                    
+
                     grabber.StartSmoothManipulationTransition();
 
                     if (grabbableObject.GrabbableParent != null && grabbableObject.UsesGrabbableParentDependency && grabbableObject.ControlParentDirection)
@@ -370,13 +364,15 @@ namespace UltimateXR.Manipulation
             /// </summary>
             /// <param name="oldGrabber">Old grabber that was grabbing</param>
             /// <param name="newGrabber">New grabber that the grab switched to</param>
-            public void SwapGrabber(UxrGrabber oldGrabber, UxrGrabber newGrabber)
+            /// <param name="newGrabOptions">New grab options</param>
+            public void SwapGrabber(UxrGrabber oldGrabber, UxrGrabber newGrabber, UxrGrabOptions newGrabOptions)
             {
                 foreach (RuntimeGrabInfo grabInfo in Grabs)
                 {
                     if (grabInfo.Grabber == oldGrabber)
                     {
-                        grabInfo.Grabber = newGrabber;
+                        grabInfo.Grabber     = newGrabber;
+                        grabInfo.GrabOptions = newGrabOptions;
                         return;
                     }
                 }
@@ -389,14 +385,16 @@ namespace UltimateXR.Manipulation
             /// <param name="oldGrabPoint">Old grab point of the <see cref="UxrGrabbableObject" /> grabbed by the old grabber</param>
             /// <param name="newGrabber">New grabber that the grab switched to</param>
             /// <param name="newGrabPoint">New grab point of the <see cref="UxrGrabbableObject" /> the grab switched to</param>
-            public void SwapGrabber(UxrGrabber oldGrabber, int oldGrabPoint, UxrGrabber newGrabber, int newGrabPoint)
+            /// <param name="newGrabOptions">New grab options</param>
+            public void SwapGrabber(UxrGrabber oldGrabber, int oldGrabPoint, UxrGrabber newGrabber, int newGrabPoint, UxrGrabOptions newGrabOptions)
             {
                 foreach (RuntimeGrabInfo grabInfo in Grabs)
                 {
-                    if (grabInfo.Grabber == oldGrabber)
+                    if (grabInfo.Grabber == oldGrabber && grabInfo.GrabbedPoint == oldGrabPoint)
                     {
                         grabInfo.Grabber      = newGrabber;
                         grabInfo.GrabbedPoint = newGrabPoint;
+                        grabInfo.GrabOptions  = newGrabOptions;
                         return;
                     }
                 }

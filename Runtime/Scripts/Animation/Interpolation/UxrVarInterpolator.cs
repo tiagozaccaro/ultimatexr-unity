@@ -10,6 +10,15 @@ namespace UltimateXR.Animation.Interpolation
     /// <summary>
     ///     Base for interpolator classes that interpolate with optional smooth damping.
     ///     Child classes provide interpolation for different variable types.
+    ///     Supports a single step and a two-step interpolation approach:
+    ///     <list type="bullet">
+    ///         <item>Step 1: <see cref="SetTarget" /> computes the raw interpolation target from frame data.</item>
+    ///         <item>
+    ///             Step 2: <see cref="ApplySmoothDampPostProcess" /> runs every frame to smoothly converge
+    ///             toward the target. This ensures stable smoothing when <see cref="SetTarget" />
+    ///             is invoked multiple times per frame or skipped on certain frames.
+    ///         </item>
+    ///     </list>
     /// </summary>
     public abstract class UxrVarInterpolator
     {
@@ -62,6 +71,25 @@ namespace UltimateXR.Animation.Interpolation
         public abstract object Interpolate(object a, object b, float t);
 
         /// <summary>
+        ///     Step 1 of two-step interpolation: Computes the raw interpolation target from frame data
+        ///     without applying smooth damp. The result is stored internally as the current target.
+        /// </summary>
+        /// <param name="a">Start value</param>
+        /// <param name="b">End value</param>
+        /// <param name="t">Interpolation factor [0.0, 1.0]</param>
+        /// <returns>The raw interpolated target value (no smooth damp applied)</returns>
+        public abstract object SetTarget(object a, object b, float t);
+
+        /// <summary>
+        ///     Step 2 of two-step interpolation: Applies smooth damp convergence from the last value
+        ///     toward the current target. Should be called every frame from the post-process step
+        ///     to ensure smooth motion even when no new frame data is available.
+        /// </summary>
+        /// <param name="deltaTime">Time that has elapsed since the last call</param>
+        /// <returns>The smooth-damped value</returns>
+        public abstract object ApplySmoothDampPostProcess(float deltaTime);
+
+        /// <summary>
         ///     Resets the "memory" of the smooth damp effect, so that the interpolation will restart from the next time
         ///     <see cref="Interpolate" /> is called.
         /// </summary>
@@ -89,7 +117,7 @@ namespace UltimateXR.Animation.Interpolation
         /// <summary>
         ///     Gets whether the smooth damp needs to be restarted the next time <see cref="Interpolate" /> is called.
         /// </summary>
-        protected bool RequiresSmoothDampRestart { get; private set; }
+        protected bool RequiresSmoothDampRestart { get; private set; } = true;
 
         #endregion
 

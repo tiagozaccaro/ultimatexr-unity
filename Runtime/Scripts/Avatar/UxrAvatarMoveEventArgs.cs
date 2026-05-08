@@ -3,8 +3,9 @@
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
-using System;
 using UltimateXR.Core;
+using UltimateXR.Core.Events;
+using UltimateXR.Locomotion;
 using UnityEngine;
 
 namespace UltimateXR.Avatar
@@ -15,7 +16,7 @@ namespace UltimateXR.Avatar
     ///     <list type="bullet">
     ///         <item>
     ///             <see
-    ///                 cref="UxrManager.MoveAvatarTo(UxrAvatar,UnityEngine.Vector3,UnityEngine.Vector3,bool)">
+    ///                 cref="UxrManager.MoveAvatarTo(UxrAvatar,UnityEngine.Vector3,UnityEngine.Vector3,bool,object)">
     ///                 UxrManager.Instance.MoveAvatarTo
     ///             </see>
     ///         </item>
@@ -30,32 +31,37 @@ namespace UltimateXR.Avatar
     ///         </item>
     ///     </list>
     ///     These methods will move/rotate the root transform of the avatar. If a user moves or rotates in the real-world, the
-    ///     camera transform will be updated but the root avatar transform will remain fixed. Only moving or teleporting the
+    ///     camera transform will be updated, but the root avatar transform will remain fixed. Only moving or teleporting the
     ///     avatar will generate <see cref="UxrAvatarMoveEventArgs" /> events.
     /// </summary>
-    public class UxrAvatarMoveEventArgs : EventArgs
+    /// <remarks>
+    ///     This event uses <see cref="UxrPooledEventArgs{T}" /> to avoid allocations. Instances are pooled and only guaranteed
+    ///     to be valid during the event invocation. Do not store or reuse them outside the handler scope.
+    ///     Although instances may remain unchanged briefly depending on pool usage, this behavior is not guaranteed.
+    /// </remarks>
+    public class UxrAvatarMoveEventArgs : UxrAvatarEventArgs<UxrAvatarMoveEventArgs>
     {
         #region Public Types & Data
 
         /// <summary>
         ///     Gets the old <see cref="UxrAvatar" /> position.
         /// </summary>
-        public Vector3 OldPosition { get; }
+        public Vector3 OldPosition { get; private set; }
 
         /// <summary>
         ///     Gets the old <see cref="UxrAvatar" /> rotation.
         /// </summary>
-        public Quaternion OldRotation { get; }
+        public Quaternion OldRotation { get; private set; }
 
         /// <summary>
         ///     Gets the new <see cref="UxrAvatar" /> position.
         /// </summary>
-        public Vector3 NewPosition { get; }
+        public Vector3 NewPosition { get; private set; }
 
         /// <summary>
         ///     Gets the new <see cref="UxrAvatar" /> rotation.
         /// </summary>
-        public Quaternion NewRotation { get; }
+        public Quaternion NewRotation { get; private set; }
 
         /// <summary>
         ///     Gets the old <see cref="UxrAvatar" /> forward vector.
@@ -87,25 +93,28 @@ namespace UltimateXR.Avatar
         /// </summary>
         public bool HasRotation { get; private set; }
 
+        /// <summary>
+        ///     Gets the object that originated the avatar movement, if any.
+        /// </summary>
+        public object Source { get; private set; }
+
+        /// <summary>
+        ///     Gets whether the avatar movement was originated by a locomotion component.
+        /// </summary>
+        public bool IsLocomotion => Source is UxrLocomotion;
+
         #endregion
 
         #region Constructors & Finalizer
 
         /// <summary>
-        ///     Constructor.
+        ///     Default constructor.
         /// </summary>
-        /// <param name="oldPosition">Old <see cref="UxrAvatar" /> position</param>
-        /// <param name="oldRotation">Old <see cref="UxrAvatar" /> rotation</param>
-        /// <param name="newPosition">New <see cref="UxrAvatar" /> position</param>
-        /// <param name="newRotation">New <see cref="UxrAvatar" /> rotation</param>
-        public UxrAvatarMoveEventArgs(Vector3 oldPosition, Quaternion oldRotation, Vector3 newPosition, Quaternion newRotation)
+        /// <remarks>
+        ///     Instances should not be created directly. Use <see cref="GetFromPool" /> to retrieve a pooled instance.
+        /// </remarks>
+        public UxrAvatarMoveEventArgs()
         {
-            OldPosition = oldPosition;
-            OldRotation = oldRotation;
-            NewPosition = newPosition;
-            NewRotation = newRotation;
-
-            ComputeInternalData();
         }
 
         #endregion
@@ -131,6 +140,30 @@ namespace UltimateXR.Avatar
         #endregion
 
         #region Public Methods
+
+        /// <summary>
+        ///     Gets a new instance from the pool.
+        /// </summary>
+        /// <param name="avatar">Avatar moved reference</param>
+        /// <param name="oldPosition">Old <see cref="UxrAvatar" /> position</param>
+        /// <param name="oldRotation">Old <see cref="UxrAvatar" /> rotation</param>
+        /// <param name="newPosition">New <see cref="UxrAvatar" /> position</param>
+        /// <param name="newRotation">New <see cref="UxrAvatar" /> rotation</param>
+        /// <param name="source">Optional object that originated the movement.</param>
+        /// <returns>Instance from the pool</returns>
+        public static UxrAvatarMoveEventArgs GetFromPool(UxrAvatar avatar, Vector3 oldPosition, Quaternion oldRotation, Vector3 newPosition, Quaternion newRotation, object source = null)
+        {
+            UxrAvatarMoveEventArgs e = GetFromPool(avatar);
+
+            e.OldPosition = oldPosition;
+            e.OldRotation = oldRotation;
+            e.NewPosition = newPosition;
+            e.NewRotation = newRotation;
+            e.Source      = source;
+
+            e.ComputeInternalData();
+            return e;
+        }
 
         /// <summary>
         ///     Reorients and repositions a transform so that it keeps the relative position/orientation to the avatar after the

@@ -1,4 +1,4 @@
-// --------------------------------------------------------------------------------------------------------------------
+﻿// --------------------------------------------------------------------------------------------------------------------
 // <copyright file="UxrStateSyncImplementer_1.cs" company="VRMADA">
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
@@ -10,6 +10,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using UltimateXR.Core.Components;
 using UltimateXR.Core.Settings;
+using UltimateXR.Core.Unique;
 using UltimateXR.Extensions.Unity;
 using UnityEngine;
 
@@ -60,6 +61,12 @@ namespace UltimateXR.Core.StateSync
         /// <param name="fallbackSyncStateHandler">Fallback event handler</param>
         public void SyncState(UxrSyncEventArgs e, Action<UxrSyncEventArgs> fallbackSyncStateHandler)
         {
+            if (UxrUniqueIdImplementer.HasDontRegisterAttribute(_targetComponent) || UxrUniqueIdImplementer.HasDontSyncAttribute(_targetComponent))
+            {
+                // This type registration is ignored.
+                return;
+            }
+
             // First check if it's a synchronization that can be solved at the base level
 
             if (e is UxrPropertyChangedSyncEventArgs propertyChangedEventArgs)
@@ -67,7 +74,7 @@ namespace UltimateXR.Core.StateSync
                 try
                 {
                     // Set new property value using reflection
-                    _targetComponent.GetType().GetProperty(propertyChangedEventArgs.PropertyName, PropertyFlags).SetValue(_targetComponent, propertyChangedEventArgs.Value);
+                    _targetComponent.GetType().GetProperty(propertyChangedEventArgs.PropertyName, PropertyFlags)?.SetValue(_targetComponent, propertyChangedEventArgs.Value);
                 }
                 catch (Exception exception)
                 {
@@ -84,7 +91,7 @@ namespace UltimateXR.Core.StateSync
                     if (methodInvokedEventArgs.Parameters == null || !methodInvokedEventArgs.Parameters.Any())
                     {
                         // Invoke without arguments
-                        _targetComponent.GetType().GetMethod(methodInvokedEventArgs.MethodName, MethodFlags).Invoke(_targetComponent, null);
+                        _targetComponent.GetType().GetMethod(methodInvokedEventArgs.MethodName, MethodFlags)?.Invoke(_targetComponent, null);
                     }
                     else
                     {
@@ -95,12 +102,12 @@ namespace UltimateXR.Core.StateSync
                         if (_targetComponent.GetType().GetMethods(MethodFlags).Count(m => m.Name.Equals(methodInvokedEventArgs.MethodName)) == 1)
                         {
                             // There are no overloads
-                            _targetComponent.GetType().GetMethod(methodInvokedEventArgs.MethodName, MethodFlags).Invoke(_targetComponent, methodInvokedEventArgs.Parameters);
+                            _targetComponent.GetType().GetMethod(methodInvokedEventArgs.MethodName, MethodFlags)?.Invoke(_targetComponent, methodInvokedEventArgs.Parameters);
                         }
                         else if (!anyIsNull)
                         {
                             // We can look for a method specifying the parameter types.
-                            _targetComponent.GetType().GetMethod(methodInvokedEventArgs.MethodName, MethodFlags, null, methodInvokedEventArgs.Parameters.Select(p => p.GetType()).ToArray(), null).Invoke(_targetComponent, methodInvokedEventArgs.Parameters);
+                            _targetComponent.GetType().GetMethod(methodInvokedEventArgs.MethodName, MethodFlags, null, methodInvokedEventArgs.Parameters.Select(p => p.GetType()).ToArray(), null)?.Invoke(_targetComponent, methodInvokedEventArgs.Parameters);
                         }
                         else
                         {
@@ -167,6 +174,11 @@ namespace UltimateXR.Core.StateSync
         {
             SyncCallDepth++;
             _optionStack.Push(options);
+
+            if (UxrUniqueIdImplementer.HasDontRegisterAttribute(_targetComponent) || UxrUniqueIdImplementer.HasDontSyncAttribute(_targetComponent))
+            {
+                Debug.LogError($"{UxrConstants.CoreModule} BeginSync called when type {_targetComponent.GetType()} uses {nameof(UxrDontRegisterAttribute)} or {nameof(UxrDontSyncAttribute)}.");
+            }
 
             if (SyncCallDepth > StateSyncCallDepthErrorThreshold)
             {
@@ -275,6 +287,12 @@ namespace UltimateXR.Core.StateSync
                 return;
             }
             
+            if (UxrUniqueIdImplementer.HasDontRegisterAttribute(_targetComponent) || UxrUniqueIdImplementer.HasDontSyncAttribute(_targetComponent))
+            {
+                // This type registration is ignored.
+                return;
+            }
+            
             if (!_registered)
             {
                 UxrManager.Instance.RegisterStateSyncComponent<T>(_targetComponent);
@@ -287,6 +305,12 @@ namespace UltimateXR.Core.StateSync
         /// </summary>
         public void Unregister()
         {
+            if (UxrUniqueIdImplementer.HasDontRegisterAttribute(_targetComponent) || UxrUniqueIdImplementer.HasDontSyncAttribute(_targetComponent))
+            {
+                // This type registration is ignored.
+                return;
+            }
+            
             UxrManager.Instance.UnregisterStateSyncComponent<T>(_targetComponent);
         }
 

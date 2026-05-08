@@ -250,7 +250,7 @@ namespace UltimateXR.Core.Serialization
         /// </summary>
         /// <param name="unique">The element to serialize or deserialize</param>
         /// <remarks>Implementations must support null</remarks>
-        void SerializeUniqueComponent(ref IUxrUniqueId unique);
+        void SerializeUniqueIdComponent(ref IUxrUniqueId unique);
 
         /// <summary>
         ///     Serializes or deserializes a component with the <see cref="IUxrUniqueId" /> interface, storing only the
@@ -258,7 +258,7 @@ namespace UltimateXR.Core.Serialization
         /// </summary>
         /// <param name="component">The element to serialize or deserialize</param>
         /// <remarks>Implementations must support null</remarks>
-        void SerializeUniqueComponent<T>(ref T component) where T : Component, IUxrUniqueId;
+        void SerializeUniqueIdComponent<T>(ref T component) where T : Component, IUxrUniqueId;
 
         /// <summary>
         ///     Serializes or deserializes an object that implements the <see cref="IUxrSerializable" /> interface.

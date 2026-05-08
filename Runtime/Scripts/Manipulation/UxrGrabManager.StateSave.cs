@@ -12,18 +12,34 @@ namespace UltimateXR.Manipulation
         #region Protected Overrides UxrComponent
 
         /// <inheritdoc />
-        protected override void SerializeState(bool isReading, int stateSerializationVersion, UxrStateSaveLevel level, UxrStateSaveOptions options)
+        protected override void SerializeState(bool isReading, UxrStateSaveLevel level, UxrStateSaveOptions options)
         {
-            base.SerializeState(isReading, stateSerializationVersion, level, options);
+            base.SerializeState(isReading, level, options);
 
-            // Manipulations are already handled through events, we don't serialize them in incremental changes
+            // Version
 
-            if (level > UxrStateSaveLevel.ChangesSincePreviousSave)
+            SerializeStateVersion(level, options, StateSerializationVersion, out int effectiveVersion);
+
+            if (level <= UxrStateSaveLevel.ChangesSincePreviousSave)
             {
-                // We don't want to compare dictionaries, we save the manipulations info always by using null as name to avoid overhead.
-                SerializeStateValue(level, options, null, ref _currentManipulations);
+                // Process all save levels above time sampling. Time sampling is not needed and covered by event synchronization.
+                return;
+            }
+
+            // We don't want to compare dictionaries, we save the manipulations info always by using null as name to avoid overhead.
+            SerializeStateValue(level, options, null, ref _currentManipulations);
+
+            if (isReading)
+            {
+                UpdateSortedManipulationList();
             }
         }
+
+        #endregion
+
+        #region Private Types & Data
+
+        private const int StateSerializationVersion = 0;
 
         #endregion
     }

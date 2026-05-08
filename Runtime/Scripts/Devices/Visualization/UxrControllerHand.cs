@@ -91,8 +91,8 @@ namespace UltimateXR.Devices.Visualization
         ///     Updates a given finger.
         /// </summary>
         /// <param name="finger">Finger to update</param>
-        /// <param name="fingerContactInfo">Finger contact information</param>
-        public void UpdateFinger(UxrFingerType finger, UxrFingerContactInfo fingerContactInfo)
+        /// <param name="contactTarget">Finger contact target</param>
+        public void UpdateFinger(UxrFingerType finger, Transform contactTarget)
         {
             if (_fingers == null)
             {
@@ -103,9 +103,9 @@ namespace UltimateXR.Devices.Visualization
             {
                 Transform fingerIKParent = fingerInfo.FingerIKSolver.Links[0].Bone.parent;
 
-                if (fingerInfo.CurrentFingerGoal != fingerContactInfo.Transform)
+                if (fingerInfo.CurrentFingerGoal != contactTarget)
                 {
-                    fingerInfo.CurrentFingerGoal           = fingerContactInfo.Transform;
+                    fingerInfo.CurrentFingerGoal           = contactTarget;
                     fingerInfo.TimerToGoal                 = fingerInfo.FingerToGoalDuration;
                     fingerInfo.LocalGoalTransitionStartPos = fingerIKParent.InverseTransformPoint(fingerInfo.FingerIKSolver.Goal.position);
                 }
@@ -115,19 +115,19 @@ namespace UltimateXR.Devices.Visualization
                     fingerInfo.TimerToGoal -= Time.deltaTime;
                     float t = 1.0f - Mathf.Clamp01(fingerInfo.TimerToGoal / fingerInfo.FingerToGoalDuration);
                     fingerInfo.FingerIKSolver.Goal.position = Vector3.Lerp(fingerIKParent.TransformPoint(fingerInfo.LocalGoalTransitionStartPos),
-                                                                           fingerContactInfo.Transform != null ? fingerContactInfo.Transform.position : fingerIKParent.TransformPoint(fingerInfo.LocalEffectorInitialPos),
+                                                                           contactTarget != null ? contactTarget.position : fingerIKParent.TransformPoint(fingerInfo.LocalEffectorInitialPos),
                                                                            t);
 
-                    if (fingerContactInfo.Transform != null)
+                    if (contactTarget != null)
                     {
                         fingerInfo.FingerIKSolver.SolverEnabled = true;
                     }
                 }
                 else
                 {
-                    if (fingerContactInfo.Transform != null)
+                    if (contactTarget != null)
                     {
-                        fingerInfo.FingerIKSolver.Goal.position = fingerContactInfo.Transform.position;
+                        fingerInfo.FingerIKSolver.Goal.position = contactTarget.position;
                     }
                     else
                     {

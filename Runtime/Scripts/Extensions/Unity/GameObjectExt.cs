@@ -43,6 +43,21 @@ namespace UltimateXR.Extensions.Unity
         }
 
         /// <summary>
+        ///     Traverses up the transform hierarchy from the specified starting point
+        ///     and returns the topmost (highest in the hierarchy) component of the specified type, if any.
+        /// </summary>
+        /// <typeparam name="T">The type of component to search for</typeparam>
+        /// <param name="start">The starting GameObject to begin the search from</param>
+        /// <returns>
+        ///     The topmost component of type <typeparamref name="T" /> found in the hierarchy,
+        ///     or <c>null</c> if no such component exists.
+        /// </returns>
+        public static T GetTopmostComponentInHierarchy<T>(this GameObject start)
+        {
+            return start.transform.GetTopmostComponentInHierarchy<T>();
+        }
+
+        /// <summary>
         ///     Activates/deactivates the object if it isn't active already.
         /// </summary>
         /// <param name="self">GameObject to activate</param>
@@ -80,6 +95,27 @@ namespace UltimateXR.Extensions.Unity
         }
 
         /// <summary>
+        ///     Tries to get a component on the GameObject that implements the <see cref="IUxrUniqueId" /> interface.
+        ///     It will prefer those with <see cref="IUxrUniqueId.PreferForTracking" /> set to true to minimize
+        ///     cases where the component can't be found.
+        /// </summary>
+        /// <param name="self">GameObject to get a <see cref="IUxrUniqueId" /> component for</param>
+        public static IUxrUniqueId GetTrackingUniqueIdComponent(this GameObject self)
+        {
+            IUxrUniqueId[] components = self.GetComponents<IUxrUniqueId>();
+
+            foreach (IUxrUniqueId uniqueId in components)
+            {
+                if (uniqueId.PreferForTracking)
+                {
+                    return uniqueId;
+                }
+            }
+
+            return components.FirstOrDefault();
+        }
+
+        /// <summary>
         ///     Combines all <see cref="IUxrUniqueId" /> components in the GameObject tree using a given id.
         ///     This ensures that unique ids in the hierarchy do not collide when instantiating the same prefab more than once.
         ///     Combination using the same id on different devices or sessions will always generate the same unique result.
@@ -88,8 +124,8 @@ namespace UltimateXR.Extensions.Unity
         /// <param name="guid">A guid that will be used to combine all existing unique ids to produce the new unique ids</param>
         public static void CombineUniqueIds(this GameObject self, Guid guid)
         {
-            IUxrUniqueId[] uniqueComponents = self.GetComponentsInChildren<IUxrUniqueId>(true);
-            uniqueComponents.ForEach(c => c.CombineUniqueId(guid, false));
+            IUxrUniqueId[] components = self.GetComponentsInChildren<IUxrUniqueId>(true);
+            components.ForEach(c => c.CombineUniqueId(guid, false));
         }
 
         /// <summary>
@@ -123,7 +159,19 @@ namespace UltimateXR.Extensions.Unity
                 return true;
             }
 
-            return PrefabUtility.IsPartOfPrefabAsset(self);
+            if (PrefabUtility.IsPartOfPrefabAsset(self))
+            {
+                return true;
+            }
+
+            // Preview scene (e.g., LoadPrefabContents): the object is inside a prefab being processed,
+            // but IsPartOfPrefabAsset returns false because it's loaded as an instance.
+            if (self.scene.IsValid() && EditorSceneManager.IsPreviewScene(self.scene))
+            {
+                return true;
+            }
+
+            return false;
 #else
             return self.scene.name == null;
 #endif
@@ -132,57 +180,82 @@ namespace UltimateXR.Extensions.Unity
 #if UNITY_EDITOR
 
         /// <summary>
-        ///     Gets the GUID of the prefab the GameObject is in, if it is in a prefab, or the GUID of the prefab the GameObject
-        ///     was instantiated from, if it was instantiated from a prefab. If it is not
+        ///     Gets the GUID and asset path of the owning prefab for a given <see cref="GameObject" />.
         /// </summary>
-        /// <param name="self">The GameObject to retrieve the information of</param>
-        /// <param name="prefabGuid">If the call was successful, returns the GUID or string.Empty</param>
-        /// <param name="assetPath">If the call was successful, returns the asset path or string.Empty</param>
-        /// <returns>Whether the call was successful</returns>
         /// <remarks>
-        ///     The reason the call can be unsuccessful is because Unity for some reason will report
-        ///     a null/empty asset path even though PrefabUtility.IsPartOfPrefabAsset() returns true.
-        ///     This behaviour happens when in prefab isolation/context mode in the editor
+        ///     This method resolves the prefab context using the following rules:
+        ///     <list type="bullet">
+        ///         <item>
+        ///             <description>
+        ///                 If the object is inside <b>Prefab Mode</b>, it returns the asset path of the prefab currently being
+        ///                 edited.
+        ///             </description>
+        ///         </item>
+        ///         <item>
+        ///             <description>
+        ///                 If the object is part of a <b>prefab asset</b>, it returns the asset path of the prefab root.
+        ///             </description>
+        ///         </item>
+        ///         <item>
+        ///             <description>
+        ///                 If the object is part of a <b>prefab instance in a scene</b>, it returns the asset path of the
+        ///                 <b>outermost prefab instance</b> (the owning/top-level prefab, not nested prefabs).
+        ///             </description>
+        ///         </item>
+        ///     </list>
         /// </remarks>
+        /// <param name="self">The <see cref="GameObject" /> to query.</param>
+        /// <param name="prefabGuid">The GUID of the resolved prefab asset, or <c>null</c> if not found.</param>
+        /// <param name="assetPath">The asset path of the resolved prefab, or an empty string if not found.</param>
+        /// <returns>
+        ///     <c>true</c> if a valid prefab asset path and GUID were resolved; otherwise, <c>false</c>.
+        /// </returns>
         public static bool GetPrefabGuid(this GameObject self, out string prefabGuid, out string assetPath)
         {
-            prefabGuid = string.Empty;
+            prefabGuid = null;
             assetPath  = string.Empty;
 
-            if (PrefabStageUtility.GetCurrentPrefabStage() != null && PrefabStageUtility.GetCurrentPrefabStage().IsPartOfPrefabContents(self))
+            if (self == null)
             {
-                // Asset in prefab view
-                assetPath = PrefabStageUtility.GetCurrentPrefabStage().assetPath;
+                return false;
             }
+
+            // 1) Object inside Prefab Mode -> return the prefab currently being edited
+            PrefabStage stage = PrefabStageUtility.GetPrefabStage(self);
+            if (stage != null && stage.IsPartOfPrefabContents(self))
+            {
+                assetPath = stage.assetPath;
+            }
+            // 2) Object inside a prefab asset (Project asset context)
             else if (PrefabUtility.IsPartOfPrefabAsset(self))
             {
-                // Prefab asset 
-                assetPath = AssetDatabase.GetAssetPath(self);
-
-                if (string.IsNullOrEmpty(assetPath))
-                {
-                    return false;
-                }
+                assetPath = AssetDatabase.GetAssetPath(self.transform.root.gameObject);
             }
-            else if (PrefabUtility.IsPartOfNonAssetPrefabInstance(self) && self.scene.name != null)
+            // 3) Object inside a prefab instance in a normal scene -> return owning top-level prefab
+            else if (PrefabUtility.IsPartOfNonAssetPrefabInstance(self) && self.scene.IsValid())
             {
                 GameObject instanceRoot = PrefabUtility.GetOutermostPrefabInstanceRoot(self);
-                GameObject rootPrefab   = PrefabUtility.GetCorrespondingObjectFromSource(instanceRoot);
-                assetPath = AssetDatabase.GetAssetPath(rootPrefab);
+                GameObject rootPrefab = instanceRoot != null
+                                            ? PrefabUtility.GetCorrespondingObjectFromSource(instanceRoot)
+                                            : null;
+
+                assetPath = rootPrefab != null ? AssetDatabase.GetAssetPath(rootPrefab) : string.Empty;
             }
 
-            if (!string.IsNullOrEmpty(assetPath))
+            if (string.IsNullOrEmpty(assetPath))
             {
-                // Try to get GUID from asset path, checking if path is valid. Otherwise return null.
-
-                // Check if all zeroes, which means invalid guid.
-
-                prefabGuid = AssetDatabase.GUIDFromAssetPath(assetPath).ToString();
-                prefabGuid = string.IsNullOrEmpty(prefabGuid) || prefabGuid.All(c => c == '0') ? null : prefabGuid;
-                return true;
+                return false;
             }
 
-            return false;
+            string guid = AssetDatabase.GUIDFromAssetPath(assetPath).ToString();
+
+            if (string.IsNullOrEmpty(guid) || guid.All(c => c == '0'))
+            {
+                return false;
+            }
+
+            prefabGuid = guid;
+            return true;
         }
 
 #endif
@@ -196,10 +269,10 @@ namespace UltimateXR.Extensions.Unity
         /// <returns>Whether the object appears to be dynamic</returns>
         public static bool IsDynamic(this GameObject self)
         {
-            return self.GetComponentInParent<Rigidbody>() != null ||
+            return self.GetComponentInParent<Rigidbody>()           != null ||
                    self.GetComponentInParent<SkinnedMeshRenderer>() != null ||
-                   self.GetComponentInParent<UxrAvatar>() != null ||
-                   self.GetComponentInParent<UxrGrabbableObject>() != null;
+                   self.GetComponentInParent<UxrAvatar>()           != null ||
+                   self.GetComponentInParent<UxrGrabbableObject>()  != null;
         }
 
         /// <summary>
@@ -312,15 +385,15 @@ namespace UltimateXR.Extensions.Unity
                 return new Bounds(self.transform.position, Vector3.zero);
             }
 
-            IEnumerable<Renderer> renderers = self.GetComponentsInChildren<Renderer>().Where(r => !r.hideFlags.HasFlag(HideFlags.HideInHierarchy) && r.enabled);
+            List<Renderer> renderers = self.GetComponentsInChildren<Renderer>().Where(r => !r.hideFlags.HasFlag(HideFlags.HideInHierarchy) && r.enabled).ToList();
 
             if (!renderers.Any())
             {
                 return new Bounds(self.transform.position, Vector3.zero);
             }
 
-            Vector3 min = Vector3Ext.Min(renderers.Select(r => r.bounds.min));
-            Vector3 max = Vector3Ext.Max(renderers.Select(r => r.bounds.max));
+            Vector3 min = Vector3Ext.Min(renderers.Select(r => r.bounds.min).ToList());
+            Vector3 max = Vector3Ext.Max(renderers.Select(r => r.bounds.max).ToList());
 
             return new Bounds((max + min) * 0.5f, max - min);
         }
@@ -354,16 +427,16 @@ namespace UltimateXR.Extensions.Unity
                 return new Bounds();
             }
 
-            IEnumerable<Renderer> renderers = self.GetComponentsInChildren<Renderer>().Where(r => !r.hideFlags.HasFlag(HideFlags.HideInHierarchy) && r.enabled);
+            List<Renderer> renderers = self.GetComponentsInChildren<Renderer>().Where(r => !r.hideFlags.HasFlag(HideFlags.HideInHierarchy) && r.enabled).ToList();
 
             if (!renderers.Any())
             {
                 return new Bounds();
             }
 
-            IEnumerable<Vector3> allMinMaxToLocal = renderers.Select(r => self.transform.InverseTransformPoint(r.transform.TransformPoint(r.localBounds.min))).Concat(renderers.Select(r => self.transform.InverseTransformPoint(r.transform.TransformPoint(r.localBounds.max))));
-            Vector3              min              = Vector3Ext.Min(allMinMaxToLocal);
-            Vector3              max              = Vector3Ext.Max(allMinMaxToLocal);
+            List<Vector3> allMinMaxToLocal = renderers.Select(r => self.transform.InverseTransformPoint(r.transform.TransformPoint(r.localBounds.min))).Concat(renderers.Select(r => self.transform.InverseTransformPoint(r.transform.TransformPoint(r.localBounds.max)))).ToList();
+            Vector3       min              = Vector3Ext.Min(allMinMaxToLocal);
+            Vector3       max              = Vector3Ext.Max(allMinMaxToLocal);
 
             return new Bounds((max + min) * 0.5f, max - min);
         }
@@ -373,17 +446,22 @@ namespace UltimateXR.Extensions.Unity
         /// </summary>
         /// <param name="self">The root GameObject from where to start</param>
         /// <param name="layer">The layer value to assign</param>
-        public static void SetLayerRecursively(this GameObject self, int layer)
+        /// <param name="ignoreLayers">Optional array of layers to ignore</param>
+        public static void SetLayerRecursively(this GameObject self, int layer, params int[] ignoreLayers)
         {
             if (self != null)
             {
-                Transform selfTransform = self.transform;
+                Transform selfTransform     = self.transform;
+                bool      shouldIgnoreLayer = ignoreLayers != null && ignoreLayers.Contains(self.gameObject.layer);
 
-                self.gameObject.layer = layer;
+                if (!shouldIgnoreLayer)
+                {
+                    self.gameObject.layer = layer;
+                }
 
                 for (int i = 0; i < selfTransform.childCount; ++i)
                 {
-                    SetLayerRecursively(selfTransform.GetChild(i).gameObject, layer);
+                    selfTransform.GetChild(i).gameObject.SetLayerRecursively(layer);
                 }
             }
         }

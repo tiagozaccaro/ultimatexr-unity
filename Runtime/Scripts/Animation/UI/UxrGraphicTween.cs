@@ -12,7 +12,6 @@ namespace UltimateXR.Animation.UI
     ///     Abstract base class for tweening animations on Unity <see cref="Graphic" /> components.
     /// </summary>
     [RequireComponent(typeof(Graphic))]
-    [DisallowMultipleComponent]
     public abstract class UxrGraphicTween : UxrTween
     {
         #region Public Types & Data

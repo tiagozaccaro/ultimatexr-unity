@@ -143,10 +143,10 @@ namespace UltimateXR.Networking.Integrations.Net.PhotonFusion
                 avatarNetworkObject.AssignSerializedProperty("DestroyWhenStateAuthorityLeaves", p => p.boolValue = true);
             }
 
-            IEnumerable<Behaviour> rigComponents       = SetupNetworkTransform(networkRig,       true, UxrNetworkTransformFlags.ChildAll);
-            IEnumerable<Behaviour> cameraComponents    = SetupNetworkTransform(networkCamera,    true, UxrNetworkTransformFlags.ChildPositionAndRotation);
-            IEnumerable<Behaviour> leftHandComponents  = SetupNetworkTransform(networkHandLeft,  true, UxrNetworkTransformFlags.ChildPositionAndRotation);
-            IEnumerable<Behaviour> rightHandComponents = SetupNetworkTransform(networkHandRight, true, UxrNetworkTransformFlags.ChildPositionAndRotation);
+            List<Behaviour> rigComponents       = SetupNetworkTransform(networkRig,       true, UxrNetworkTransformFlags.ChildAll);
+            List<Behaviour> cameraComponents    = SetupNetworkTransform(networkCamera,    true, UxrNetworkTransformFlags.ChildPositionAndRotation);
+            List<Behaviour> leftHandComponents  = SetupNetworkTransform(networkHandLeft,  true, UxrNetworkTransformFlags.ChildPositionAndRotation);
+            List<Behaviour> rightHandComponents = SetupNetworkTransform(networkHandRight, true, UxrNetworkTransformFlags.ChildPositionAndRotation);
 
             newComponents.AddRange(new[] { avatarNetworkObject }.Concat(rigComponents).Concat(cameraComponents).Concat(leftHandComponents).Concat(rightHandComponents));
             newGameObjects.AddRange(new[] { networkHandLeft, networkHandRight, networkCamera, networkRig });
@@ -158,43 +158,47 @@ namespace UltimateXR.Networking.Integrations.Net.PhotonFusion
         }
 
         /// <inheritdoc />
-        public override void SetupPostProcess(IEnumerable<UxrAvatar> avatarPrefabs)
+        public override void SetupPostProcess(List<UxrAvatar> avatarPrefabs)
         {
             
         }
 
         /// <inheritdoc />
-        public override IEnumerable<Behaviour> AddNetworkTransform(GameObject gameObject, bool worldSpace, UxrNetworkTransformFlags networkTransformFlags)
+        public override List<Behaviour> AddNetworkTransform(GameObject gameObject, bool worldSpace, UxrNetworkTransformFlags networkTransformFlags)
         {
+            List<Behaviour> newComponents = new List<Behaviour>();
+
 #if ULTIMATEXR_USE_PHOTONFUSION_SDK && UNITY_EDITOR
             if (networkTransformFlags.HasFlag(UxrNetworkTransformFlags.ChildTransform) == false)
             {
                 NetworkObject networkObject = gameObject.GetOrAddComponent<NetworkObject>();
-                yield return networkObject;
+                newComponents.Add(networkObject);
             }
 
             NetworkTransform networkTransform = gameObject.GetOrAddComponent<NetworkTransform>();
             networkTransform.InterpolationSpace = worldSpace ? Spaces.World : Spaces.Local;
-            yield return networkTransform;
-#else
-            yield break;
+            newComponents.Add(networkTransform);
 #endif
+
+            return newComponents;
         }
 
         /// <inheritdoc />
-        public override IEnumerable<Behaviour> AddNetworkRigidbody(GameObject gameObject, bool worldSpace, UxrNetworkRigidbodyFlags networkRigidbodyFlagsFlags)
+        public override List<Behaviour> AddNetworkRigidbody(GameObject gameObject, bool worldSpace, UxrNetworkRigidbodyFlags networkRigidbodyFlagsFlags)
         {
+            List<Behaviour> newComponents = new List<Behaviour>();
+
 #if ULTIMATEXR_USE_PHOTONFUSION_SDK && UNITY_EDITOR
             NetworkObject    networkObject    = gameObject.GetOrAddComponent<NetworkObject>();
             NetworkRigidbody networkRigidbody = gameObject.GetOrAddComponent<NetworkRigidbody>();
 
             networkRigidbody.InterpolationSpace = worldSpace ? Spaces.World : Spaces.Local;
 
-            yield return networkObject;
-            yield return networkRigidbody;
-#else
-            yield break;
+            newComponents.Add(networkObject);
+            newComponents.Add(networkRigidbody);
 #endif
+
+            return newComponents;
         }
 
         /// <inheritdoc />

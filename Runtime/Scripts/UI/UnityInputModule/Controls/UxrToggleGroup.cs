@@ -190,7 +190,7 @@ namespace UltimateXR.UI.UnityInputModule.Controls
 
             SelectionChanged?.Invoke(toggle);
 
-            EndSyncMethod(new object[] { index, false });
+            EndSyncMethod(SyncParams(index, false));
         }
 
         #endregion

@@ -33,11 +33,11 @@ namespace UltimateXR.Devices.Integrations.HTC
         public override bool HasControllerElements(UxrHandSide handSide, UxrControllerElements controllerElements)
         {
             uint validElements = (uint)(UxrControllerElements.Joystick |
-                                        UxrControllerElements.Grip |
-                                        UxrControllerElements.Trigger |
-                                        UxrControllerElements.Button1 |
-                                        UxrControllerElements.Button2 |
-                                        UxrControllerElements.Menu |
+                                        UxrControllerElements.Grip     |
+                                        UxrControllerElements.Trigger  |
+                                        UxrControllerElements.Button1  |
+                                        UxrControllerElements.Button2  |
+                                        UxrControllerElements.Menu     |
                                         UxrControllerElements.DPad);
 
             if (handSide == UxrHandSide.Right)
@@ -51,21 +51,18 @@ namespace UltimateXR.Devices.Integrations.HTC
 
         #endregion
 
-        #region Public Overrides UxrUnityXRControllerInput
+        #region Protected Overrides UxrUnityXRControllerInput
 
         /// <inheritdoc />
-        public override IEnumerable<string> ControllerNames
+        protected override IEnumerable<string> ControllerNames
         {
             get
             {
                 yield return "WVR_CR_Left_001";
                 yield return "WVR_CR_Right_001";
+                // Uncomment when providing grip/aim pivots in controller prefabs // yield return "VIVE Focus 3 Controller OpenXR";
             }
         }
-
-        #endregion
-
-        #region Protected Overrides UxrUnityXRControllerInput
 
         /// <inheritdoc />
         protected override void UpdateInput()

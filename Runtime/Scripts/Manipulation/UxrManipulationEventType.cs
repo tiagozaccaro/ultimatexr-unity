@@ -10,6 +10,7 @@ namespace UltimateXR.Manipulation
     /// </summary>
     public enum UxrManipulationEventType
     {
+        None,
         Grab,
         Release,
         Place,

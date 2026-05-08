@@ -14,9 +14,13 @@ namespace UltimateXR.Core
             #region Public Types & Data
 
             /// <summary>
-            ///     Controls the duration of each individual haptic sample sent, and thus the iteration of each loop.
+            ///     Controls the string that appears in controller names when using OpenXR.
             /// </summary>
+            public const string OpenXR = "OpenXR";
 
+            /// <summary>
+            ///     Controls the duration of each haptic sample sent, and thus the iteration of each loop.
+            /// </summary>
             public const float HapticSampleDurationSeconds = 0.1f;
 
             #endregion

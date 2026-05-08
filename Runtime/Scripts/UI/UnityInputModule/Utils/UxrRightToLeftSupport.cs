@@ -3,6 +3,7 @@
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
+using System;
 using UltimateXR.Core.Components;
 using UltimateXR.Extensions.System.Collections;
 using UnityEngine;
@@ -39,6 +40,11 @@ namespace UltimateXR.UI.UnityInputModule.Utils
         #region Public Types & Data
 
         /// <summary>
+        ///     Event called whenever the <see cref="UseRightToLeft" /> property changed.
+        /// </summary>
+        public static event Action<bool> UseRightToLeftChanged;
+
+        /// <summary>
         ///     Sets the global right-to-left setting, changing all <see cref="UxrRightToLeftSupport" /> components.
         ///     Disabled components, or newly instantiated components, will be aligned correctly too.
         /// </summary>
@@ -48,8 +54,22 @@ namespace UltimateXR.UI.UnityInputModule.Utils
             set
             {
                 s_useRightToLeft = value;
+                UseRightToLeftChanged?.Invoke(value);
                 EnabledComponents.ForEach(c => c.SetRightToLeft(value));
             }
+        }
+
+        #endregion
+
+        #region Public Methods
+
+        /// <summary>
+        ///     Initializes the component.
+        /// </summary>
+        /// <param name="force">Whether to force initialization. This can be used to initialize using the current alignment values</param>
+        public void Initialize(bool force = false)
+        {
+            CheckInitialize(force);
         }
 
         #endregion
@@ -195,13 +215,14 @@ namespace UltimateXR.UI.UnityInputModule.Utils
         /// <summary>
         ///     Gets the component references and stores the initial values.
         /// </summary>
-        private void CheckInitialize()
+        /// <param name="force">Whether to force initialization</param>
+        private void CheckInitialize(bool force = false)
         {
-            if (_initialized)
+            if (_initialized && !force)
             {
                 return;
             }
-            
+
 #if ULTIMATEXR_UNITY_TMPRO
             _textTMPro = GetComponent<TextMeshProUGUI>();
 
@@ -316,11 +337,11 @@ namespace UltimateXR.UI.UnityInputModule.Utils
         private Image                  _fillImage;
         private int                    _fillOrigin;
 
+        #endregion
+
 #if ULTIMATEXR_UNITY_TMPRO
         private TextMeshProUGUI      _textTMPro;
         private TextAlignmentOptions _alignmentTMPro;
 #endif
-
-        #endregion
     }
 }

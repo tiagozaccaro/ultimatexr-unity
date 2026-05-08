@@ -35,9 +35,13 @@ namespace UltimateXR.Manipulation.Helpers
     /// </summary>
     public partial class UxrAutoSlideInObject : UxrGrabbableObjectComponent<UxrAutoSlideInObject>
     {
+        #region Inspector Properties/Serialized Fields
+
         [SerializeField] private Vector3 _translationConstraintMin = Vector3.zero;
         [SerializeField] private Vector3 _translationConstraintMax = Vector3.forward * 0.1f;
-                    
+
+        #endregion
+
         #region Public Types & Data
 
         /// <summary>
@@ -132,27 +136,33 @@ namespace UltimateXR.Manipulation.Helpers
         /// </summary>
         private void UxrManager_AvatarsUpdated()
         {
+            // Is it grabbed by the local avatar, and it also was the first one to grab the object?
             bool grabbedByLocalAvatar = UxrGrabManager.Instance.IsBeingGrabbed(GrabbableObject) && UxrGrabManager.Instance.GetGrabbingHands(GrabbableObject).First().Avatar.AvatarMode == UxrAvatarMode.Local;
 
             if (GrabbableObject.CurrentAnchor == null && grabbedByLocalAvatar)
             {
                 // The object is being grabbed and is detached. Check if we need to place it on an anchor again by proximity.
 
-                foreach (UxrAutoSlideInAnchor anchor in UxrAutoSlideInAnchor.EnabledComponents.Where(a => a.Anchor.enabled))
+                for (int i = 0; i < UxrAutoSlideInAnchor.AllComponents.Count; i++)
                 {
-                    // If it is inside the valid release "volume", place it in the anchor again and let it slide by re-assigning the constraints
+                    UxrAutoSlideInAnchor anchor = UxrAutoSlideInAnchor.AllComponents[i];
 
-                    if (anchor.Anchor.CurrentPlacedObject == null && anchor.Anchor.IsCompatibleObject(GrabbableObject) && IsObjectNearPlacement(anchor.Anchor))
+                    if (anchor != null && anchor.isActiveAndEnabled)
                     {
-                        AttachObject(anchor);
-                        return;
+                        // If it is inside the valid release "volume", place it in the anchor again and let it slide by re-assigning the constraints
+
+                        if (anchor.Anchor.CurrentPlacedObject == null && anchor.Anchor.IsCompatibleObject(GrabbableObject) && IsObjectNearPlacement(anchor.Anchor))
+                        {
+                            AttachObject(anchor);
+                            return;
+                        }
                     }
                 }
             }
 
-            if (GrabbableObject.CurrentAnchor != null && _insertAxis != null)
+            if (GrabbableObject.CurrentAnchor != null)
             {
-                // Object can only move in a specific axis but if it is grabbed past this distance it becomes free
+                // Object can only move in a specific axis, but if it is grabbed past this distance, it becomes free
 
                 if (transform.parent != null && grabbedByLocalAvatar && Mathf.Abs(GrabbableObject.InitialLocalPosition[_insertAxis] - transform.localPosition[_insertAxis]) > _insertOffset * 0.99f)
                 {
@@ -160,7 +170,7 @@ namespace UltimateXR.Manipulation.Helpers
                     return;
                 }
 
-                // If it is not being grabbed it will slide in
+                // If it is not being grabbed, it will slide in
 
                 if (!GrabbableObject.IsBeingGrabbed)
                 {
@@ -175,7 +185,7 @@ namespace UltimateXR.Manipulation.Helpers
                     {
                         pos[_insertAxis] = GrabbableObject.InitialLocalPosition[_insertAxis];
 
-                        if (_placedAfterSlidingIn == false)
+                        if (!_placedAfterSlidingIn)
                         {
                             _placedAfterSlidingIn = true;
                             OnPlacedAfterSlidingIn();
@@ -186,9 +196,9 @@ namespace UltimateXR.Manipulation.Helpers
 
                     float smooth = 0.1f;
 
-                    pos[_insertAxis.Perpendicular]          = UxrInterpolator.SmoothDamp(pos[_insertAxis.Perpendicular],      GrabbableObject.InitialLocalPosition[_insertAxis.Perpendicular],      smooth);
-                    pos[_insertAxis.OtherPerpendicular]     = UxrInterpolator.SmoothDamp(pos[_insertAxis.OtherPerpendicular], GrabbableObject.InitialLocalPosition[_insertAxis.OtherPerpendicular], smooth);
-                    GrabbableObject.transform.localRotation = UxrInterpolator.SmoothDampRotation(GrabbableObject.transform.localRotation, GrabbableObject.InitialLocalRotation, smooth);
+                    pos[_insertAxis.PerpendicularAsInt]      = UxrInterpolator.SmoothDamp(pos[_insertAxis.PerpendicularAsInt],      GrabbableObject.InitialLocalPosition[_insertAxis.PerpendicularAsInt],      smooth);
+                    pos[_insertAxis.OtherPerpendicularAsInt] = UxrInterpolator.SmoothDamp(pos[_insertAxis.OtherPerpendicularAsInt], GrabbableObject.InitialLocalPosition[_insertAxis.OtherPerpendicularAsInt], smooth);
+                    GrabbableObject.transform.localRotation  = UxrInterpolator.SmoothDampRotation(GrabbableObject.transform.localRotation, GrabbableObject.InitialLocalRotation, smooth);
 
                     // Update
 
@@ -276,7 +286,7 @@ namespace UltimateXR.Manipulation.Helpers
                 _manipulationHapticFeedback.MaxAmplitude = _maxHapticAmplitude;
             }
 
-            EndSyncMethod(new object[] { anchor });
+            EndSyncMethod(SyncParams(anchor));
         }
 
         /// <summary>
@@ -313,7 +323,7 @@ namespace UltimateXR.Manipulation.Helpers
         /// <returns>Whether the object is close enough</returns>
         private bool IsObjectNearPlacement(UxrGrabbableObjectAnchor anchor)
         {
-            if (anchor.enabled == false)
+            if (!anchor.enabled)
             {
                 return false;
             }
@@ -342,12 +352,12 @@ namespace UltimateXR.Manipulation.Helpers
 
             // We use some calculations for the other axes so that it feels good.
 
-            float sizeOneAxis   = Mathf.Min(Mathf.Max(_objectLocalSize[_insertAxis.Perpendicular],      0.1f), minGrabDistance);
-            float sizeOtherAxis = Mathf.Min(Mathf.Max(_objectLocalSize[_insertAxis.OtherPerpendicular], 0.1f), minGrabDistance);
+            float sizeOneAxis   = Mathf.Min(Mathf.Max(_objectLocalSize[_insertAxis.PerpendicularAsInt],      0.1f), minGrabDistance);
+            float sizeOtherAxis = Mathf.Min(Mathf.Max(_objectLocalSize[_insertAxis.OtherPerpendicularAsInt], 0.1f), minGrabDistance);
 
             // Return conditions
 
-            return isInLongitudinalAxisRange && Mathf.Abs(localOffset[_insertAxis.Perpendicular]) < sizeOneAxis && Mathf.Abs(localOffset[_insertAxis.OtherPerpendicular]) < sizeOtherAxis;
+            return isInLongitudinalAxisRange && Mathf.Abs(localOffset[_insertAxis.PerpendicularAsInt]) < sizeOneAxis && Mathf.Abs(localOffset[_insertAxis.OtherPerpendicularAsInt]) < sizeOtherAxis;
         }
 
         #endregion

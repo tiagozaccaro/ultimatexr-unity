@@ -286,6 +286,11 @@ namespace UltimateXR.CameraUtils
         /// </summary>
         private void UxrManager_AvatarsUpdated()
         {
+            if (_camera != null)
+            {
+                _quadObject.transform.localPosition = Vector3.forward * (_camera.nearClipPlane + QuadDistanceToNear);
+            }
+
             if (Avatar.AvatarMode == UxrAvatarMode.UpdateExternally)
             {
                 DrawFade = false;
@@ -352,7 +357,7 @@ namespace UltimateXR.CameraUtils
         {
             _quadObject = new GameObject("Fade");
             _quadObject.transform.SetParent(transform);
-            _quadObject.transform.localPosition    = Vector3.forward * (_camera.nearClipPlane + 0.01f);
+            _quadObject.transform.localPosition    = Vector3.forward * (_camera.nearClipPlane + QuadDistanceToNear);
             _quadObject.transform.localEulerAngles = new Vector3(0.0f, 180.0f, 0.0f);
             _quadObject.layer                      = _quadLayer;
 
@@ -403,6 +408,8 @@ namespace UltimateXR.CameraUtils
                 }
             }
         }
+        
+        private const float QuadDistanceToNear = 0.01f;
 
         private Color      _fadeColor = Color.black;
         private bool       _initialized;

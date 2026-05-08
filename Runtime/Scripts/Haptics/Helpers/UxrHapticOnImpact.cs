@@ -76,7 +76,38 @@ namespace UltimateXR.Haptics.Helpers
             if (rigidbody != null)
             {
                 rigidbody.AddForceAtPosition(eventArgs.Velocity.normalized * force, eventArgs.HitInfo.point);
-                rigidbody.AddTorque(eventArgs.Velocity.normalized * force, ForceMode.Impulse);
+                rigidbody.AddTorque(eventArgs.Velocity.normalized          * force, ForceMode.Impulse);
+            }
+        }
+
+        /// <summary>
+        ///     Performs a hit, so that it also can be called externally.
+        /// </summary>
+        /// <param name="hitInfo">The result of a raycast hit against the surface</param>
+        /// <param name="forceT">Normalized impact force [0.0, 1.0]</param>
+        /// <param name="velocity">The impact velocity</param>
+        /// <param name="forwardVelocityAngle">The angle between the hit forward vector and the velocity</param>
+        /// <param name="angle">The angle between the hit forward vector and the inverted surface normal</param>
+        public void PerformHit(RaycastHit hitInfo, float forceT, Vector3 velocity, float forwardVelocityAngle, float angle)
+        {
+            UxrHapticImpactEventArgs eventArgs = new UxrHapticImpactEventArgs(hitInfo, forceT, velocity, forwardVelocityAngle, angle);
+
+            // Apply physics to the other object if it is dynamic
+            Rigidbody otherRigidbody = hitInfo.collider.GetComponent<Rigidbody>();
+
+            if (otherRigidbody && !otherRigidbody.isKinematic)
+            {
+                ApplyBreakExplosionForce(otherRigidbody, eventArgs, Mathf.Lerp(_minHitForce, _maxHitForce, eventArgs.ForceT));
+            }
+
+            OnHit(eventArgs);
+
+            // Check if there is a receiver component to send the event
+            UxrHapticImpactReceiver receiver = hitInfo.collider.GetComponentInParent<UxrHapticImpactReceiver>();
+
+            if (receiver)
+            {
+                receiver.OnHit(this, eventArgs);
             }
         }
 
@@ -197,20 +228,7 @@ namespace UltimateXR.Haptics.Helpers
                         // Below thresholds to trigger event?
                         if (forwardVelocityAngle <= _forwardAngleThreshold && surfaceAngle <= _surfaceAngleThreshold)
                         {
-                            // Yes
-                            UxrHapticImpactEventArgs eventArgs = new UxrHapticImpactEventArgs(hitInfo,
-                                                                                              forceT,
-                                                                                              hitPointInfo.Velocity,
-                                                                                              forwardVelocityAngle,
-                                                                                              Vector3.Angle(hitPointInfo.HitPoint.forward, -hitInfo.normal));
-
-                            // Apply physics to the other object if it is dynamic
-                            Rigidbody otherRigidbody = hitInfo.collider.GetComponent<Rigidbody>();
-
-                            if (otherRigidbody && !otherRigidbody.isKinematic)
-                            {
-                                ApplyBreakExplosionForce(otherRigidbody, eventArgs, Mathf.Lerp(_minHitForce, _maxHitForce, eventArgs.ForceT));
-                            }
+                            PerformHit(hitInfo, forceT, hitPointInfo.Velocity, forwardVelocityAngle, Vector3.Angle(hitPointInfo.HitPoint.forward, -hitInfo.normal));
 
                             // Send haptic feedback
                             if (UxrAvatar.LocalAvatarInput)
@@ -227,16 +245,6 @@ namespace UltimateXR.Haptics.Helpers
                                 {
                                     UxrAvatar.LocalAvatarInput.SendHapticFeedback(UxrHandSide.Right, _hapticClip, amplitude, duration, _hapticMode);
                                 }
-
-                                OnHit(eventArgs);
-                            }
-
-                            // Check if there is a receiver component to send the event
-                            UxrHapticImpactReceiver receiver = hitInfo.collider.GetComponentInParent<UxrHapticImpactReceiver>();
-
-                            if (receiver)
-                            {
-                                receiver.OnHit(this, eventArgs);
                             }
                         }
                     }

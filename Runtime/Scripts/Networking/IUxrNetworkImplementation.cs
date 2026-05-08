@@ -5,6 +5,7 @@
 // --------------------------------------------------------------------------------------------------------------------
 using System.Collections.Generic;
 using UltimateXR.Avatar;
+using UltimateXR.Manipulation;
 using UnityEngine;
 
 namespace UltimateXR.Networking
@@ -64,9 +65,9 @@ namespace UltimateXR.Networking
 
         /// <summary>
         ///     Called after the setup finished. At this point the modifications on the avatar prefabs have been applied.
-        ///     This can be used to fill a list of spawnable prefabs which is a common requirement in networking SDKs.
+        ///     This can be used to fill a spawnable prefab list, which is a common requirement in networking SDKs.
         /// </summary>
-        void SetupPostProcess(IEnumerable<UxrAvatar> avatarPrefabs);
+        void SetupPostProcess(List<UxrAvatar> avatarPrefabs);
 
         /// <summary>
         ///     Adds network synchronization functionality to a <see cref="Transform" />.
@@ -75,7 +76,7 @@ namespace UltimateXR.Networking
         /// <param name="worldSpace">Whether to synchronize world space coordinates (true) or local space (false)</param>
         /// <param name="networkTransformFlags">Which elements to synchronize</param>
         /// <returns>List of components that were added</returns>
-        IEnumerable<Behaviour> AddNetworkTransform(GameObject gameObject, bool worldSpace, UxrNetworkTransformFlags networkTransformFlags);
+        List<Behaviour> AddNetworkTransform(GameObject gameObject, bool worldSpace, UxrNetworkTransformFlags networkTransformFlags);
 
         /// <summary>
         ///     Adds network synchronization functionality to a <see cref="Rigidbody" />.
@@ -84,7 +85,7 @@ namespace UltimateXR.Networking
         /// <param name="worldSpace">Whether to synchronize world space coordinates (true) or local space (false)</param>
         /// <param name="networkRigidbodyFlags">Options</param>
         /// <returns>List of components that were added</returns>
-        IEnumerable<Behaviour> AddNetworkRigidbody(GameObject gameObject, bool worldSpace, UxrNetworkRigidbodyFlags networkRigidbodyFlags);
+        List<Behaviour> AddNetworkRigidbody(GameObject gameObject, bool worldSpace, UxrNetworkRigidbodyFlags networkRigidbodyFlags);
 
         /// <summary>
         ///     Enables or disables a network transform component.
@@ -115,7 +116,7 @@ namespace UltimateXR.Networking
         /// <summary>
         ///     Checks if an object that is being grabbed is missing a client authority, and assigns a new avatar as authority.
         /// </summary>
-        /// <param name="gameObject">The GameObject with a <see cref="UxrGrabbableOBject" /> component</param>
+        /// <param name="gameObject">The GameObject with a <see cref="UxrGrabbableObject" /> component</param>
         void CheckReassignGrabAuthority(GameObject gameObject);
 
         /// <summary>

@@ -211,12 +211,12 @@ namespace UltimateXR.Core.Serialization
         }
 
         /// <inheritdoc />
-        public void SerializeUniqueComponent(ref IUxrUniqueId unique)
+        public void SerializeUniqueIdComponent(ref IUxrUniqueId unique)
         {
         }
 
         /// <inheritdoc />
-        public void SerializeUniqueComponent<T>(ref T component) where T : Component, IUxrUniqueId
+        public void SerializeUniqueIdComponent<T>(ref T component) where T : Component, IUxrUniqueId
         {
         }
 

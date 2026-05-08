@@ -3,18 +3,14 @@
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
+using UltimateXR.Extensions.Unity;
 using UnityEngine;
 #if ULTIMATEXR_USE_UNITY_NETCODE
 using System;
-using System.Collections.Generic;
 using UltimateXR.Avatar;
 using UltimateXR.Core;
 using UltimateXR.Core.Settings;
-using UltimateXR.Core.StateSave;
 using UltimateXR.Core.StateSync;
-using UltimateXR.Extensions.System;
-using UltimateXR.Extensions.System.Collections;
-using UltimateXR.Core.Instantiation;
 using Unity.Netcode;
 #endif
 
@@ -23,57 +19,70 @@ namespace UltimateXR.Networking.Integrations.Net.UnityNetCode
 #if ULTIMATEXR_USE_UNITY_NETCODE
     public class UxrUnityNetCodeAvatar : NetworkBehaviour, IUxrNetworkAvatar
     {
-        #region Inspector Properties/Serialized Fields
-
-        [Tooltip("List of objects that will be disabled when the avatar is in local mode, to avoid intersections with the camera for example")] [SerializeField] private List<GameObject> _localDisabledGameObjects;
-
-        #endregion
-
         #region Implicit IUxrNetworkAvatar
 
         /// <inheritdoc />
-        public IList<GameObject> LocalDisabledGameObjects => _localDisabledGameObjects;
+        public bool IsInitialized => _implementer.IsInitialized;
 
         /// <inheritdoc />
-        public bool IsLocal { get; private set; }
+        public bool IsLocal => _implementer.IsLocal;
 
         /// <inheritdoc />
-        public UxrAvatar Avatar { get; private set; }
+        public UxrAvatar Avatar => _implementer.Avatar;
 
         /// <inheritdoc />
         public string AvatarName
         {
-            get => _avatarName;
-            set
-            {
-                _avatarName = value;
-
-                if (Avatar != null)
-                {
-                    Avatar.name = value;
-                }
-            }
+            get => _implementer.AvatarName;
+            set => _implementer.AvatarName = value;
         }
 
         /// <inheritdoc />
-        public event Action AvatarSpawned;
+        public bool UsesDummyNetworkTransforms => false;
 
         /// <inheritdoc />
-        public event Action AvatarDespawned;
-
-        /// <inheritdoc />
-        public void InitializeNetworkAvatar(UxrAvatar avatar, bool isLocal, string uniqueId, string avatarName)
+        public event Action AvatarSpawned
         {
-            IsLocal           = isLocal;
-            AvatarName        = avatarName;
-            avatar.AvatarMode = isLocal ? UxrAvatarMode.Local : UxrAvatarMode.UpdateExternally;
+            add => _implementer.AvatarSpawned += value;
+            remove => _implementer.AvatarSpawned -= value;
+        }
 
-            if (isLocal)
+        /// <inheritdoc />
+        public event Action AvatarDespawned
+        {
+            add => _implementer.AvatarDespawned += value;
+            remove => _implementer.AvatarDespawned -= value;
+        }
+
+        /// <inheritdoc />
+        public bool ChangeParent(Transform child, Transform parent)
+        {
+            if (child == null)
             {
-                LocalDisabledGameObjects.ForEach(o => o.SetActive(false));
+                return false;
             }
 
-            avatar.CombineUniqueId(uniqueId.GetGuid(), true);
+            NetworkObject childNo = child.GetComponent<NetworkObject>();
+            if (childNo == null)
+            {
+                return false;
+            }
+
+            NetworkObject parentNo = parent ? parent.GetComponent<NetworkObject>() : null;
+
+            // If the parent is null, send default(NOR) which the ServerRpc interprets as "remove parent"
+            NetworkObjectReference parentRef = parentNo ? new NetworkObjectReference(parentNo) : default;
+
+            if (parent != null && parentNo == null)
+            {
+                if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Warnings)
+                {
+                    Debug.LogWarning($"{UxrConstants.NetworkingModule} {nameof(UxrUnityNetCodeAvatar)}.{nameof(ChangeParent)}() Parent GameObject doesn't have a {nameof(NetworkObject)} component. {child.GetPathUnderScene()} will be de-parented.");
+                }
+            }
+
+            ChangeParentServerRpc(new NetworkObjectReference(childNo), parentRef);
+            return true;
         }
 
         #endregion
@@ -100,25 +109,7 @@ namespace UltimateXR.Networking.Integrations.Net.UnityNetCode
         /// <param name="eventArgs">Event parameters</param>
         private void UxrManager_ComponentStateChanged(IUxrStateSync component, UxrSyncEventArgs eventArgs)
         {
-            if (!IsOwner)
-            {
-                return;
-            }
-
-            if (eventArgs.Options.HasFlag(UxrStateSyncOptions.Network))
-            {
-                byte[] serializedEvent = eventArgs.SerializeEventBinary(component);
-
-                if (serializedEvent != null)
-                {
-                    if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Verbose)
-                    {
-                        Debug.Log($"{UxrConstants.NetworkingModule} Sending {serializedEvent.Length} bytes from {component.Component.name} ({component.UniqueId}) {eventArgs}");
-                    }
-
-                    ComponentStateChangedServerRpc(serializedEvent);
-                }
-            }
+            _implementer.HandleComponentStateChanged(component, eventArgs, IsOwner && Avatar.AvatarMode == UxrAvatarMode.Local, sendRpc: ComponentStateChangedServerRpc);
         }
 
         #endregion
@@ -128,64 +119,19 @@ namespace UltimateXR.Networking.Integrations.Net.UnityNetCode
         /// <inheritdoc />
         public override void OnNetworkSpawn()
         {
-            Avatar = GetComponent<UxrAvatar>();
-
-            InitializeNetworkAvatar(Avatar, IsOwner, OwnerClientId.ToString(), $"Player {OwnerClientId} ({(IsOwner ? "Local" : "External")})");
-
-            if (IsOwner)
-            {
-                UxrManager.ComponentStateChanged += UxrManager_ComponentStateChanged;
-            }
-
-            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Relevant)
-            {
-                Debug.Log($"{UxrConstants.NetworkingModule} {nameof(UxrUnityNetCodeAvatar)}.{nameof(OnNetworkSpawn)}: Is Local? {IsLocal}, Name: {AvatarName}. OwnerClientId: {OwnerClientId}, UniqueId: {Avatar.UniqueId}.");
-            }
-
-            AvatarSpawned?.Invoke();
-
-            if (UxrInstanceManager.HasInstance)
-            {
-                UxrInstanceManager.Instance.NotifyNetworkSpawn(Avatar.gameObject);
-            }
-
-            if (IsOwner)
-            {
-                if (!IsServer)
-                {
-                    byte[] localAvatarState = UxrManager.Instance.SaveStateChanges(new List<GameObject> { Avatar.gameObject }, null, UxrStateSaveLevel.ChangesSinceBeginning, UxrGlobalSettings.Instance.NetFormatInitialState);
-
-                    if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Relevant)
-                    {
-                        Debug.Log($"{UxrConstants.NetworkingModule} Requesting global state and sending local avatar state in {localAvatarState.Length} bytes.");
-                    }
-
-                    // Send the initial avatar state to the server and request the current scene state.  
-                    // Call after AvatarSpawned() in case any event handler changes the avatar state.
-                    NewAvatarJoinedServerRpc(localAvatarState);
-                }
-                else
-                {
-                    // Server creates the session and doesn't need to send the initial state.
-                    s_initialStateLoaded = true;
-                }
-            }
+            _implementer.HandleSpawn(IsOwner,
+                                     IsServer,
+                                     OwnerClientId.ToString(),
+                                     $"Player {OwnerClientId} ({(IsOwner ? "Local" : "External")})",
+                                     nameof(UxrUnityNetCodeAvatar) + "." + nameof(OnNetworkSpawn),
+                                     sendNewAvatarJoined: data => NewAvatarJoinedServerRpc(data),
+                                     componentStateChangedHandler: UxrManager_ComponentStateChanged);
         }
 
         /// <inheritdoc />
         public override void OnNetworkDespawn()
         {
-            if (Avatar && IsOwner)
-            {
-                UxrManager.ComponentStateChanged -= UxrManager_ComponentStateChanged;
-            }
-
-            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Relevant)
-            {
-                Debug.Log($"{UxrConstants.NetworkingModule} {nameof(UxrUnityNetCodeAvatar)}.{nameof(OnNetworkDespawn)}: Is Local? {IsLocal}, Name: {AvatarName}");
-            }
-
-            AvatarDespawned?.Invoke();
+            _implementer.HandleDespawn($"{nameof(UxrUnityNetCodeAvatar)}.{nameof(OnNetworkDespawn)}");
         }
 
         #endregion
@@ -200,30 +146,15 @@ namespace UltimateXR.Networking.Integrations.Net.UnityNetCode
         [ServerRpc]
         private void NewAvatarJoinedServerRpc(byte[] avatarState, ServerRpcParams serverRpcParams = default)
         {
-            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Verbose)
-            {
-                Debug.Log($"{UxrConstants.NetworkingModule} Received request for global state from client {serverRpcParams.Receive.SenderClientId}.");
-            }
-
-            // First load the avatar state
-            UxrManager.Instance.LoadStateChanges(avatarState);
-
-            // Now export the scenario state, except for the new avatar, and send it back
-            byte[] serializedState = UxrManager.Instance.SaveStateChanges(null, new List<GameObject> { gameObject }, UxrStateSaveLevel.ChangesSinceBeginning, UxrGlobalSettings.Instance.NetFormatInitialState);
-
-            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Verbose)
-            {
-                Debug.Log($"{UxrConstants.NetworkingModule} Sending global state in {serializedState.Length} bytes to client {serverRpcParams.Receive.SenderClientId}. Broadcasting {avatarState.Length} bytes to sync new avatar.");
-            }
+            byte[] serializedState = _implementer.HandleNewAvatarJoined(avatarState, serverRpcParams.Receive.SenderClientId.ToString(), gameObject);
 
             // Send global state to new user.
-
             ClientRpcParams clientRpcParams = new ClientRpcParams
                                               {
-                                                          Send = new ClientRpcSendParams
-                                                                 {
-                                                                             TargetClientIds = new[] { serverRpcParams.Receive.SenderClientId }
-                                                                 }
+                                                  Send = new ClientRpcSendParams
+                                                         {
+                                                             TargetClientIds = new[] { serverRpcParams.Receive.SenderClientId }
+                                                         }
                                               };
             LoadGlobalStateClientRpc(serializedState, clientRpcParams);
 
@@ -268,20 +199,63 @@ namespace UltimateXR.Networking.Integrations.Net.UnityNetCode
         }
 
         /// <summary>
-        ///     Targeted client RPC to client that joined to sync to the current state.
+        ///     Server RPC that updates the parent of a specified child network object on the server side.
+        ///     If the parent reference is null, the child's parent is removed.
+        /// </summary>
+        /// <param name="childRef">Reference to the child NetworkObject whose parent is being changed.</param>
+        /// <param name="parentRef">Reference to the new parent NetworkObject. Pass default if removing the parent.</param>
+        [ServerRpc]
+        private void ChangeParentServerRpc(NetworkObjectReference childRef, NetworkObjectReference parentRef)
+        {
+            if (!childRef.TryGet(out NetworkObject childNo) || childNo == null)
+            {
+                if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Errors)
+                {
+                    Debug.LogError($"{UxrConstants.NetworkingModule} {nameof(UxrUnityNetCodeAvatar)}.{nameof(ChangeParentServerRpc)}() Cannot find target network object for child.");
+                }
+
+                return;
+            }
+
+            if (!childNo.IsSpawned)
+            {
+                if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Errors)
+                {
+                    Debug.LogError($"{UxrConstants.NetworkingModule} {nameof(UxrUnityNetCodeAvatar)}.{nameof(ChangeParentServerRpc)}() child NetworkObject is not spawned.");
+                }
+
+                return;
+            }
+
+            if (!parentRef.TryGet(out NetworkObject parentNo) || parentNo == null)
+            {
+                // No parent => remove parent
+                childNo.TryRemoveParent();
+                return;
+            }
+
+            if (!parentNo.IsSpawned)
+            {
+                if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Errors)
+                {
+                    Debug.LogError($"{UxrConstants.NetworkingModule} {nameof(UxrUnityNetCodeAvatar)}.{nameof(ChangeParentServerRpc)}() parent NetworkObject is not spawned.");
+                }
+
+                return;
+            }
+
+            childNo.TrySetParent(parentNo);
+        }
+
+        /// <summary>
+        ///     Targeted client RPC to a client that joined to sync to the current state.
         /// </summary>
         /// <param name="serializedStateData">The serialized state data</param>
         /// <param name="clientRpcParams">Target of the RPC</param>
         [ClientRpc]
         private void LoadGlobalStateClientRpc(byte[] serializedStateData, ClientRpcParams clientRpcParams = default)
         {
-            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Verbose)
-            {
-                Debug.Log($"{UxrConstants.NetworkingModule} Receiving {serializedStateData.Length} bytes of global state data.");
-            }
-
-            UxrManager.Instance.LoadStateChanges(serializedStateData);
-            s_initialStateLoaded = true;
+            _implementer.LoadSyncOnJoinState(serializedStateData);
         }
 
         /// <summary>
@@ -291,18 +265,7 @@ namespace UltimateXR.Networking.Integrations.Net.UnityNetCode
         [ClientRpc]
         private void LoadAvatarStateClientRpc(byte[] serializedStateData)
         {
-            if (IsOwner)
-            {
-                // Don't execute on the source of the event, we don't want to load our own avatar data.
-                return;
-            }
-
-            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Verbose)
-            {
-                Debug.Log($"{UxrConstants.NetworkingModule} Receiving {serializedStateData.Length} bytes of avatar state data.");
-            }
-
-            UxrManager.Instance.LoadStateChanges(serializedStateData);
+            _implementer.LoadJoinedAvatarState(serializedStateData);
         }
 
         /// <summary>
@@ -313,38 +276,31 @@ namespace UltimateXR.Networking.Integrations.Net.UnityNetCode
         [ClientRpc]
         private void ComponentStateChangedClientRpc(byte[] serializedEventData)
         {
-            if (IsOwner)
-            {
-                // Don't execute on the source of the event.
-                return;
-            }
+            _implementer.LoadRemoteComponentStateChanged(serializedEventData);
+        }
 
-            if (s_initialStateLoaded == false)
-            {
-                // Ignore sync events until the initial state is sent, to make sure the syncs are only processed after the initial state.
-                return;
-            }
+        #endregion
 
-            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Verbose)
-            {
-                Debug.Log($"{UxrConstants.NetworkingModule} Receiving {serializedEventData.Length} bytes of data. Base64: {Convert.ToBase64String(serializedEventData)}");
-            }
+        #region Unity
 
-            UxrStateSyncResult result = UxrManager.Instance.ExecuteStateSyncEvent(serializedEventData);
+        /// <summary>
+        ///     Initializes the network avatar implementer.
+        /// </summary>
+        private void Awake()
+        {
+            _implementer = new UxrNetworkAvatarImplementer(this);
         }
 
         #endregion
 
         #region Private Types & Data
 
-        private static bool s_initialStateLoaded;
-
-        private string _avatarName;
+        private UxrNetworkAvatarImplementer _implementer;
 
         #endregion
     }
 #else
-    public class UxrPhotonFusionAvatar : MonoBehaviour
+    public class UxrUnityNetCodeAvatar : MonoBehaviour
     {
     }
 #endif

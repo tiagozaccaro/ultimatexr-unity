@@ -8,6 +8,7 @@ using System.IO;
 using System.Runtime.Serialization;
 using UltimateXR.Core.Serialization;
 using UltimateXR.Core.Settings;
+using UltimateXR.Core.Unique;
 using UltimateXR.Extensions.System;
 using UltimateXR.Extensions.System.IO;
 using UnityEngine;
@@ -160,13 +161,17 @@ namespace UltimateXR.Core.StateSync
         /// <param name="sourceComponent">
         ///     Component that generated the event.
         /// </param>
+        /// <param name="debugLevel">The debug information to include when serializing unique ID components</param>
         /// <returns>Byte array representing the event</returns>
-        public byte[] SerializeEventBinary(IUxrStateSync sourceComponent)
+        public byte[] SerializeEventBinary(IUxrStateSync sourceComponent, UxrUniqueIdDebugLevel debugLevel = UxrUniqueIdDebugLevel.NoDebug)
         {
             using (MemoryStream stream = new MemoryStream())
             {
                 using (BinaryWriter writer = new BinaryWriter(stream))
                 {
+                    UxrUniqueIdDebugLevel oldDebugLevel = BinaryWriterExt.UniqueIdDebugLevel;
+                    BinaryWriterExt.UniqueIdDebugLevel = debugLevel;
+
                     // Serialize the binary serialization version
                     writer.Write((ushort)UxrConstants.Serialization.CurrentBinaryVersion);
                     
@@ -178,6 +183,8 @@ namespace UltimateXR.Core.StateSync
 
                     // Serialize the event data
                     SerializeEventInternal(new UxrBinarySerializer(writer));
+                    
+                    BinaryWriterExt.UniqueIdDebugLevel = oldDebugLevel;
                 }
                 stream.Flush();
                 return stream.ToArray();

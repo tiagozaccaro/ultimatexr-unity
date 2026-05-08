@@ -5,7 +5,6 @@
 // --------------------------------------------------------------------------------------------------------------------
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using UltimateXR.Avatar;
 using UltimateXR.Core;
@@ -52,6 +51,12 @@ namespace UltimateXR.UI.UnityInputModule
         public static UxrPointerInputModule Instance { get; private set; }
 
         /// <summary>
+        ///     Gets whether other input modules should be disabled, and whether the graphic raycaster in each Canvas with an
+        ///     <see cref="UxrCanvas" /> should also be disabled.
+        /// </summary>
+        public bool DisableOtherInputModules => _disableOtherInputModules;
+
+        /// <summary>
         ///     Gets whether the input module will try to find all <see cref="Canvas" /> components after loading a scene, in order
         ///     to add a <see cref="UxrCanvas" /> component to those that have not been set up.
         /// </summary>
@@ -86,12 +91,7 @@ namespace UltimateXR.UI.UnityInputModule
         /// <remarks>From user Cind13 in https://forum.unity.com/threads/multiple-processing-inputmodules.369578/</remarks>
         public override void UpdateModule()
         {
-            MethodInfo changeEventModuleMethod = EventSystem.current.GetType().GetMethod("ChangeEventModule",
-                                                                                         BindingFlags.NonPublic | BindingFlags.Instance,
-                                                                                         null,
-                                                                                         new[] { typeof(BaseInputModule) },
-                                                                                         null);
-            changeEventModuleMethod.Invoke(EventSystem.current, new object[] { this });
+            ChangeEventModuleMethod?.Invoke(EventSystem.current, _changeEventModuleParameters);
             EventSystem.current.UpdateModules();
             List<BaseInputModule> activeInputModules = GetInputModules();
             activeInputModules.Remove(this);
@@ -130,22 +130,30 @@ namespace UltimateXR.UI.UnityInputModule
 
             bool usedEvent = SendUpdateEventToSelectedObject();
 
-            if (UxrAvatar.LocalAvatar != null && UxrAvatar.LocalAvatar.RenderMode.HasFlag(UxrAvatarRenderModes.Avatar))
+            if (UxrAvatar.LocalAvatar != null && UxrAvatar.LocalAvatar.RenderMode == UxrAvatarRenderMode.Avatar)
             {
-                foreach (UxrFingerTip fingerTip in UxrFingerTip.EnabledComponentsInLocalAvatar)
+                for (int i = 0; i < UxrFingerTip.AllComponents.Count; ++i)
                 {
-                    ProcessPointerEvents(GetFingerTipPointerEventData(fingerTip));
+                    UxrFingerTip fingerTip = UxrFingerTip.AllComponents[i];
+                    if (fingerTip.Avatar.AvatarMode == UxrAvatarMode.Local && fingerTip.isActiveAndEnabled)
+                    {
+                        ProcessPointerEvents(GetFingerTipPointerEventData(fingerTip));
+                    }
                 }
             }
 
-            foreach (UxrLaserPointer laserPointer in UxrLaserPointer.EnabledComponentsInLocalAvatar)
+            for (int i = 0; i < UxrLaserPointer.AllComponents.Count; ++i)
             {
-                ProcessPointerEvents(GetLaserPointerEventData(laserPointer));
+                UxrLaserPointer laserPointer = UxrLaserPointer.AllComponents[i];
+                if (laserPointer.Avatar.AvatarMode == UxrAvatarMode.Local && laserPointer.isActiveAndEnabled)
+                {
+                    ProcessPointerEvents(GetLaserPointerEventData(laserPointer));
+                }
             }
 
             /*
-             TODO: Create navigation events using controller input? 
-             
+             TODO: Create navigation events using controller input?
+
             if (eventSystem.sendNavigationEvents)
             {
                 if (!usedEvent)
@@ -255,6 +263,8 @@ namespace UltimateXR.UI.UnityInputModule
         {
             base.Awake();
 
+            _changeEventModuleParameters = new object[] { this };
+
             if (Instance != null)
             {
                 if (UxrGlobalSettings.Instance.LogLevelUI >= UxrLogLevel.Errors)
@@ -268,7 +278,7 @@ namespace UltimateXR.UI.UnityInputModule
 
                 if (_disableOtherInputModules)
                 {
-                    BaseInputModule[] baseInputModules = FindObjectsOfType<BaseInputModule>();
+                    BaseInputModule[] baseInputModules = FindObjectsByType<BaseInputModule>(FindObjectsSortMode.None);
 
                     foreach (BaseInputModule inputModule in baseInputModules)
                     {
@@ -661,9 +671,7 @@ namespace UltimateXR.UI.UnityInputModule
         /// <returns>List of input modules</returns>
         private static List<BaseInputModule> GetInputModules()
         {
-            EventSystem current              = EventSystem.current;
-            FieldInfo   m_SystemInputModules = current.GetType().GetField("m_SystemInputModules", BindingFlags.NonPublic | BindingFlags.Instance);
-            return m_SystemInputModules.GetValue(current) as List<BaseInputModule>;
+            return SystemInputModules?.GetValue(EventSystem.current) as List<BaseInputModule>;
         }
 
         /// <summary>
@@ -673,9 +681,7 @@ namespace UltimateXR.UI.UnityInputModule
         /// <remarks>From user Cind13 in https://forum.unity.com/threads/multiple-processing-inputmodules.369578/</remarks>
         private static void SetInputModules(List<BaseInputModule> inputModules)
         {
-            EventSystem current              = EventSystem.current;
-            FieldInfo   m_SystemInputModules = current.GetType().GetField("m_SystemInputModules", BindingFlags.NonPublic | BindingFlags.Instance);
-            m_SystemInputModules.SetValue(current, inputModules);
+            SystemInputModules?.SetValue(EventSystem.current, inputModules);
         }
 
         /// <summary>
@@ -698,8 +704,8 @@ namespace UltimateXR.UI.UnityInputModule
                 foreach (UxrCanvas canvas in canvasVR)
                 {
                     if (canvas.CanvasInteractionType == UxrInteractionType.LaserPointers &&
-                        canvas.AutoEnableLaserPointer &&
-                        canvas.IsCompatible(laserPointer.HandSide) &&
+                        canvas.AutoEnableLaserPointer                                    &&
+                        canvas.IsCompatible(laserPointer.HandSide)                       &&
                         raycast.distance <= canvas.AutoEnableDistance)
                     {
                         return true;
@@ -739,7 +745,7 @@ namespace UltimateXR.UI.UnityInputModule
                     SendDragHapticFeedback(UxrHandSide.Right, maxRightSpeed);
                 }
 
-                yield return new WaitForSeconds(UxrConstants.InputControllers.HapticSampleDurationSeconds);
+                yield return WaitForHapticSampleDurationSeconds;
             }
         }
 
@@ -970,7 +976,7 @@ namespace UltimateXR.UI.UnityInputModule
             data.button           = PointerEventData.InputButton.Left;
             data.useDragThreshold = true;
             data.PreviousWorldPos = data.WorldPos;
-            
+
             // Raycast
 
             RaycastResult raycastResult = data.pointerCurrentRaycast;
@@ -1076,7 +1082,7 @@ namespace UltimateXR.UI.UnityInputModule
 
                 if (!data.WorldPosInitialized && raycast.isValid)
                 {
-                    data.PreviousWorldPos = data.WorldPos;
+                    data.PreviousWorldPos    = data.WorldPos;
                     data.WorldPosInitialized = true;
                 }
             }
@@ -1112,10 +1118,22 @@ namespace UltimateXR.UI.UnityInputModule
         /// <returns>Maximum drag speed in units/second</returns>
         private float GetMaxDragSpeed<T>(Dictionary<T, UxrPointerEventData> eventData, UxrHandSide handSide)
         {
-            return eventData.Where(d => d.Value.HandSide == handSide && d.Value.dragging && d.Value.Avatar.AvatarController.CanHandInteractWithUI(handSide))
-                            .Select(d => d.Value.Speed)
-                            .DefaultIfEmpty(0.0f)
-                            .Max();
+            float max = 0.0f;
+
+            foreach (KeyValuePair<T, UxrPointerEventData> pair in eventData)
+            {
+                UxrPointerEventData data = pair.Value;
+
+                if (data.HandSide == handSide                                    &&
+                    data.dragging                                                &&
+                    data.Avatar.AvatarController.CanHandInteractWithUI(handSide) &&
+                    data.Speed > max)
+                {
+                    max = data.Speed;
+                }
+            }
+
+            return max;
         }
 
         /// <summary>
@@ -1133,6 +1151,47 @@ namespace UltimateXR.UI.UnityInputModule
 
         #region Private Types & Data
 
+        /// <summary>
+        ///     Caches the list of active input modules. This is additional functionality to enable the UXR input module to
+        ///     coexist.
+        /// </summary>
+        private static FieldInfo SystemInputModules
+        {
+            get
+            {
+                if (s_systemInputModules == null)
+                {
+                    s_systemInputModules = EventSystem.current.GetType().GetField("m_SystemInputModules", BindingFlags.NonPublic | BindingFlags.Instance);
+                }
+
+                return s_systemInputModules;
+            }
+        }
+
+        /// <summary>
+        ///     Provides access to the underlying method responsible for changing the active event module in the EventSystem.
+        /// </summary>
+        private MethodInfo ChangeEventModuleMethod
+        {
+            get
+            {
+                if (_changeEventModuleMethod == null)
+                {
+                    _changeEventModuleMethod = EventSystem.current.GetType().GetMethod("ChangeEventModule",
+                                                                                       BindingFlags.NonPublic | BindingFlags.Instance,
+                                                                                       null,
+                                                                                       new[] { typeof(BaseInputModule) },
+                                                                                       null);
+                }
+
+                return _changeEventModuleMethod;
+            }
+        }
+
+        /// <summary>
+        ///     Returns a cached WaitForSeconds object.
+        /// </summary>
+        private WaitForSeconds WaitForHapticSampleDurationSeconds => _waitForHapticSampleDurationSeconds ??= new WaitForSeconds(UxrConstants.InputControllers.HapticSampleDurationSeconds);
 
         private const float HapticsMinAmplitude = 0.01f;
         private const float HapticsMaxAmplitude = 0.2f;
@@ -1141,10 +1200,15 @@ namespace UltimateXR.UI.UnityInputModule
         private const float HapticsMinSpeed     = 30.0f;
         private const float HapticsMaxSpeed     = 12000.0f;
 
+        private static FieldInfo s_systemInputModules;
+
         private readonly Dictionary<UxrFingerTip, UxrPointerEventData>    _fingerTipEventData    = new Dictionary<UxrFingerTip, UxrPointerEventData>();
         private readonly Dictionary<UxrLaserPointer, UxrPointerEventData> _laserPointerEventData = new Dictionary<UxrLaserPointer, UxrPointerEventData>();
+        private          MethodInfo                                       _changeEventModuleMethod;
+        private          object[]                                         _changeEventModuleParameters;
 
         private Coroutine _coroutineDragHaptics;
+        private WaitForSeconds _waitForHapticSampleDurationSeconds;
 
         #endregion
     }

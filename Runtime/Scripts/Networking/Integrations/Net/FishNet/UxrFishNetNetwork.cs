@@ -150,10 +150,10 @@ namespace UltimateXR.Networking.Integrations.Net.FishNet
             Undo.SetTransformParent(networkHandRight.transform, avatar.transform, "Parent network hand right");
             networkHandRight.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
 
-            IEnumerable<Behaviour> avatarComponents    = SetupNetworkTransform(avatar.gameObject, true, UxrNetworkTransformFlags.ChildAll);
-            IEnumerable<Behaviour> cameraComponents    = SetupNetworkTransform(networkCamera,     true, UxrNetworkTransformFlags.ChildPositionAndRotation);
-            IEnumerable<Behaviour> leftHandComponents  = SetupNetworkTransform(networkHandLeft,   true, UxrNetworkTransformFlags.ChildTransform);
-            IEnumerable<Behaviour> rightHandComponents = SetupNetworkTransform(networkHandRight,  true, UxrNetworkTransformFlags.ChildTransform);
+            List<Behaviour> avatarComponents    = SetupNetworkTransform(avatar.gameObject, true, UxrNetworkTransformFlags.ChildAll);
+            List<Behaviour> cameraComponents    = SetupNetworkTransform(networkCamera,     true, UxrNetworkTransformFlags.ChildPositionAndRotation);
+            List<Behaviour> leftHandComponents  = SetupNetworkTransform(networkHandLeft,   true, UxrNetworkTransformFlags.ChildTransform);
+            List<Behaviour> rightHandComponents = SetupNetworkTransform(networkHandRight,  true, UxrNetworkTransformFlags.ChildTransform);
 
             newComponents.AddRange(avatarComponents.ToList().Concat(cameraComponents).Concat(leftHandComponents).Concat(rightHandComponents));
             newGameObjects.AddRange(new[] { networkHandLeft, networkHandRight, networkCamera });
@@ -165,7 +165,7 @@ namespace UltimateXR.Networking.Integrations.Net.FishNet
         }
 
         /// <inheritdoc />
-        public override void SetupPostProcess(IEnumerable<UxrAvatar> avatarPrefabs)
+        public override void SetupPostProcess(List<UxrAvatar> avatarPrefabs)
         {
 #if ULTIMATEXR_USE_FISHNET_SDK && UNITY_EDITOR
             
@@ -195,26 +195,27 @@ namespace UltimateXR.Networking.Integrations.Net.FishNet
         }
 
         /// <inheritdoc />
-        public override IEnumerable<Behaviour> AddNetworkTransform(GameObject gameObject, bool worldSpace, UxrNetworkTransformFlags networkTransformFlags)
+        public override List<Behaviour> AddNetworkTransform(GameObject gameObject, bool worldSpace, UxrNetworkTransformFlags networkTransformFlags)
         {
+            List<Behaviour> newComponents = new List<Behaviour>();
+
 #if ULTIMATEXR_USE_FISHNET_SDK && UNITY_EDITOR
             if (networkTransformFlags.HasFlag(UxrNetworkTransformFlags.ChildTransform) == false)
             {
                 NetworkObject networkObject = gameObject.GetOrAddComponent<NetworkObject>();
-                yield return networkObject;
+                newComponents.Add(networkObject);
             }
 
             NetworkTransform networkTransform = gameObject.GetOrAddComponent<NetworkTransform>();
 
-            yield return networkTransform;
-
-#else
-            yield break;
+            newComponents.Add(networkTransform);
 #endif
+
+            return newComponents;
         }
 
         /// <inheritdoc />
-        public override IEnumerable<Behaviour> AddNetworkRigidbody(GameObject gameObject, bool worldSpace, UxrNetworkRigidbodyFlags networkRigidbodyFlags)
+        public override List<Behaviour> AddNetworkRigidbody(GameObject gameObject, bool worldSpace, UxrNetworkRigidbodyFlags networkRigidbodyFlags)
         {
             // FishNet does not use NetworkRigidbody.
             // We can just use the NetworkTransform if the Rigidbody is kinematic.

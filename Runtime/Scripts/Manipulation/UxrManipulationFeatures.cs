@@ -52,6 +52,12 @@ namespace UltimateXR.Manipulation
         Affordances = 1 << 6,
 
         /// <summary>
+        ///     Checks for objects that are being grabbed at distances greater than
+        ///     <see cref="UxrGrabbableObject.LockedGrabReleaseDistance" />.
+        /// </summary>
+        MaxGrabDistanceChecks = 1 << 7,
+
+        /// <summary>
         ///     Uses all features.
         /// </summary>
         All = 0x7FFFFFFF

@@ -83,7 +83,6 @@ namespace UltimateXR.Extensions.Unity.Render
             return FromBytes(bytes);
         }
 
-
         /// <summary>
         ///     Loads a texture from a file loaded in a byte array.
         /// </summary>

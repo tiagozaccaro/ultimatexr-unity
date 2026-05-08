@@ -1,4 +1,4 @@
-﻿// --------------------------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------
 // <copyright file="UxrComponent.cs" company="VRMADA">
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
@@ -27,12 +27,12 @@ namespace UltimateXR.Core.Components
     ///             <see cref="EnabledComponents" />.
     ///         </item>
     ///         <item>
-    ///             Identify each component using an unique ID, and be able to get a component using
+    ///             Identify each component using a unique ID, and be able to get a component using
     ///             <see cref="UxrUniqueIdImplementer.TryGetComponentById" />.
     ///         </item>
     ///         <item>
-    ///             Synchronize the state and changes of all components through the network, or serialize them to disk.
-    ///             This provides native multiplayer support, state saving and replay functionality.
+    ///             Synchronize the state and changes of all components through the network or serialize them to disk.
+    ///             This provides native multiplayer support, state saving, and replay functionality.
     ///         </item>
     ///         <item>Caching of Unity components.</item>
     ///         <item>Caching of initial transform values and other transform utilities.</item>
@@ -111,18 +111,29 @@ namespace UltimateXR.Core.Components
         ///     Called when a component is about to change its unique id by using <see cref="ChangeUniqueId" />.
         ///     Parameters are oldId, newId.
         /// </summary>
-        public static event Action<Guid, Guid> GlobalIdChanging;
+        public static event Action<UxrComponent, Guid, Guid> GlobalUniqueIdChanging;
 
         /// <summary>
         ///     Called when a component changed its unique id by using <see cref="ChangeUniqueId" />.
         ///     Parameters are oldId, newId.
         /// </summary>
-        public static event Action<Guid, Guid> GlobalIdChanged;
+        public static event Action<UxrComponent, Guid, Guid> GlobalUniqueIdChanged;
+
+        /// <summary>
+        ///     Called when this component is about to change its unique ID.
+        /// </summary>
+        public event Action<Guid, Guid> UniqueIdChanging;
+
+        /// <summary>
+        ///     Called when this component changed its unique ID.
+        /// </summary>
+        public event Action<Guid, Guid> UniqueIdChanged;
 
         /// <summary>
         ///     Gets all the components, enabled or not, in all open scenes.
         /// </summary>
         /// <remarks>
+        ///     This property requires memory allocation.
         ///     Components that have never been enabled are not returned. Components are automatically registered through their
         ///     Awake() call, which is never called if the object has never been enabled. In this case it is recommended to resort
         ///     to <see cref="GameObject.GetComponentsInChildren{T}(bool)" /> or
@@ -133,19 +144,22 @@ namespace UltimateXR.Core.Components
         /// <summary>
         ///     Gets all components that are enabled, in all open scenes.
         /// </summary>
-        public static IEnumerable<UxrComponent> EnabledComponents => AllComponents.Where(c => c.isActiveAndEnabled);
+        /// <remarks>
+        ///     This property requires memory allocation.
+        /// </remarks>
+        public static IEnumerable<UxrComponent> EnabledComponents => AllComponents.Where(c => c != null && c.isActiveAndEnabled);
+
+        /// <summary>
+        ///     Gets whether the application is quitting. An application is known to be quitting when
+        ///     <see cref="OnApplicationQuit" /> was called.
+        /// </summary>
+        public static bool IsApplicationQuitting { get; protected internal set; }
 
         /// <summary>
         ///     Gets whether the component is being destroyed. This means OnDestroy() was called the same frame
         ///     and will effectively be destroyed at the end of it.
         /// </summary>
         public bool IsBeingDestroyed { get; private set; }
-
-        /// <summary>
-        ///     Gets whether the application is quitting. An application is known to be quitting when
-        ///     <see cref="OnApplicationQuit" /> was called.
-        /// </summary>
-        public bool IsApplicationQuitting { get; private set; }
 
         /// <summary>
         ///     Gets the <see cref="Transform.parent" /> value at the moment of <see cref="Awake" />
@@ -249,6 +263,9 @@ namespace UltimateXR.Core.Components
             }
         }
 
+        /// <inheritdoc />
+        public event Action<IUxrUniqueId> Destroying;
+
         /// <summary>
         ///     <para>
         ///         Registers the <see cref="UxrComponent" /> making sure that its Unique ID is available enabling it
@@ -345,9 +362,6 @@ namespace UltimateXR.Core.Components
         #region Explicit IUxrStateSave
 
         /// <inheritdoc />
-        int IUxrStateSave.StateSerializationVersion => StateSerializationVersion;
-
-        /// <inheritdoc />
         int IUxrStateSave.SerializationOrder => SerializationOrder;
 
         /// <inheritdoc />
@@ -366,7 +380,7 @@ namespace UltimateXR.Core.Components
         }
 
         /// <inheritdoc />
-        bool IUxrStateSave.SerializeState(IUxrSerializer serializer, int stateSerializationVersion, UxrStateSaveLevel level, UxrStateSaveOptions options)
+        bool IUxrStateSave.SerializeState(IUxrSerializer serializer, UxrStateSaveLevel level, UxrStateSaveOptions options)
         {
             int serializeCounter = StateSaveImplementer.SerializeCounter;
 
@@ -410,6 +424,9 @@ namespace UltimateXR.Core.Components
 
         /// <inheritdoc />
         bool IUxrUniqueId.UniqueIdIsTypeName => UniqueIdIsTypeName;
+
+        /// <inheritdoc />
+        bool IUxrUniqueId.PreferForTracking => PreferForTracking;
 
         #endregion
 
@@ -607,7 +624,7 @@ namespace UltimateXR.Core.Components
         {
             if (!Application.isPlaying)
             {
-                // Only store data in play mode
+                // Auto-registration etc. only works at runtime.
                 return;
             }
 
@@ -623,7 +640,14 @@ namespace UltimateXR.Core.Components
         /// </summary>
         protected virtual void OnDestroy()
         {
+            if (!Application.isPlaying)
+            {
+                // Auto-registration etc. only works at runtime.
+                return;
+            }
+            
             IsBeingDestroyed = true;
+            Destroying?.Invoke(this);
 
             Unregister();
         }
@@ -641,6 +665,12 @@ namespace UltimateXR.Core.Components
         /// </summary>
         protected virtual void OnEnable()
         {
+            if (!Application.isPlaying)
+            {
+                // Auto-registration etc. only works at runtime.
+                return;
+            }
+            
             StateSaveImplementer.NotifyOnEnable();
             GlobalEnabled?.Invoke(this);
         }
@@ -650,6 +680,12 @@ namespace UltimateXR.Core.Components
         /// </summary>
         protected virtual void OnDisable()
         {
+            if (!Application.isPlaying)
+            {
+                // Auto-registration etc. only works at runtime.
+                return;
+            }
+            
             StateSaveImplementer.NotifyOnDisable();
             GlobalDisabled?.Invoke(this);
         }
@@ -723,28 +759,43 @@ namespace UltimateXR.Core.Components
         }
 
         /// <summary>
-        ///     <see cref="GlobalIdChanging" /> event trigger.
+        ///     <see cref="GlobalUniqueIdChanging" /> event trigger.
         /// </summary>
         /// <param name="oldId">Old id</param>
         /// <param name="newId">New id</param>
         private void OnUniqueIdChanging(Guid oldId, Guid newId)
         {
-            GlobalIdChanging?.Invoke(oldId, newId);
+            UniqueIdChanging?.Invoke(oldId, newId);
+            GlobalUniqueIdChanging?.Invoke(this, oldId, newId);
         }
 
         /// <summary>
-        ///     <see cref="GlobalIdChanged" /> event trigger.
+        ///     <see cref="GlobalUniqueIdChanged" /> event trigger.
         /// </summary>
         /// <param name="oldId">Old id</param>
         /// <param name="newId">New id</param>
         private void OnUniqueIdChanged(Guid oldId, Guid newId)
         {
-            GlobalIdChanged?.Invoke(oldId, newId);
+            UniqueIdChanged?.Invoke(oldId, newId);
+            GlobalUniqueIdChanged?.Invoke(this, oldId, newId);
         }
 
         #endregion
 
         #region Protected Methods
+
+        /// <summary>
+        ///     Creates a parameter array for <see cref="EndSyncMethod" />.
+        /// </summary>
+        /// <param name="parameters">
+        ///     Method call parameters. This must be the exact same parameters as the receiver or the synchronization will not
+        ///     work correctly.
+        /// </param>
+        /// <returns>The parameter array to pass to <see cref="EndSyncMethod" />.</returns>
+        protected static object[] SyncParams(params object[] parameters)
+        {
+            return parameters;
+        }
 
         /// <summary>
         ///     <inheritdoc cref="IUxrStateSave.RequiresTransformSerialization" />.
@@ -759,16 +810,14 @@ namespace UltimateXR.Core.Components
         ///     Serialization will be performed with the help of <see cref="SerializeStateValue{T}" />.
         /// </summary>
         /// <param name="isReading">Whether the serializer is reading or writing</param>
-        /// <param name="stateSerializationVersion">
-        ///     When reading it tells the <see cref="StateSerializationVersion" /> the data was
-        ///     serialized with. When writing it uses the latest <see cref="StateSerializationVersion" /> version.
-        /// </param>
         /// <param name="level">
         ///     The amount of data to read/write.
         /// </param>
         /// <param name="options">Options</param>
-        protected virtual void SerializeState(bool isReading, int stateSerializationVersion, UxrStateSaveLevel level, UxrStateSaveOptions options)
+        protected virtual void SerializeState(bool isReading, UxrStateSaveLevel level, UxrStateSaveOptions options)
         {
+            // Serialize the version for backwards compatibility. More data can be added below by incrementing the version. 
+            StateSaveImplementer.SerializeStateVersion(_stateSerializer, level, options, StateSerializationVersion, out int effectiveVersion);
         }
 
         /// <summary>
@@ -808,7 +857,7 @@ namespace UltimateXR.Core.Components
         /// <summary>
         ///     Returns <see cref="UxrTransformSpace.Local" /> if the object is parented to an object with a
         ///     <see cref="IUxrUniqueId" /> component.
-        ///     Otherwise returns the space passed as parameter.
+        ///     Otherwise, returns the space passed as a parameter.
         /// </summary>
         /// <param name="alternative">
         ///     Alternative space returned if the object isn't parented to an object with
@@ -817,7 +866,7 @@ namespace UltimateXR.Core.Components
         /// <returns>Space</returns>
         protected UxrTransformSpace GetLocalTransformIfParentedOr(UxrTransformSpace alternative)
         {
-            if (transform.parent != null && transform.parent.GetComponent<IUxrUniqueId>() != null)
+            if (transform.parent != null && transform.parent.GetTrackingUniqueIdComponent() != null)
             {
                 return UxrTransformSpace.Local;
             }
@@ -826,21 +875,65 @@ namespace UltimateXR.Core.Components
         }
 
         /// <summary>
-        ///     See <see cref="UxrStateSaveImplementer{T}.SerializeStateValue{TV}" />.
+        ///     Handles the serialization of a version number, allowing for backwards compatibility and serialization nesting.
         /// </summary>
+        /// <param name="level">The amount of data to serialize</param>
+        /// <param name="options">Options</param>
+        /// <param name="version">The version of the serialized data at the moment the method is called</param>
+        /// <param name="effectiveVersion">
+        ///     When serializing, will contain the same as
+        ///     <see cref="version" />. When deserializing, will contain the version the data was serialized
+        ///     with, allowing for backwards compatibility.
+        /// </param>
+        protected void SerializeStateVersion(UxrStateSaveLevel level, UxrStateSaveOptions options, int version, out int effectiveVersion)
+        {
+            StateSaveImplementer.SerializeStateVersion(_stateSerializer, level, options, version, out effectiveVersion);
+        }
+
+        /// <summary>
+        ///     Serializes a value only when necessary, depending on <paramref name="level" />, <paramref name="options" /> and if
+        ///     the value changed.
+        /// </summary>
+        /// <param name="level">The amount of data to serialize</param>
+        /// <param name="options">Options</param>
+        /// <param name="varName">
+        ///     The parameter name. It will be used to track value changes over time. If it is null or empty,
+        ///     it will be serialized without checking for value changes. The name must be unique to any other transform or value
+        ///     serialized for the target component using <see cref="SerializeStateValue" /> or
+        ///     <see cref="SerializeStateTransform" />.
+        /// </param>
+        /// <param name="value">A reference to the value being loaded/saved</param>
         protected void SerializeStateValue<T>(UxrStateSaveLevel level, UxrStateSaveOptions options, string varName, ref T value)
         {
             StateSaveImplementer.SerializeStateValue(_stateSerializer, level, options, varName, ref value);
         }
 
         /// <summary>
-        ///     See <see cref="UxrStateSaveImplementer{T}.SerializeStateTransform" />.
+        ///     Serializes transform data.
+        ///     The Transform can be for the target component or any other component tracked by it, normally children in the
+        ///     hierarchy. For example, an avatar serializes the position of the head and hands.
         /// </summary>
-        protected void SerializeStateTransform(UxrStateSaveLevel level, UxrStateSaveOptions options, string transformVarName, UxrTransformSpace space, Transform transform)
+        /// <param name="level">The amount of data to serialize</param>
+        /// <param name="options">Options</param>
+        /// <param name="transformVarName">
+        ///     A name to identify the transform. It will be used to track value changes over time. If it is null or empty,
+        ///     it will be serialized without checking for value changes. The name must be unique to any other transform or
+        ///     value serialized for the target component using <see cref="SerializeStateValue" /> or
+        ///     <see cref="SerializeStateTransform" />.
+        /// </param>
+        /// <param name="space">
+        ///     The space the transform data is specified in when writing. Scale will always be stored in local
+        ///     space.
+        /// </param>
+        /// <param name="targetTransform">
+        ///     The transform to serialize. It can be the target component's Transform or any other transform serialized by the
+        ///     component.
+        /// </param>
+        protected void SerializeStateTransform(UxrStateSaveLevel level, UxrStateSaveOptions options, string transformVarName, UxrTransformSpace space, Transform targetTransform)
         {
-            if (transform != null)
+            if (targetTransform != null)
             {
-                StateSaveImplementer.SerializeStateTransform(_stateSerializer, level, options, transformVarName, space, transform);
+                StateSaveImplementer.SerializeStateTransform(_stateSerializer, level, options, transformVarName, space, targetTransform);
             }
         }
 
@@ -935,7 +1028,7 @@ namespace UltimateXR.Core.Components
         ///         }
         ///         DoSomething(parameter1);
         ///         DoSomethingElse(parameter2);
-        ///         EndSyncMethod(new object[] { parameter1, parameter2 });
+        ///         EndSyncMethod(SyncParams(parameter1, parameter2));
         ///     }
         ///     </code>
         /// </example>
@@ -999,7 +1092,7 @@ namespace UltimateXR.Core.Components
         ///         BeginSync();
         ///         DoSomething(parameter1);
         ///         DoSomethingElse(parameter2);
-        ///         EndSyncMethod(new object[] { parameter1, parameter2 });
+        ///         EndSyncMethod(SyncParams(parameter1, parameter2));
         ///     }
         ///     </code>
         /// </example>
@@ -1102,10 +1195,9 @@ namespace UltimateXR.Core.Components
         protected virtual bool UniqueIdIsTypeName => false;
 
         /// <summary>
-        ///     See <see cref="IUxrStateSave.StateSerializationVersion" />. Override in child components to increase the version
-        ///     per component.
+        ///     See <see cref="IUxrUniqueId.PreferForTracking" />.
         /// </summary>
-        protected virtual int StateSerializationVersion => 0;
+        protected virtual bool PreferForTracking => false;
 
         /// <summary>
         ///     See <see cref="IUxrStateSave.SerializationOrder" />. Override in child components to change the serialization
@@ -1130,7 +1222,7 @@ namespace UltimateXR.Core.Components
         ///     behaviour (World).
         /// </summary>
         protected virtual UxrTransformSpace TransformStateSaveSpace => UxrTransformSpace.World;
-        
+
         #endregion
 
         #region Private Types & Data
@@ -1182,6 +1274,11 @@ namespace UltimateXR.Core.Components
                 return _stateSyncImplementer;
             }
         }
+
+        /// <summary>
+        ///     The current serialization version for <see cref="UxrComponent" />'s <see cref="SerializeState" />.
+        /// </summary>
+        private const int StateSerializationVersion = 0;
 
         // Private vars
 

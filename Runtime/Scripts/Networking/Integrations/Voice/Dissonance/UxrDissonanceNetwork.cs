@@ -4,6 +4,7 @@
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
 using System.Collections.Generic;
+using System.Linq;
 using UltimateXR.Avatar;
 using UltimateXR.Core;
 using UnityEngine;
@@ -11,8 +12,11 @@ using UnityEngine;
 using UnityEditor;
 #endif
 #if ULTIMATEXR_USE_DISSONANCE_SDK
-using UltimateXR.Extensions.Unity;
+using System;
 using Dissonance;
+using Dissonance.Audio.Capture;
+using Dissonance.Audio.Playback;
+using NAudio.Wave;
 #endif
 
 namespace UltimateXR.Networking.Integrations.Voice.Dissonance
@@ -38,6 +42,14 @@ namespace UltimateXR.Networking.Integrations.Voice.Dissonance
                 yield return UxrConstants.SdkUnityNetCode;
             }
         }
+
+        /// <inheritdoc />
+        public override bool IsLocalMicSubscribed =>
+#if ULTIMATEXR_USE_DISSONANCE_SDK
+            _isLocalMicSubscribed;
+#else
+            false;
+#endif
 
         /// <inheritdoc />
         public override void SetupGlobal(string networkingSdk, UxrNetworkManager networkManager, out List<GameObject> newGameObjects, out List<Component> newComponents)
@@ -79,7 +91,7 @@ namespace UltimateXR.Networking.Integrations.Voice.Dissonance
                 if (setupInstance == null)
                 {
                     Debug.LogError($"{UxrConstants.NetworkingModule} Could not find the {UxrConstants.SdkDissonance} setup prefab for {networkingSdk}. Check for the {networkingSdk} integration here: https://placeholder-software.co.uk/dissonance/docs/Basics/Getting-Started.html");
-                   
+
                 }
                 else
                 {
@@ -113,7 +125,182 @@ namespace UltimateXR.Networking.Integrations.Voice.Dissonance
 
             // No setup required
         }
-        
+
+        /// <inheritdoc />
+        public override void SubscribeLocalMic()
+        {
+#if ULTIMATEXR_USE_DISSONANCE_SDK
+            if (_isLocalMicSubscribed)
+            {
+                return;
+            }
+
+            DissonanceComms comms = _comms != null ? _comms : FindFirstObjectByType<DissonanceComms>();
+
+            if (comms == null)
+            {
+                Debug.LogWarning($"{nameof(UxrDissonanceNetwork)}: No DissonanceComms found. Cannot subscribe to local mic.");
+                return;
+            }
+
+            IMicrophoneCapture capture = comms.GetComponent<IMicrophoneCapture>();
+
+            if (capture == null)
+            {
+                Debug.LogWarning($"{nameof(UxrDissonanceNetwork)}: No IMicrophoneCapture found on DissonanceComms.");
+                return;
+            }
+
+            _micAdapter           = new MicSubscriberAdapter(this);
+            _micCapture           = capture;
+            _micCapture.Subscribe(_micAdapter);
+            _isLocalMicSubscribed = true;
+#endif
+        }
+
+        /// <inheritdoc />
+        public override void UnsubscribeLocalMic()
+        {
+#if ULTIMATEXR_USE_DISSONANCE_SDK
+            if (!_isLocalMicSubscribed)
+            {
+                return;
+            }
+
+            if (_micCapture != null && _micAdapter != null)
+            {
+                try
+                {
+                    _micCapture.Unsubscribe(_micAdapter);
+                }
+                catch
+                {
+                    // Best effort.
+                }
+            }
+
+            _micCapture           = null;
+            _micAdapter           = null;
+            _isLocalMicSubscribed = false;
+#endif
+        }
+
+        /// <inheritdoc />
+        public override IEnumerable<AudioSource> GetActiveRemoteVoiceAudioSources()
+        {
+#if ULTIMATEXR_USE_DISSONANCE_SDK
+            foreach (VoicePlayback vp in FindObjectsByType<VoicePlayback>(FindObjectsSortMode.None))
+            {
+                if (vp.AudioSource != null)
+                {
+                    yield return vp.AudioSource;
+                }
+            }
+#else
+            return Enumerable.Empty<AudioSource>();
+#endif
+        }
+
         #endregion
+
+#if ULTIMATEXR_USE_DISSONANCE_SDK
+
+        #region Unity
+
+        /// <summary>
+        ///     Subscribes to the <see cref="DissonanceComms.OnPlayerJoinedSession" /> event to detect when a remote player's
+        ///     voice <see cref="AudioSource" /> becomes available.
+        /// </summary>
+        protected override void OnEnable()
+        {
+            base.OnEnable();
+
+            DissonanceComms comms = FindFirstObjectByType<DissonanceComms>();
+
+            if (comms != null)
+            {
+                _comms                        =  comms;
+                _comms.OnPlayerJoinedSession  += OnPlayerJoinedSession;
+            }
+        }
+
+        /// <summary>
+        ///     Unsubscribes from the <see cref="DissonanceComms.OnPlayerJoinedSession" /> event.
+        /// </summary>
+        protected override void OnDisable()
+        {
+            base.OnDisable();
+
+            UnsubscribeLocalMic();
+
+            if (_comms != null)
+            {
+                _comms.OnPlayerJoinedSession -= OnPlayerJoinedSession;
+                _comms                        = null;
+            }
+        }
+
+        #endregion
+
+        #region Event Handling Methods
+
+        /// <summary>
+        ///     Called when a remote player joins the voice session.
+        ///     Raises <see cref="UxrNetworkManager.RemoteVoiceAdded" /> with the associated <see cref="AudioSource" />.
+        /// </summary>
+        /// <param name="playerState">The voice player state for the player that joined</param>
+        private void OnPlayerJoinedSession(VoicePlayerState playerState)
+        {
+            if (playerState.IsLocalPlayer)
+            {
+                return;
+            }
+
+            if (playerState.Playback is VoicePlayback playback)
+            {
+                AudioSource audioSource = playback.AudioSource;
+
+                if (audioSource != null)
+                {
+                    UxrNetworkManager.RaiseRemoteVoiceAdded(audioSource);
+                }
+            }
+        }
+
+        #endregion
+
+        #region Private Types & Data
+
+        /// <summary>
+        ///     Adapter that bridges Dissonance's <see cref="IMicrophoneSubscriber" /> to
+        ///     <see cref="UxrNetworkVoiceImplementation.RaiseLocalMicDataReceived" />.
+        /// </summary>
+        private sealed class MicSubscriberAdapter : IMicrophoneSubscriber
+        {
+            private readonly UxrDissonanceNetwork _owner;
+
+            public MicSubscriberAdapter(UxrDissonanceNetwork owner)
+            {
+                _owner = owner;
+            }
+
+            public void ReceiveMicrophoneData(ArraySegment<float> buffer, WaveFormat format)
+            {
+                _owner.RaiseLocalMicDataReceived(buffer, new UxrAudioFormat(format.SampleRate, format.Channels));
+            }
+
+            public void Reset()
+            {
+            }
+        }
+
+        private DissonanceComms      _comms;
+        private MicSubscriberAdapter _micAdapter;
+        private IMicrophoneCapture   _micCapture;
+        private bool                 _isLocalMicSubscribed;
+
+        #endregion
+
+#endif
     }
 }

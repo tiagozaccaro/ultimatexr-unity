@@ -148,15 +148,20 @@ namespace UltimateXR.Animation.Splines
             float segmentT = (distance - _precomputedSamples[foundPos].Distance)
                              / (_precomputedSamples[foundPos + 1].Distance - _precomputedSamples[foundPos].Distance);
 
-            // 0.0f <= t <= 1.0f. It will tell us which "t" to use to evaluate our curve.
-            float t = Mathf.Lerp(_precomputedSamples[foundPos].LerpT, _precomputedSamples[foundPos + 1].LerpT, segmentT);
+            if (segmentT >= 0f && segmentT <= 1f)
+            {
 
-            // Update cache
-            _cachedIndexA    = foundPos;
-            _cachedArcLength = _precomputedSamples[foundPos].Distance;
+                // 0.0f <= t <= 1.0f. It will tell us which "t" to use to evaluate our curve.
+                float t = Mathf.Lerp(_precomputedSamples[foundPos].LerpT, _precomputedSamples[foundPos + 1].LerpT, segmentT);
 
-            // Evaluate our curve!
-            return Evaluate(t, out position);
+                // Update cache
+                _cachedIndexA    = foundPos;
+                _cachedArcLength = _precomputedSamples[foundPos].Distance;
+
+                // Evaluate our curve!
+                return Evaluate(t, out position);
+            }
+            return false;
         }
 
         /// <summary>

@@ -22,7 +22,7 @@ namespace UltimateXR.Manipulation.Helpers
 
         [SerializeField] private bool         _smoothTransition   = true;
         [SerializeField] private float        _returnDelaySeconds = -1.0f;
-        [SerializeField] private ReturnPolicy _returnPolicy       = ReturnPolicy.LastAnchor;
+        [SerializeField] private ReturnPolicy _returnPolicy       = ReturnPolicy.MostRecentAnchor;
 
         #endregion
 
@@ -93,11 +93,6 @@ namespace UltimateXR.Manipulation.Helpers
 
             if (e.IsGrabbedStateChanged)
             {
-                if (e.GrabbableAnchor != null)
-                {
-                    _lastObjectAnchor = e.GrabbableAnchor;
-                }
-
                 // Check also dependent grabs. We may be grabbing the object using another grip
                 if (!UxrGrabManager.Instance.IsHandGrabbing(UxrAvatar.LocalAvatar, GrabbableObject, UxrHandSide.Left,  true) &&
                     !UxrGrabManager.Instance.IsHandGrabbing(UxrAvatar.LocalAvatar, GrabbableObject, UxrHandSide.Right, true))
@@ -115,20 +110,6 @@ namespace UltimateXR.Manipulation.Helpers
             }
         }
 
-        /// <summary>
-        ///     Called by the base class whenever the object is placed.
-        /// </summary>
-        /// <param name="e">Contains all grab event parameters</param>
-        protected override void OnObjectPlaced(UxrManipulationEventArgs e)
-        {
-            base.OnObjectPlaced(e);
-
-            if (e.GrabbableAnchor != null)
-            {
-                _lastObjectAnchor = e.GrabbableAnchor;
-            }
-        }
-
         #endregion
 
         #region Private Methods
@@ -139,9 +120,9 @@ namespace UltimateXR.Manipulation.Helpers
         /// <returns>Destination anchor</returns>
         private UxrGrabbableObjectAnchor GetReturnAnchor()
         {
-            if (_returnPolicy == ReturnPolicy.LastAnchor && _lastObjectAnchor != null && _lastObjectAnchor.CurrentPlacedObject == null)
+            if (_returnPolicy == ReturnPolicy.MostRecentAnchor && GrabbableObject.MostRecentAnchor != null && GrabbableObject.MostRecentAnchor.CurrentPlacedObject == null)
             {
-                return _lastObjectAnchor;
+                return GrabbableObject.MostRecentAnchor;
             }
 
             return GrabbableObject.StartAnchor;
@@ -163,8 +144,7 @@ namespace UltimateXR.Manipulation.Helpers
 
         #region Private Types & Data
 
-        private UxrGrabbableObjectAnchor _lastObjectAnchor;
-        private Coroutine                _returnCoroutine;
+        private Coroutine _returnCoroutine;
 
         #endregion
     }
