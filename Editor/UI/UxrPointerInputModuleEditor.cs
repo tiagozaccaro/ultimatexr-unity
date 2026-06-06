@@ -21,12 +21,12 @@ namespace UltimateXR.Editor.UI
         /// </summary>
         private void OnEnable()
         {
-            _propertyDisableOtherInputModules    = serializedObject.FindProperty("_disableOtherInputModules");
-            _propertyAutoEnableOnWorldCanvases   = serializedObject.FindProperty("_autoEnableOnWorldCanvases");
-            _propertyAutoAssignEventCamera       = serializedObject.FindProperty("_autoAssignEventCamera");
-            _propertyInteractionTypeOnAutoEnable = serializedObject.FindProperty("_interactionTypeOnAutoEnable");
-            _propertyFingerTipMinHoverDistance   = serializedObject.FindProperty("_fingerTipMinHoverDistance");
-            _propertyDragThreshold               = serializedObject.FindProperty("_dragThreshold");
+            _propertyDisableOtherInputModules     = serializedObject.FindProperty("_disableOtherInputModules");
+            _propertyAutoEnableOnWorldCanvases    = serializedObject.FindProperty("_autoEnableOnWorldCanvases");
+            _propertyAutoAssignEventCamera        = serializedObject.FindProperty("_autoAssignEventCamera");
+            _propertyInteractionTypesOnAutoEnable = serializedObject.FindProperty("_interactionTypesOnAutoEnable");
+            _propertyFingerTipMinHoverDistance    = serializedObject.FindProperty("_fingerTipMinHoverDistance");
+            _propertyDragThreshold                = serializedObject.FindProperty("_dragThreshold");
         }
 
         /// <summary>
@@ -45,9 +45,9 @@ namespace UltimateXR.Editor.UI
             EditorGUILayout.PropertyField(_propertyDisableOtherInputModules);
             EditorGUILayout.PropertyField(_propertyAutoEnableOnWorldCanvases);
             EditorGUILayout.PropertyField(_propertyAutoAssignEventCamera);
-            EditorGUILayout.PropertyField(_propertyInteractionTypeOnAutoEnable);
+            EditorGUILayout.PropertyField(_propertyInteractionTypesOnAutoEnable);
 
-            if (_propertyInteractionTypeOnAutoEnable.enumNames[_propertyInteractionTypeOnAutoEnable.enumValueIndex] == UxrInteractionType.FingerTips.ToString())
+            if (((UxrInteractionTypes)_propertyInteractionTypesOnAutoEnable.intValue).HasFlag(UxrInteractionTypes.FingerTips))
             {
                 EditorGUILayout.PropertyField(_propertyFingerTipMinHoverDistance);
             }
@@ -64,7 +64,7 @@ namespace UltimateXR.Editor.UI
         private SerializedProperty _propertyDisableOtherInputModules;
         private SerializedProperty _propertyAutoEnableOnWorldCanvases;
         private SerializedProperty _propertyAutoAssignEventCamera;
-        private SerializedProperty _propertyInteractionTypeOnAutoEnable;
+        private SerializedProperty _propertyInteractionTypesOnAutoEnable;
         private SerializedProperty _propertyFingerTipMinHoverDistance;
         private SerializedProperty _propertyDragThreshold;
 

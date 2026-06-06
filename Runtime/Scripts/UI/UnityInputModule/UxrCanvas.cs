@@ -20,13 +20,13 @@ namespace UltimateXR.UI.UnityInputModule
     {
         #region Inspector Properties/Serialized Fields
 
-        [SerializeField] protected UxrInteractionType _interactionType;
-        [SerializeField] protected float              _fingerTipMinHoverDistance = UxrFingerTipRaycaster.FingerTipMinHoverDistanceDefault;
-        [SerializeField] protected bool               _autoEnableLaserPointer;
-        [SerializeField] protected float              _autoEnableDistance = 5.0f;
-        [SerializeField] protected bool               _allowLeftHand      = true;
-        [SerializeField] protected bool               _allowRightHand     = true;
-        [SerializeField] protected bool               _ignoreCameraAutoAssign;
+        [SerializeField] protected UxrInteractionTypes _interactionTypes          = UxrInteractionTypes.FingerTips | UxrInteractionTypes.LaserPointers;
+        [SerializeField] protected float               _fingerTipMinHoverDistance = UxrFingerTipRaycaster.FingerTipMinHoverDistanceDefault;
+        [SerializeField] protected bool                _autoEnableLaserPointer;
+        [SerializeField] protected float               _autoEnableDistance = 5.0f;
+        [SerializeField] protected bool                _allowLeftHand      = true;
+        [SerializeField] protected bool                _allowRightHand     = true;
+        [SerializeField] protected bool                _ignoreCameraAutoAssign;
 
         #endregion
 
@@ -70,14 +70,14 @@ namespace UltimateXR.UI.UnityInputModule
         }
 
         /// <summary>
-        ///     Gets or sets the type of interaction with the UI components in the canvas.
+        ///     Gets or sets the type of interactions with the UI components in the canvas.
         /// </summary>
-        public UxrInteractionType CanvasInteractionType
+        public UxrInteractionTypes CanvasInteractionTypes
         {
-            get => _interactionType;
+            get => _interactionTypes;
             set
             {
-                _interactionType = value;
+                _interactionTypes = value;
 
                 if (_oldRaycaster != null)
                 {
@@ -117,7 +117,7 @@ namespace UltimateXR.UI.UnityInputModule
         /// <param name="inputModule">The input module</param>
         public void SetupCanvas(UxrPointerInputModule inputModule)
         {
-            CanvasInteractionType = inputModule.InteractionTypeOnAutoEnable;
+            CanvasInteractionTypes = inputModule.InteractionTypesOnAutoEnable;
 
             if (_newRaycasterFingerTips != null)
             {
@@ -167,12 +167,13 @@ namespace UltimateXR.UI.UnityInputModule
                 _oldRaycaster = UnityCanvas.gameObject.GetComponent<GraphicRaycaster>();
             }
 
-            if (_interactionType == UxrInteractionType.FingerTips)
+            if (_interactionTypes.HasFlag(UxrInteractionTypes.FingerTips))
             {
                 _newRaycasterFingerTips                           = GetOrAddRaycaster<UxrFingerTipRaycaster>(_oldRaycaster);
                 _newRaycasterFingerTips.FingerTipMinHoverDistance = _fingerTipMinHoverDistance;
             }
-            else if (_interactionType == UxrInteractionType.LaserPointers)
+
+            if (_interactionTypes.HasFlag(UxrInteractionTypes.LaserPointers))
             {
                 _newRaycasterLaserPointer = GetOrAddRaycaster<UxrLaserPointerRaycaster>(_oldRaycaster);
             }

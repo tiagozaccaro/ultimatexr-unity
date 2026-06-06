@@ -34,12 +34,12 @@ namespace UltimateXR.UI.UnityInputModule
     {
         #region Inspector Properties/Serialized Fields
 
-        [SerializeField] protected bool               _disableOtherInputModules;
-        [SerializeField] protected bool               _autoEnableOnWorldCanvases   = true;
-        [SerializeField] protected bool               _autoAssignEventCamera       = true;
-        [SerializeField] protected UxrInteractionType _interactionTypeOnAutoEnable = UxrInteractionType.FingerTips;
-        [SerializeField] protected float              _fingerTipMinHoverDistance   = UxrFingerTipRaycaster.FingerTipMinHoverDistanceDefault;
-        [SerializeField] protected int                _dragThreshold               = 40;
+        [SerializeField] protected bool                _disableOtherInputModules;
+        [SerializeField] protected bool                _autoEnableOnWorldCanvases    = true;
+        [SerializeField] protected bool                _autoAssignEventCamera        = true;
+        [SerializeField] protected UxrInteractionTypes _interactionTypesOnAutoEnable = UxrInteractionTypes.FingerTips | UxrInteractionTypes.LaserPointers;
+        [SerializeField] protected float               _fingerTipMinHoverDistance    = UxrFingerTipRaycaster.FingerTipMinHoverDistanceDefault;
+        [SerializeField] protected int                 _dragThreshold                = 40;
 
         #endregion
 
@@ -72,11 +72,11 @@ namespace UltimateXR.UI.UnityInputModule
         ///     Gets, for those canvases that have been set up automatically using <see cref="AutoEnableOnWorldCanvases" />, the
         ///     type of interaction that will be used.
         /// </summary>
-        public UxrInteractionType InteractionTypeOnAutoEnable => _interactionTypeOnAutoEnable;
+        public UxrInteractionTypes InteractionTypesOnAutoEnable => _interactionTypesOnAutoEnable;
 
         /// <summary>
-        ///     Gets the minimum distance from a finger tip to a canvas in order to generate hovering events, when
-        ///     <see cref="InteractionTypeOnAutoEnable" /> is <see cref="UxrInteractionType.FingerTips" />,
+        ///     Gets the minimum distance from a fingertip to a canvas to generate hovering events, when
+        ///     <see cref="InteractionTypesOnAutoEnable" /> has <see cref="UxrInteractionTypes.FingerTips" />,
         /// </summary>
         public float FingerTipMinHoverDistance => _fingerTipMinHoverDistance;
 
@@ -703,7 +703,7 @@ namespace UltimateXR.UI.UnityInputModule
 
                 foreach (UxrCanvas canvas in canvasVR)
                 {
-                    if (canvas.CanvasInteractionType == UxrInteractionType.LaserPointers &&
+                    if (canvas.CanvasInteractionTypes.HasFlag(UxrInteractionTypes.LaserPointers) &&
                         canvas.AutoEnableLaserPointer                                    &&
                         canvas.IsCompatible(laserPointer.HandSide)                       &&
                         raycast.distance <= canvas.AutoEnableDistance)

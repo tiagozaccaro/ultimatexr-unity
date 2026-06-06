@@ -21,7 +21,7 @@ namespace UltimateXR.Editor.UI.UnityInputModule
         /// </summary>
         private void OnEnable()
         {
-            _propertyInteractionType           = serializedObject.FindProperty("_interactionType");
+            _propertyInteractionTypes          = serializedObject.FindProperty("_interactionTypes");
             _propertyFingerTipMinHoverDistance = serializedObject.FindProperty("_fingerTipMinHoverDistance");
             _propertyAutoEnableLaserPointer    = serializedObject.FindProperty("_autoEnableLaserPointer");
             _propertyAutoEnableDistance        = serializedObject.FindProperty("_autoEnableDistance");
@@ -37,13 +37,13 @@ namespace UltimateXR.Editor.UI.UnityInputModule
             serializedObject.Update();
 
             EditorGUILayout.Space();
-            EditorGUILayout.PropertyField(_propertyInteractionType);
+            EditorGUILayout.PropertyField(_propertyInteractionTypes);
 
-            if (_propertyInteractionType.enumNames[_propertyInteractionType.enumValueIndex] == UxrInteractionType.FingerTips.ToString())
+            if (((UxrInteractionTypes)_propertyInteractionTypes.intValue).HasFlag(UxrInteractionTypes.FingerTips))
             {
                 EditorGUILayout.PropertyField(_propertyFingerTipMinHoverDistance);
             }
-            if (_propertyInteractionType.enumNames[_propertyInteractionType.enumValueIndex] == UxrInteractionType.LaserPointers.ToString())
+            if (((UxrInteractionTypes)_propertyInteractionTypes.intValue).HasFlag(UxrInteractionTypes.LaserPointers))
             {
                 EditorGUILayout.PropertyField(_propertyAutoEnableLaserPointer);
                 EditorGUILayout.PropertyField(_propertyAutoEnableDistance);
@@ -59,7 +59,7 @@ namespace UltimateXR.Editor.UI.UnityInputModule
 
         #region Private Types & Data
 
-        private SerializedProperty _propertyInteractionType;
+        private SerializedProperty _propertyInteractionTypes;
         private SerializedProperty _propertyFingerTipMinHoverDistance;
         private SerializedProperty _propertyAutoEnableLaserPointer;
         private SerializedProperty _propertyAutoEnableDistance;

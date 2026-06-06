@@ -34,7 +34,7 @@ namespace UltimateXR.UI.UnityInputModule
         public UxrHandSide HandSide { get; }
 
         /// <summary>
-        ///     Gets the finger tip if this event is being processed by one. Null if not.
+        ///     Gets the fingertip if this event is being processed by one. Null if not.
         /// </summary>
         public UxrFingerTip FingerTip { get; }
 
