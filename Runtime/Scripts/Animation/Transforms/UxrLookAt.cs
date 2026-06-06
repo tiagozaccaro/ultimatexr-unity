@@ -49,6 +49,7 @@ namespace UltimateXR.Animation.Transforms
         ///     If true, the target's look axis will try to point at the opposite direction where the target is. By default this is
         ///     false, meaning the look vector will try to point at the target
         /// </param>
+        /// <param name="onlyOnce">If true, the lookAt will only be applied one frame</param>
         public static void MakeLookAt(GameObject gameObject,
                                       Transform  target,
                                       UxrAxis    lookAxis,
