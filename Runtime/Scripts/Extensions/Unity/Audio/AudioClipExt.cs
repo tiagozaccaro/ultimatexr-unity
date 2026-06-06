@@ -105,6 +105,32 @@ namespace UltimateXR.Extensions.Unity.Audio
             return AudioSourceExt.PlayClipAsync(self, volume, delay, pitch, offsetSeconds, ct);
         }
 
+        /// <summary>
+        ///     Asynchronously plays the <see cref="AudioClip" /> using a specific <see cref="AudioSource" />.
+        /// </summary>
+        /// <param name="self">Reference to the sound clip file that will be played.</param>
+        /// <param name="audioSource">Audio source that will play the clip.</param>
+        /// <param name="volume">How loud the sound is at a distance of one world unit (one meter) [0.0, 1.0].</param>
+        /// <param name="delay">Delay time specified in seconds.</param>
+        /// <param name="pitch">
+        ///     Amount of change in pitch due to slowdown/speed up of the Audio Clip. Value 1 is normal playback
+        ///     speed.
+        /// </param>
+        /// <param name="offsetSeconds">Start offset in seconds</param>
+        /// <param name="ct"><see cref="CancellationToken" /> to stop playing.</param>
+        /// <returns>An awaitable <see cref="Task" />.</returns>
+        /// <seealso cref="AudioSourceExt.PlayClipAsync(AudioSource,AudioClip,float,float,float,float,CancellationToken)" />
+        public static Task PlayAsync(this AudioClip    self,
+                                     AudioSource       audioSource,
+                                     float             volume        = 1.0f,
+                                     float             delay         = 0.0f,
+                                     float             pitch         = 1.0f,
+                                     float             offsetSeconds = 0.0f,
+                                     CancellationToken ct            = default)
+        {
+            return AudioSourceExt.PlayClipAsync(audioSource, self, volume, delay, pitch, offsetSeconds, ct);
+        }
+
 
         /// <summary>
         ///     Asynchronously plays the <see cref="AudioClip" /> at a given position in world space.

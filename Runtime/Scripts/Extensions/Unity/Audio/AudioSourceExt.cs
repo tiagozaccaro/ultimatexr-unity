@@ -241,6 +241,109 @@ namespace UltimateXR.Extensions.Unity.Audio
         }
 
         /// <summary>
+        ///     Asynchronously plays an <see cref="AudioClip" /> using an existing <see cref="AudioSource" />.
+        /// </summary>
+        /// <param name="audioSource">Audio source that will play the clip.</param>
+        /// <param name="clip">Reference to the sound clip file that will be played.</param>
+        /// <param name="volume">How loud the sound is at a distance of one world unit (one meter) [0.0, 1.0].</param>
+        /// <param name="delay">Delay time specified in seconds.</param>
+        /// <param name="pitch">
+        ///     Amount of change in pitch due to slowdown/speed up of the Audio Clip. Value 1 is normal playback
+        ///     speed.
+        /// </param>
+        /// <param name="offsetSeconds">Start offset in seconds</param>
+        /// <param name="ct"><see cref="CancellationToken" /> to stop playing.</param>
+        /// <returns>An awaitable <see cref="Task" />.</returns>
+        public static async Task PlayClipAsync(AudioSource       audioSource,
+                                               AudioClip         clip,
+                                               float             volume        = 1.0f,
+                                               float             delay         = 0.0f,
+                                               float             pitch         = 1.0f,
+                                               float             offsetSeconds = 0.0f,
+                                               CancellationToken ct            = default)
+        {
+            if (ct.IsCancellationRequested)
+            {
+                return;
+            }
+
+            if (!Application.isPlaying)
+            {
+                throw new InvalidOperationException("Playback is only allowed while playing.");
+            }
+
+            clip.ThrowIfNull(nameof(clip));
+
+            if (audioSource == null)
+            {
+                throw new ArgumentNullException(nameof(audioSource));
+            }
+
+            if (offsetSeconds >= clip.length)
+            {
+                return;
+            }
+
+            AudioClip previousClip   = audioSource.clip;
+            float     previousVolume = audioSource.volume;
+            float     previousPitch  = audioSource.pitch;
+            bool      previousLoop   = audioSource.loop;
+
+            offsetSeconds = Mathf.Max(offsetSeconds, 0.0f);
+            volume        = Mathf.Clamp01(volume);
+            pitch         = Mathf.Clamp01(pitch);
+
+            audioSource.Stop();
+            audioSource.clip   = clip;
+            audioSource.volume = volume;
+            audioSource.pitch  = pitch;
+            audioSource.loop   = false;
+
+            if (delay > offsetSeconds)
+            {
+                audioSource.PlayDelayed(delay - offsetSeconds);
+            }
+            else
+            {
+                audioSource.Play();
+                audioSource.time = offsetSeconds - delay;
+            }
+
+            float duration = delay + clip.length - offsetSeconds;
+
+            try
+            {
+                float elapsed = 0.0f;
+
+                while (!ct.IsCancellationRequested && audioSource != null)
+                {
+                    if (!AudioListener.pause)
+                    {
+                        elapsed += Time.unscaledDeltaTime;
+
+                        if ((elapsed >= delay && !audioSource.isPlaying) || elapsed >= duration)
+                        {
+                            break;
+                        }
+                    }
+
+                    await Task.Yield();
+                }
+            }
+            finally
+            {
+                if (audioSource != null)
+                {
+                    audioSource.Stop();
+                    audioSource.clip   = previousClip;
+                    audioSource.volume = previousVolume;
+                    audioSource.pitch  = previousPitch;
+                    audioSource.loop   = previousLoop;
+                }
+            }
+        }
+
+        /// <summary>
         ///     Asynchronously plays an <see cref="AudioClip" /> at a given position in world space.
         /// </summary>
         /// <remarks>
