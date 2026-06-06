@@ -194,7 +194,7 @@ namespace UltimateXR.Devices.Integrations.SteamVR
                         OpenVR.System.GetStringTrackedDeviceProperty((uint)controllerIndex, ETrackedDeviceProperty.Prop_ModelNumber_String, renderModelName, ModelNameMaxLength, ref error);
 
                         string                 modelNameString = renderModelName.ToString();
-                        ETrackedControllerRole role            = OpenVR.System.GetControllerRoleForTrackedDeviceIndex((uint)index);
+                        ETrackedControllerRole role            = OpenVR.System.GetControllerRoleForTrackedDeviceIndex((uint)controllerIndex);
 
                         bool isLeft  = role == ETrackedControllerRole.LeftHand;
                         bool isRight = role == ETrackedControllerRole.RightHand;
