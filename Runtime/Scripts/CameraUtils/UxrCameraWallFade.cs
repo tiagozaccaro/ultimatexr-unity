@@ -456,7 +456,7 @@ namespace UltimateXR.CameraUtils
         /// <param name="e">Event parameters.</param>
         private void UxrAvatar_GlobalAvatarMoved(object sender, UxrAvatarMoveEventArgs e)
         {
-            if (ReferenceEquals(e.Avatar, Avatar) && !e.IsLocomotion)
+            if (ReferenceEquals(e.Avatar, Avatar))
             {
                 ResetState();
             }
