@@ -4,6 +4,7 @@
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
 using UltimateXR.Core.Components;
+using UltimateXR.Locomotion.Teleport;
 using UnityEngine;
 
 namespace UltimateXR.Locomotion
@@ -15,7 +16,7 @@ namespace UltimateXR.Locomotion
     ///     upwards will be selected.
     ///     Some components, such as <see cref="UxrTeleportLocomotion" />, have a setting that controls the default behaviour (
     ///     <see cref="UxrTeleportLocomotionBase.ParentToDestination" />). The <see cref="UxrParentAvatarDestination" /> can in
-    ///     this case be used to override the default behaviour.
+    ///     this case be used to override the default behavior.
     /// </summary>
     public class UxrParentAvatarDestination : UxrComponent
     {
@@ -28,7 +29,7 @@ namespace UltimateXR.Locomotion
         #region Public Types & Data
 
         /// <summary>
-        ///     Whether the avatar should be re-parented to the object containing the component whenever a locomotion takes the
+        ///     Whether the avatar should be re-parented to the object containing the component whenever locomotion takes the
         ///     avatar to the object or any of its children.
         /// </summary>
         public bool ParentAvatar
