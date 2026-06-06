@@ -382,6 +382,18 @@ namespace UltimateXR.Locomotion.Smooth
 
             TargetLocalCamRotation    = CameraController.localRotation;
             TargetLocalAvatarRotation = AvatarRoot.localRotation;
+
+            UxrAvatar.GlobalAvatarMoving += UxrAvatar_GlobalAvatarMoving;
+            UxrAvatar.GlobalAvatarMoved  += UxrAvatar_GlobalAvatarMoved;
+        }
+
+        /// <inheritdoc />
+        protected override void OnDisable()
+        {
+            base.OnDisable();
+
+            UxrAvatar.GlobalAvatarMoving -= UxrAvatar_GlobalAvatarMoving;
+            UxrAvatar.GlobalAvatarMoved  -= UxrAvatar_GlobalAvatarMoved;
         }
 
         /// <inheritdoc />
@@ -473,6 +485,41 @@ namespace UltimateXR.Locomotion.Smooth
             UxrManager.Instance.MoveAvatarTo(Avatar, targetPosition, targetDirection, source: this);
             CharacterController.enabled = wasEnabled;
             _moveCoroutine              = null;
+        }
+
+        #endregion
+
+        #region Event Handling Methods
+
+        /// <summary>
+        ///     Called when any avatar is about to move globally. We use it to disable the Character
+        ///     Controller and re-enable it again after it moved. This is only required if the source
+        ///     of the movement was external and not this component itself.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The event data containing information</param>
+        private void UxrAvatar_GlobalAvatarMoving(object sender, UxrAvatarMoveEventArgs e)
+        {
+            if (e.Avatar == Avatar && (UxrSmoothLocomotion)sender != this && CharacterController != null)
+            {
+                _wasCCEnabledOnGlobalAvatarMoving = CharacterController.enabled;
+                CharacterController.enabled = false;
+            }
+        }
+
+        /// <summary>
+        ///     Handles the event triggered when the avatar has completed its movement globally. We use it
+        ///     to re-enable the Character Controller after the movement has finished. This is only required
+        ///     if the source of the movement was external and not this component itself.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The event data containing information</param>
+        private void UxrAvatar_GlobalAvatarMoved(object sender, UxrAvatarMoveEventArgs e)
+        {
+            if (e.Avatar == Avatar && (UxrSmoothLocomotion)sender != this && CharacterController != null)
+            {
+                CharacterController.enabled = _wasCCEnabledOnGlobalAvatarMoving;
+            }
         }
 
         #endregion
@@ -677,7 +724,7 @@ namespace UltimateXR.Locomotion.Smooth
                 UxrManager.Instance.RotateLocalAvatar(degrees,
                                                       TurnType,
                                                       TurnSeconds,
-                                                      finishedCallback: finished =>
+                                                      finishedCallback: _ =>
                                                                         {
                                                                             _isMidRotation            = false;
                                                                             TargetLocalCamRotation    = CameraController.localRotation;
@@ -1289,6 +1336,7 @@ namespace UltimateXR.Locomotion.Smooth
         private bool       _isMidRotation;
         private Coroutine  _moveCoroutine;
         private Collider[] _bodyColliders;
+        private bool       _wasCCEnabledOnGlobalAvatarMoving;
 
         #endregion
     }
