@@ -99,6 +99,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unregistration, enabling and disabling.
 - Add explicit prefab lists to UxrInstanceManager to control which prefabs can be
   instantiated at runtime.
+- Add support for UI laser pointer and fingertip interaction at the same time.
 
 ### Changed
 
@@ -159,6 +160,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   MostRecentAnchor.
 - Update network and voice abstraction APIs to better support multiple networking
   and voice backends.
+- Rename UxrInteractionType to UxrInteractionTypes as flags that can be combined.
+- Rename UxrLookAtLocalAvatar to UxrLookAtAvatar and added new options.
 
 ### Fixed
 
