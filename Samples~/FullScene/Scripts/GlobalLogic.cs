@@ -68,7 +68,7 @@ namespace UltimateXR.Examples.FullScene
         }
 
         /// <summary>
-        ///     Handles some keyboard shortcuts to reset, quit or quick spawn to different places.
+        ///     Handles some keyboard shortcuts to reset, quit, or quick spawn to different places.
         /// </summary>
         private void Update()
         {
@@ -160,7 +160,7 @@ namespace UltimateXR.Examples.FullScene
         }
 
         /// <summary>
-        ///     Updates the visibility GameObjects using the given view position.
+        ///     Updates the visibility of GameObjects using the given view position.
         /// </summary>
         /// <param name="viewPosition">View position</param>
         private void EnableVisibilityGameObjects(Vector3 viewPosition)
