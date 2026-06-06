@@ -1,5 +1,5 @@
 ﻿// --------------------------------------------------------------------------------------------------------------------
-// <copyright file="UxrLookAtLocalAvatar.cs" company="VRMADA">
+// <copyright file="UxrLookAtAvatar.cs" company="VRMADA">
 //   Copyright (c) VRMADA, All rights reserved.
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
@@ -12,17 +12,17 @@ using UnityEngine;
 namespace UltimateXR.Animation.Transforms
 {
     /// <summary>
-    ///     Component that allows to continuously orientate an object looking at the local avatar camera.
-    ///     If there is no local avatar, it will use the first enabled camera.
+    ///     Component that allows to continuously orientate an object looking at an avatar camera.
     /// </summary>
-    public class UxrLookAtLocalAvatar : UxrComponent
+    public partial class UxrLookAtAvatar : UxrComponent
     {
         #region Inspector Properties/Serialized Fields
 
-        [SerializeField] private bool _allowRotateAroundY = true;
-        [SerializeField] private bool _allowRotateAroundX = true;
-        [SerializeField] private bool _invertedForwardAxis;
-        [SerializeField] private bool _onlyOnce;
+        [SerializeField] private AvatarTarget _target             = AvatarTarget.LocalAvatar;
+        [SerializeField] private bool         _allowRotateAroundY = true;
+        [SerializeField] private bool         _allowRotateAroundX = true;
+        [SerializeField] private bool         _invertedForwardAxis;
+        [SerializeField] private bool         _onlyOnce;
 
         #endregion
 
@@ -48,7 +48,7 @@ namespace UltimateXR.Animation.Transforms
 
         /// <summary>
         ///     If true, the target's forward axis will try to point at the opposite direction where the
-        ///     avatar is. By default this is false, meaning the forward vector will try to point at
+        ///     avatar is. By default, this is false, meaning the forward vector will try to point at
         ///     the avatar.
         /// </summary>
         public bool InvertedForwardAxis
@@ -58,17 +58,17 @@ namespace UltimateXR.Animation.Transforms
         }
 
         /// <summary>
-        ///     If true, will only perform the lookat the first time it is called. Useful for explosions
+        ///     If true, will only perform the look-at the first time it is called. Useful for explosions
         ///     or similar effects in VR.
         /// </summary>
         public bool OnlyOnce
         {
             get => _onlyOnce;
-            set => _onlyOnce = true;
+            set => _onlyOnce = value;
         }
 
         /// <summary>
-        ///     Gets or sets an override transform that will be used, if non-null, instead of the local avatar camera.
+        ///     Gets or sets an override transform that will be used, if non-null, instead of the avatar camera.
         /// </summary>
         public Transform OverrideTargetTransform { get; set; }
 
@@ -77,9 +77,9 @@ namespace UltimateXR.Animation.Transforms
         #region Public Methods
 
         /// <summary>
-        ///     Makes an object look at the local avatar a single time.
+        ///     Makes an object look at the avatar a single time.
         /// </summary>
-        /// <param name="gameObject">The object that will look at the local avatar</param>
+        /// <param name="gameObject">The object that will look at the avatar</param>
         /// <param name="allowRotateAroundVerticalAxis">
         ///     Should the lookAt alter the rotation around the vertical axis?
         /// </param>
@@ -90,20 +90,21 @@ namespace UltimateXR.Animation.Transforms
         ///     If true, the target's forward axis will try to point at the opposite direction where the avatar is. By default this
         ///     is false, meaning the forward vector will try to point at the avatar
         /// </param>
-        public static void MakeLookAtOnlyOnce(GameObject gameObject, bool allowRotateAroundVerticalAxis, bool allowRotateAroundHorizontalAxis, bool invertedForwardAxis)
+        /// <param name="target">The target to look at</param>
+        public static void MakeLookAtOnlyOnce(GameObject gameObject, bool allowRotateAroundVerticalAxis, bool allowRotateAroundHorizontalAxis, bool invertedForwardAxis, AvatarTarget target)
         {
-            PerformLookAt(gameObject.transform, null, allowRotateAroundVerticalAxis, allowRotateAroundHorizontalAxis, invertedForwardAxis);
+            PerformLookAt(gameObject.transform, null, allowRotateAroundVerticalAxis, allowRotateAroundHorizontalAxis, invertedForwardAxis, target);
         }
 
         /// <summary>
-        ///     Removes an UxrLookAtLocalAvatar component if it exists.
+        ///     Removes an UxrLookAtAvatar component if it exists.
         /// </summary>
         /// <param name="gameObject">The GameObject to remove the component from</param>
         public static void RemoveLookAt(GameObject gameObject)
         {
             if (gameObject)
             {
-                UxrLookAtLocalAvatar lookAtComponent = gameObject.GetComponent<UxrLookAtLocalAvatar>();
+                UxrLookAtAvatar lookAtComponent = gameObject.GetComponent<UxrLookAtAvatar>();
 
                 if (lookAtComponent)
                 {
@@ -113,7 +114,7 @@ namespace UltimateXR.Animation.Transforms
         }
 
         /// <summary>
-        ///     Makes an object look at the local avatar continuously over time.
+        ///     Makes an object look at the avatar continuously over time.
         /// </summary>
         /// <param name="sourceObject">The object that will look at the local avatar</param>
         /// <param name="allowRotateAroundVerticalAxis">
@@ -126,11 +127,13 @@ namespace UltimateXR.Animation.Transforms
         ///     If true, the target's forward axis will try to point at the opposite direction where the avatar is. By default this
         ///     is false, meaning the forward vector will try to point at the avatar
         /// </param>
+        /// <param name="target">The target to look at</param>
         /// <returns>The look-at component</returns>
-        public UxrLookAtLocalAvatar MakeLookAt(GameObject sourceObject, bool allowRotateAroundVerticalAxis, bool allowRotateAroundHorizontalAxis, bool invertedForwardAxis)
+        public UxrLookAtAvatar MakeLookAt(GameObject sourceObject, bool allowRotateAroundVerticalAxis, bool allowRotateAroundHorizontalAxis, bool invertedForwardAxis, AvatarTarget target = AvatarTarget.LocalAvatar)
         {
-            UxrLookAtLocalAvatar lookAtComponent = sourceObject.GetOrAddComponent<UxrLookAtLocalAvatar>();
+            UxrLookAtAvatar lookAtComponent = sourceObject.GetOrAddComponent<UxrLookAtAvatar>();
 
+            lookAtComponent._target              = target;
             lookAtComponent._allowRotateAroundY  = allowRotateAroundVerticalAxis;
             lookAtComponent._allowRotateAroundX  = allowRotateAroundHorizontalAxis;
             lookAtComponent._invertedForwardAxis = invertedForwardAxis;
@@ -173,7 +176,7 @@ namespace UltimateXR.Animation.Transforms
         {
             if (_repeat)
             {
-                PerformLookAt(transform, OverrideTargetTransform, _allowRotateAroundY, _allowRotateAroundX, _invertedForwardAxis);
+                PerformLookAt(transform, OverrideTargetTransform, _allowRotateAroundY, _allowRotateAroundX, _invertedForwardAxis, _target);
 
                 if (_onlyOnce)
                 {
@@ -201,9 +204,36 @@ namespace UltimateXR.Animation.Transforms
         ///     If true, the target's forward axis will try to point at the opposite direction where the avatar is. By default this
         ///     is false, meaning the forward vector will try to point at the avatar
         /// </param>
-        private static void PerformLookAt(Transform transform, Transform overrideTargetTransform, bool allowRotateAroundVerticalAxis, bool allowRotateAroundHorizontalAxis, bool invertedForwardAxis)
+        /// <param name="target">The target to look at</param>
+        private static void PerformLookAt(Transform transform, Transform overrideTargetTransform, bool allowRotateAroundVerticalAxis, bool allowRotateAroundHorizontalAxis, bool invertedForwardAxis, AvatarTarget target)
         {
-            Transform targetTransform = overrideTargetTransform ?? UxrAvatar.LocalOrFirstEnabledCamera?.transform;
+            // First priority -> override transform
+            
+            Transform targetTransform = overrideTargetTransform;
+
+            if (targetTransform == null)
+            {
+                // Second priority -> check target avatar
+                
+                if (target == AvatarTarget.FirstParentAvatar)
+                {
+                    // Find the first parent avatar and use its camera transform
+                    
+                    UxrAvatar avatar = transform.GetComponentInParent<UxrAvatar>();
+                    
+                    if (avatar != null)
+                    {
+                        targetTransform = avatar.CameraTransform;
+                    }
+                }
+                
+                // Still no target? Use the local or first enabled camera
+
+                if (targetTransform == null)
+                {
+                    targetTransform = UxrAvatar.LocalOrFirstEnabledCamera?.transform;
+                }
+            }
 
             if (targetTransform == null)
             {
