@@ -35,6 +35,12 @@ namespace UltimateXR.Networking
         public abstract bool IsLocalMicSubscribed { get; }
 
         /// <inheritdoc />
+        public abstract bool IsMicMuted { get; }
+
+        /// <inheritdoc />
+        public abstract bool SuppressLocalMicDataWhileMuted { get; }
+
+        /// <inheritdoc />
         public abstract void SetupGlobal(string networkingSdk, UxrNetworkManager networkManager, out List<GameObject> newGameObjects, out List<Component> newComponents);
 
         /// <inheritdoc />
@@ -45,6 +51,9 @@ namespace UltimateXR.Networking
 
         /// <inheritdoc />
         public abstract void UnsubscribeLocalMic();
+
+        /// <inheritdoc />
+        public abstract bool SetMicMuted(bool muted, bool suppressLocalMicData);
 
         /// <inheritdoc />
         public abstract IEnumerable<AudioSource> GetActiveRemoteVoiceAudioSources();
