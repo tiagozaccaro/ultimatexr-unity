@@ -32,6 +32,16 @@ namespace UltimateXR.Networking
         /// </summary>
         bool IsLocalMicSubscribed { get; }
 
+        /// <summary>
+        ///     Gets whether microphone network transmission is currently muted.
+        /// </summary>
+        bool IsMicMuted { get; }
+
+        /// <summary>
+        ///     Gets whether local microphone data callbacks are suppressed while network transmission is muted.
+        /// </summary>
+        bool SuppressLocalMicDataWhileMuted { get; }
+
         #endregion
 
         #region Public Methods
@@ -70,6 +80,20 @@ namespace UltimateXR.Networking
         ///     Stops delivering local microphone data and releases associated resources.
         /// </summary>
         void UnsubscribeLocalMic();
+
+        /// <summary>
+        ///     Sets whether the microphone is muted for network transmission.
+        /// </summary>
+        /// <param name="muted">
+        ///     Whether microphone data should stop being sent to other users.
+        /// </param>
+        /// <param name="suppressLocalMicData">
+        ///     Whether local microphone data callbacks should also be suppressed while muted.
+        /// </param>
+        /// <returns>
+        ///     <c>true</c> if the microphone mute state was changed; otherwise, <c>false</c>.
+        /// </returns>
+        bool SetMicMuted(bool muted, bool suppressLocalMicData);
 
         /// <summary>
         ///     Gets the AudioSources currently playing remote voice data.

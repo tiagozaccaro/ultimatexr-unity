@@ -52,6 +52,22 @@ namespace UltimateXR.Networking.Integrations.Voice.Dissonance
 #endif
 
         /// <inheritdoc />
+        public override bool IsMicMuted =>
+#if ULTIMATEXR_USE_DISSONANCE_SDK
+            _isMicMuted;
+#else
+            false;
+#endif
+
+        /// <inheritdoc />
+        public override bool SuppressLocalMicDataWhileMuted =>
+#if ULTIMATEXR_USE_DISSONANCE_SDK
+            _suppressLocalMicDataWhileMuted;
+#else
+            false;
+#endif
+
+        /// <inheritdoc />
         public override void SetupGlobal(string networkingSdk, UxrNetworkManager networkManager, out List<GameObject> newGameObjects, out List<Component> newComponents)
         {
             newGameObjects = new List<GameObject>();
@@ -151,6 +167,8 @@ namespace UltimateXR.Networking.Integrations.Voice.Dissonance
                 return;
             }
 
+            _comms                = comms;
+            _comms.IsMuted        = _isMicMuted;
             _micAdapter           = new MicSubscriberAdapter(this);
             _micCapture           = capture;
             _micCapture.Subscribe(_micAdapter);
@@ -182,6 +200,40 @@ namespace UltimateXR.Networking.Integrations.Voice.Dissonance
             _micCapture           = null;
             _micAdapter           = null;
             _isLocalMicSubscribed = false;
+#endif
+        }
+
+        /// <inheritdoc />
+        public override bool SetMicMuted(bool muted, bool suppressLocalMicData)
+        {
+#if ULTIMATEXR_USE_DISSONANCE_SDK
+            bool changed = _isMicMuted != muted || _suppressLocalMicDataWhileMuted != suppressLocalMicData;
+
+            _isMicMuted                     = muted;
+            _suppressLocalMicDataWhileMuted = suppressLocalMicData;
+
+            DissonanceComms comms = _comms != null ? _comms : FindFirstObjectByType<DissonanceComms>();
+
+            if (comms != null)
+            {
+                _comms         = comms;
+                _comms.IsMuted = muted;
+            }
+            else
+            {
+                Debug.LogWarning($"{nameof(UxrDissonanceNetwork)}: No DissonanceComms found. Mic mute state will be applied when Dissonance is available.");
+            }
+
+            if (changed)
+            {
+                string transmitState = muted ? "muted" : "unmuted";
+                string localDataState = suppressLocalMicData ? "suppressed" : "available";
+                Debug.Log($"{nameof(UxrDissonanceNetwork)}: Network microphone transmission {transmitState}. Local microphone data callbacks are {localDataState}.");
+            }
+
+            return changed;
+#else
+            return false;
 #endif
         }
 
@@ -220,6 +272,7 @@ namespace UltimateXR.Networking.Integrations.Voice.Dissonance
             if (comms != null)
             {
                 _comms                        =  comms;
+                _comms.IsMuted                =  _isMicMuted;
                 _comms.OnPlayerJoinedSession  += OnPlayerJoinedSession;
             }
         }
@@ -286,7 +339,10 @@ namespace UltimateXR.Networking.Integrations.Voice.Dissonance
 
             public void ReceiveMicrophoneData(ArraySegment<float> buffer, WaveFormat format)
             {
-                _owner.RaiseLocalMicDataReceived(buffer, new UxrAudioFormat(format.SampleRate, format.Channels));
+                if (!_owner.ShouldSuppressLocalMicData)
+                {
+                    _owner.RaiseLocalMicDataReceived(buffer, new UxrAudioFormat(format.SampleRate, format.Channels));
+                }
             }
 
             public void Reset()
@@ -294,10 +350,40 @@ namespace UltimateXR.Networking.Integrations.Voice.Dissonance
             }
         }
 
-        private DissonanceComms      _comms;
+        /// <summary>
+        ///     Dissonance communications component currently in use.
+        /// </summary>
+        private DissonanceComms _comms;
+
+        /// <summary>
+        ///     Adapter subscribed to Dissonance microphone data.
+        /// </summary>
         private MicSubscriberAdapter _micAdapter;
-        private IMicrophoneCapture   _micCapture;
-        private bool                 _isLocalMicSubscribed;
+
+        /// <summary>
+        ///     Dissonance microphone capture source.
+        /// </summary>
+        private IMicrophoneCapture _micCapture;
+
+        /// <summary>
+        ///     Whether local microphone callbacks are subscribed.
+        /// </summary>
+        private bool _isLocalMicSubscribed;
+
+        /// <summary>
+        ///     Whether network microphone transmission is muted.
+        /// </summary>
+        private bool _isMicMuted;
+
+        /// <summary>
+        ///     Whether local microphone callbacks are suppressed while muted.
+        /// </summary>
+        private bool _suppressLocalMicDataWhileMuted;
+
+        /// <summary>
+        ///     Whether local microphone data should be skipped.
+        /// </summary>
+        private bool ShouldSuppressLocalMicData => _isMicMuted && _suppressLocalMicDataWhileMuted;
 
         #endregion
 

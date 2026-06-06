@@ -54,6 +54,22 @@ namespace UltimateXR.Networking.Integrations.Voice.PhotonVoice
 #endif
 
         /// <inheritdoc />
+        public override bool IsMicMuted =>
+#if ULTIMATEXR_USE_PHOTONVOICE_SDK
+            _isMicMuted;
+#else
+            false;
+#endif
+
+        /// <inheritdoc />
+        public override bool SuppressLocalMicDataWhileMuted =>
+#if ULTIMATEXR_USE_PHOTONVOICE_SDK
+            _suppressLocalMicDataWhileMuted;
+#else
+            false;
+#endif
+
+        /// <inheritdoc />
         public override void SetupGlobal(string networkingSdk, UxrNetworkManager networkManager, out List<GameObject> newGameObjects, out List<Component> newComponents)
         {
             newGameObjects = new List<GameObject>();
@@ -183,6 +199,39 @@ namespace UltimateXR.Networking.Integrations.Voice.PhotonVoice
         }
 
         /// <inheritdoc />
+        public override bool SetMicMuted(bool muted, bool suppressLocalMicData)
+        {
+#if ULTIMATEXR_USE_PHOTONVOICE_SDK
+            bool changed = _isMicMuted != muted || _suppressLocalMicDataWhileMuted != suppressLocalMicData;
+
+            _isMicMuted                     = muted;
+            _suppressLocalMicDataWhileMuted = suppressLocalMicData;
+
+            Recorder recorder = GetPrimaryRecorder();
+
+            if (recorder != null)
+            {
+                recorder.TransmitEnabled = !muted;
+            }
+            else
+            {
+                Debug.LogWarning($"{nameof(UxrPhotonVoiceNetwork)}: No Photon Voice Recorder found. Mic mute state will be applied when a recorder is available.");
+            }
+
+            if (changed)
+            {
+                string transmitState = muted ? "muted" : "unmuted";
+                string localDataState = suppressLocalMicData ? "suppressed" : "available";
+                Debug.Log($"{nameof(UxrPhotonVoiceNetwork)}: Network microphone transmission {transmitState}. Local microphone data callbacks are {localDataState}.");
+            }
+
+            return changed;
+#else
+            return false;
+#endif
+        }
+
+        /// <inheritdoc />
         public override IEnumerable<AudioSource> GetActiveRemoteVoiceAudioSources()
         {
 #if ULTIMATEXR_USE_PHOTONVOICE_SDK
@@ -213,6 +262,8 @@ namespace UltimateXR.Networking.Integrations.Voice.PhotonVoice
         protected override void OnEnable()
         {
             base.OnEnable();
+
+            ApplyMicMuteToRecorder();
 
             VoiceConnection voiceConnection = FindFirstObjectByType<VoiceConnection>();
 
@@ -298,7 +349,10 @@ namespace UltimateXR.Networking.Integrations.Voice.PhotonVoice
                         _micClip.GetData(_micReadBuffer, _micLastSamplePos);
                         _micLastSamplePos = currentPos;
 
-                        RaiseLocalMicDataReceived(new ArraySegment<float>(_micReadBuffer, 0, samplesToRead), format);
+                        if (!ShouldSuppressLocalMicData)
+                        {
+                            RaiseLocalMicDataReceived(new ArraySegment<float>(_micReadBuffer, 0, samplesToRead), format);
+                        }
                     }
                 }
 
@@ -308,15 +362,89 @@ namespace UltimateXR.Networking.Integrations.Voice.PhotonVoice
 
         #endregion
 
+        #region Private Methods
+
+        /// <summary>
+        ///     Applies the current mute state to the Photon Voice recorder, when one is available.
+        /// </summary>
+        private void ApplyMicMuteToRecorder()
+        {
+            Recorder recorder = GetPrimaryRecorder();
+
+            if (recorder != null)
+            {
+                recorder.TransmitEnabled = !_isMicMuted;
+            }
+        }
+
+        /// <summary>
+        ///     Finds the recorder used for network transmission.
+        /// </summary>
+        private static Recorder GetPrimaryRecorder()
+        {
+            FusionVoiceClient voiceClient = FindFirstObjectByType<FusionVoiceClient>();
+
+            if (voiceClient != null && voiceClient.PrimaryRecorder != null)
+            {
+                return voiceClient.PrimaryRecorder;
+            }
+
+            return FindFirstObjectByType<Recorder>();
+        }
+
+        #endregion
+
         #region Private Types & Data
 
-        private bool      _isLocalMicSubscribed;
-        private string    _micDeviceName;
+        /// <summary>
+        ///     Whether local microphone callbacks are subscribed.
+        /// </summary>
+        private bool _isLocalMicSubscribed;
+
+        /// <summary>
+        ///     Whether network microphone transmission is muted.
+        /// </summary>
+        private bool _isMicMuted;
+
+        /// <summary>
+        ///     Whether local microphone callbacks are suppressed while muted.
+        /// </summary>
+        private bool _suppressLocalMicDataWhileMuted;
+
+        /// <summary>
+        ///     Unity microphone device name currently being read.
+        /// </summary>
+        private string _micDeviceName;
+
+        /// <summary>
+        ///     Unity microphone clip used for local PCM polling.
+        /// </summary>
         private AudioClip _micClip;
-        private int       _micLastSamplePos;
+
+        /// <summary>
+        ///     Last microphone sample position read.
+        /// </summary>
+        private int _micLastSamplePos;
+
+        /// <summary>
+        ///     Coroutine that polls Unity microphone samples.
+        /// </summary>
         private Coroutine _micPollCoroutine;
-        private int       _micSampleRate;
-        private float[]   _micReadBuffer;
+
+        /// <summary>
+        ///     Sample rate used for local microphone polling.
+        /// </summary>
+        private int _micSampleRate;
+
+        /// <summary>
+        ///     Buffer used to copy microphone samples.
+        /// </summary>
+        private float[] _micReadBuffer;
+
+        /// <summary>
+        ///     Whether local microphone data should be skipped.
+        /// </summary>
+        private bool ShouldSuppressLocalMicData => _isMicMuted && _suppressLocalMicDataWhileMuted;
 
         #endregion
 
