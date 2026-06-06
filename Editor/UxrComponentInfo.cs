@@ -47,6 +47,18 @@ namespace UltimateXR.Editor
         public bool IsOriginalSource { get; }
 
         /// <summary>
+        ///     Gets whether the component belongs to the first valid level in the hierarchy
+        ///     where modifications can be safely applied.
+        /// </summary>
+        /// <remarks>
+        ///     This is <see langword="true" /> for plain scene objects, for components whose
+        ///     immediate source is a model prefab (for example, an <c>.fbx</c>), and for the
+        ///     first non-model prefab layer above a model prefab. It is <see langword="false" />
+        ///     for prefab assets themselves and for higher prefab levels beyond this boundary.
+        /// </remarks>
+        public bool IsModifiableSource { get; }
+
+        /// <summary>
         ///     <para>
         ///         Similar to <see cref="IsOriginalSource" /> but when working with specific project paths.
         ///         If <see cref="IsOriginalSource" /> is true, <see cref="IsInnermostInValidChain" /> will always be true.
@@ -113,12 +125,14 @@ namespace UltimateXR.Editor
         ///     If <paramref name="component" /> is the original source of data (true) or it is instantiated from a parent prefab
         ///     (false)
         /// </param>
+        /// <param name="isModifiableSource">See <see cref="IsModifiableSource" /></param>
         /// <param name="isInnermostInValidChain">See <see cref="IsInnermostInValidChain" /></param>
-        public UxrComponentInfo(T component, GameObject prefab, bool isOriginalSource, bool isInnermostInValidChain)
+        public UxrComponentInfo(T component, GameObject prefab, bool isOriginalSource, bool isModifiableSource, bool isInnermostInValidChain)
         {
             TargetComponent         = component;
             TargetPrefab            = prefab;
             IsOriginalSource        = isOriginalSource;
+            IsModifiableSource      = isModifiableSource;
             IsInnermostInValidChain = isInnermostInValidChain;
         }
 

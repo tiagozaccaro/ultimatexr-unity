@@ -38,9 +38,10 @@ namespace UltimateXR.Editor
         /// </param>
         /// <param name="canceled">Returns whether the user canceled the operation using the progress updater</param>
         /// <param name="onlyCheck">
-        ///     Whether to only check if components should be processed without making any changes. This
+        ///     Whether to only check if components should be processed, without making any changes. This
         ///     can be used to get how many elements would be changed without modifying any data
         /// </param>
+        /// <typeparam name="T">The component type</typeparam>
         /// <returns>Whether any modifications were made</returns>
         public static bool ModifyComponent<T>(Object                        componentOrGameObject,
                                               UxrComponentProcessingOptions options,
@@ -59,8 +60,8 @@ namespace UltimateXR.Editor
 
             // Gather component(s) to process
 
-            T[]  components;
-            bool sourceIsPrefab;
+            T[]  components     = null;
+            bool sourceIsPrefab = false;
 
             if (componentOrGameObject is GameObject sourceGameObject)
             {
@@ -168,15 +169,10 @@ namespace UltimateXR.Editor
 
                 // Filter out paths that are dependencies but are not included in the list that we built because they are not being processed
 
-                if (prefabComponents.TryGetValue(prefabPath, out List<Component> componentList))
+                if (prefabComponents.ContainsKey(prefabPath))
                 {
                     GameObject prefab    = AssetDatabase.LoadMainAssetAtPath(prefabPath) as GameObject;
                     bool       processed = false;
-
-                    if (prefab == null)
-                    {
-                        continue;
-                    }
 
                     if (progressUpdater != null)
                     {
@@ -188,12 +184,12 @@ namespace UltimateXR.Editor
                         }
                     }
 
-                    foreach (Component notCastedComponent in componentList)
+                    foreach (T component in prefabComponents[prefabPath])
                     {
-                        T    component        = (T)notCastedComponent;
-                        bool isOriginalSource = PrefabUtility.GetCorrespondingObjectFromSource(component) == null;
+                        bool isOriginalSource   = PrefabUtility.GetCorrespondingObjectFromSource(component) == null;
+                        bool isModifiableSource = IsModifiableSource(component);
 
-                        if (componentProcessor != null && componentProcessor.Invoke(new UxrComponentInfo<T>(component, prefab, isOriginalSource, isOriginalSource), onlyCheck))
+                        if (componentProcessor != null && componentProcessor.Invoke(new UxrComponentInfo<T>(component, prefab, isOriginalSource, isModifiableSource, isOriginalSource), onlyCheck))
                         {
                             processed    = true;
                             processedAny = true;
@@ -241,9 +237,10 @@ namespace UltimateXR.Editor
                         }
                     }
 
-                    bool isOriginalSource = !c.gameObject.IsPrefabInstance();
+                    bool isOriginalSource   = !c.gameObject.IsPrefabInstance();
+                    bool isModifiableSource = IsModifiableSource(c);
 
-                    if (process && componentProcessor != null && componentProcessor.Invoke(new UxrComponentInfo<T>(c, null, isOriginalSource, isOriginalSource), onlyCheck))
+                    if (process && componentProcessor != null && componentProcessor.Invoke(new UxrComponentInfo<T>(c, null, isOriginalSource, isModifiableSource, isOriginalSource), onlyCheck))
                     {
                         processedAny = true;
 
@@ -905,6 +902,7 @@ namespace UltimateXR.Editor
                         // Only process those prefabs that are originally in this prefab and don't come from any prefab above in the hierarchy
 
                         bool isOriginalPrefab              = originalPrefab == prefab;
+                        bool isModifiableSource            = IsModifiableSource(component);
                         bool process                       = (isOriginalPrefab && processOriginalValues) || (!isOriginalPrefab && processNonOriginalValues);
                         bool isInnermostPrefabInValidChain = isOriginalPrefab;
 
@@ -915,7 +913,7 @@ namespace UltimateXR.Editor
                             isInnermostPrefabInValidChain = true;
                         }
 
-                        if (process && componentProcessor != null && componentProcessor.Invoke(new UxrComponentInfo<T>(component, prefab, isOriginalPrefab, isInnermostPrefabInValidChain), onlyCheck))
+                        if (process && componentProcessor != null && componentProcessor.Invoke(new UxrComponentInfo<T>(component, prefab, isOriginalPrefab, isModifiableSource, isInnermostPrefabInValidChain), onlyCheck))
                         {
                             processedAny = true;
                             processed    = true;
@@ -979,7 +977,8 @@ namespace UltimateXR.Editor
 
                 // Only process if it's not an instantiated prefab
 
-                if (!isInstantiatedPrefab && componentProcessor != null && componentProcessor.Invoke(new UxrComponentInfo<T>(components[c], null, true, true), onlyCheck))
+                bool isModifiableSource = IsModifiableSource(components[c]);
+                if (!isInstantiatedPrefab && componentProcessor != null && componentProcessor.Invoke(new UxrComponentInfo<T>(components[c], null, true, isModifiableSource, true), onlyCheck))
                 {
                     processedAny = true;
                 }
@@ -1057,7 +1056,8 @@ namespace UltimateXR.Editor
 
                     if (componentInParentPrefab != null && !PathRequiresProcessing(basePath, AssetDatabase.GetAssetPath(componentInParentPrefab), ignoreUltimateXRAssets))
                     {
-                        if (componentProcessor != null && componentProcessor.Invoke(new UxrComponentInfo<T>(components[c], null, false, true), onlyCheck))
+                        bool isModifiableSource = IsModifiableSource(components[c]);
+                        if (componentProcessor != null && componentProcessor.Invoke(new UxrComponentInfo<T>(components[c], null, false, isModifiableSource, true), onlyCheck))
                         {
                             processedAny = true;
                         }

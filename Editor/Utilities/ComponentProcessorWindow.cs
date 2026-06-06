@@ -20,14 +20,14 @@ namespace UltimateXR.Editor.Utilities
     {
         #region Inspector Properties/Serialized Fields
 
-        [SerializeField] private TargetObjects _targetObjects       = TargetObjects.ProjectFolder;
-        [SerializeField] private T             _targetSingleObject  = null;
-        [SerializeField] private string        _startPath           = "";
-        [SerializeField] private bool          _ignoreUxrAssets     = true;
-        [SerializeField] private UxrLogOptions    _uxrLogOptions          = UxrLogOptions.Processed;
-        [SerializeField] private bool          _onlyCheck           = false;
-        [SerializeField] private bool          _recurseIntoChildren = true;
-        [SerializeField] private bool          _recurseIntoPrefabs  = true;
+        [SerializeField] protected TargetObjects _targetObjects       = TargetObjects.ProjectFolder;
+        [SerializeField] private   T             _targetSingleObject  = null;
+        [SerializeField] private   string        _startPath           = "";
+        [SerializeField] private   bool          _ignoreUxrAssets     = true;
+        [SerializeField] private   UxrLogOptions _uxrLogOptions       = UxrLogOptions.Processed;
+        [SerializeField] private   bool          _onlyCheck           = false;
+        [SerializeField] private   bool          _recurseIntoChildren = true;
+        [SerializeField] private   bool          _recurseIntoPrefabs  = true;
 
         #endregion
 

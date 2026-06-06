@@ -247,6 +247,105 @@ namespace UltimateXR.Editor
         }
 
         /// <summary>
+        ///     Gets whether the component belongs to a GameObject that represents the first
+        ///     valid level where modifications should be applied.
+        /// </summary>
+        /// <remarks>
+        ///     This property defines a boundary in the prefab hierarchy to determine where it is
+        ///     safe and meaningful to modify a component without affecting underlying asset data
+        ///     or unintended prefab levels.
+        ///
+        ///     The result is <see langword="true" /> in the following cases:
+        ///     <list type="bullet">
+        ///         <item>
+        ///             <description>
+        ///                 The component is on a plain scene object (not part of any prefab instance).
+        ///             </description>
+        ///         </item>
+        ///         <item>
+        ///             <description>
+        ///                 The component is part of a prefab instance in the scene whose immediate
+        ///                 source is a model prefab (for example, an <c>.fbx</c>).
+        ///             </description>
+        ///         </item>
+        ///         <item>
+        ///             <description>
+        ///                 The component belongs to a prefab asset and was added in that prefab,
+        ///                 provided the prefab is not a model prefab.
+        ///             </description>
+        ///         </item>
+        ///         <item>
+        ///             <description>
+        ///                 The component belongs to a prefab asset but originates from a parent
+        ///                 model prefab, making this the first non-model layer above it.
+        ///             </description>
+        ///         </item>
+        ///     </list>
+        ///
+        ///     The result is <see langword="false" /> in cases such as:
+        ///     <list type="bullet">
+        ///         <item>
+        ///             <description>
+        ///                 The component is part of a model prefab asset (for example, an <c>.fbx</c>).
+        ///             </description>
+        ///         </item>
+        ///         <item>
+        ///             <description>
+        ///                 The component belongs to deeper prefab layers above the first valid
+        ///                 modification boundary.
+        ///             </description>
+        ///         </item>
+        ///     </list>
+        ///
+        ///     In practice, this identifies the first level in the hierarchy where changes can be
+        ///     applied without modifying model assets or unintended prefab sources.
+        /// </remarks>
+        public static bool IsModifiableSource(Component c)
+        {
+            if (c == null)
+            {
+                return false;
+            }
+
+            // Scene object (no prefab)
+            if (!PrefabUtility.IsPartOfAnyPrefab(c))
+            {
+                return true;
+            }
+
+            // Instance in scene
+            if (PrefabUtility.IsPartOfPrefabInstance(c))
+            {
+                var source = PrefabUtility.GetCorrespondingObjectFromSource(c);
+
+                return source                                   != null &&
+                       PrefabUtility.GetPrefabAssetType(source) == PrefabAssetType.Model;
+            }
+
+            // Prefab asset
+            var sourceObj = PrefabUtility.GetCorrespondingObjectFromSource(c);
+
+            // If no source → it's added in this prefab
+            if (sourceObj == null)
+            {
+                GameObject root = PrefabUtility.GetOutermostPrefabInstanceRoot(c.gameObject);
+                if (root == null)
+                {
+                    return false;
+                }
+                GameObject rootSource = PrefabUtility.GetCorrespondingObjectFromSource(root);
+
+                return rootSource                                   == null ||
+                       PrefabUtility.GetPrefabAssetType(rootSource) != PrefabAssetType.Model;
+
+
+            }
+
+            // If comes from model → modifiable
+            return PrefabUtility.GetPrefabAssetType(sourceObj) == PrefabAssetType.Model;
+        }
+
+        /// <summary>
         ///     Prompt the user to save a prefab (or prefab variant) of the given avatar.
         /// </summary>
         /// <param name="avatar">Avatar to create prefab of</param>

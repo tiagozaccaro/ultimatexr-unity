@@ -12,7 +12,7 @@ namespace UltimateXR.Editor.Utilities
         /// <summary>
         ///     Enumerates the different potential target object(s) for the component processor.
         /// </summary>
-        private enum TargetObjects
+        protected enum TargetObjects
         {
             /// <summary>
             ///     Processes a single component.
