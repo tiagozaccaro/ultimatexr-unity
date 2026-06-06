@@ -149,6 +149,9 @@ namespace UltimateXR.Networking
                 UxrInstanceManager.Instance.NotifyNetworkSpawn(Avatar.gameObject);
             }
 
+            // Notify the global UxrNetworkManager event
+            UxrNetworkManager.RaiseAvatarSpawned(Avatar);
+
             if (isOwner)
             {
                 _componentStateChangedHandler    =  componentStateChangedHandler;
@@ -191,6 +194,9 @@ namespace UltimateXR.Networking
             }
 
             AvatarDespawned?.Invoke();
+
+            // Notify the global UxrNetworkManager event
+            UxrNetworkManager.RaiseAvatarDespawned(Avatar);
 
             if (s_avatarCount == 0 || IsLocal)
             {

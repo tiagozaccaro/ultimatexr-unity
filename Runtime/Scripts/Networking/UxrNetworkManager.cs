@@ -54,6 +54,16 @@ namespace UltimateXR.Networking
         public static event Action<AudioSource> RemoteVoiceAdded;
 
         /// <summary>
+        ///     Event raised when a network avatar (local or remote) has been spawned in the session.
+        /// </summary>
+        public static event Action<UxrAvatar> AvatarSpawned;
+
+        /// <summary>
+        ///     Event raised when a network avatar (local or remote) has been despawned from the session.
+        /// </summary>
+        public static event Action<UxrAvatar> AvatarDespawned;
+
+        /// <summary>
         ///     Event called right after the authority of the local user over a GameObject was requested.
         /// </summary>
         public event Action<GameObject> LocalAuthorityRequested;
@@ -350,6 +360,34 @@ namespace UltimateXR.Networking
             }
 
             RemoteVoiceAdded?.Invoke(audioSource);
+        }
+
+        /// <summary>
+        ///     Raises the <see cref="AvatarSpawned" /> event.
+        /// </summary>
+        /// <param name="avatar">The avatar that has been spawned</param>
+        internal static void RaiseAvatarSpawned(UxrAvatar avatar)
+        {
+            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Relevant)
+            {
+                Debug.Log($"{UxrConstants.NetworkingModule} Network avatar spawned: {(avatar != null ? avatar.name : "null")}.");
+            }
+
+            AvatarSpawned?.Invoke(avatar);
+        }
+
+        /// <summary>
+        ///     Raises the <see cref="AvatarDespawned" /> event.
+        /// </summary>
+        /// <param name="avatar">The avatar that has been despawned</param>
+        internal static void RaiseAvatarDespawned(UxrAvatar avatar)
+        {
+            if (UxrGlobalSettings.Instance.LogLevelNetworking >= UxrLogLevel.Relevant)
+            {
+                Debug.Log($"{UxrConstants.NetworkingModule} Network avatar despawned: {(avatar != null ? avatar.name : "null")}.");
+            }
+
+            AvatarDespawned?.Invoke(avatar);
         }
 
         #endregion
