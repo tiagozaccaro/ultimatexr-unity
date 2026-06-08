@@ -25,7 +25,7 @@ namespace UltimateXR.Extensions.Unity.Math
         /// <summary>
         ///     Represents a NaN Quaternion.
         /// </summary>
-        public static ref readonly Quaternion NaN => ref s_nan;
+        public static Quaternion NaN { get; } = new Quaternion(float.NaN, float.NaN, float.NaN, float.NaN);
 
         #endregion
 
@@ -378,8 +378,7 @@ namespace UltimateXR.Extensions.Unity.Math
         private const int    VectorLength      = 4;
         private const string CardinalSeparator = ",";
 
-        private static readonly char[]     s_cardinalSeparator = CardinalSeparator.ToCharArray();
-        private static readonly Quaternion s_nan               = new Quaternion(float.NaN, float.NaN, float.NaN, float.NaN);
+        private static readonly char[] s_cardinalSeparator = CardinalSeparator.ToCharArray();
 
         #endregion
     }

@@ -22,12 +22,12 @@ namespace UltimateXR.Extensions.Unity.Math
         /// <summary>
         ///     Representation of the negative infinity vector.
         /// </summary>
-        public static ref readonly Vector2Int NegativeInfinity => ref s_negativeInfinity;
+        public static Vector2Int NegativeInfinity=>  s_negativeInfinity;
 
         /// <summary>
         ///     Representation of the positive infinity vector.
         /// </summary>
-        public static ref readonly Vector2Int PositiveInfinity => ref s_positiveInfinity;
+        public static Vector2Int PositiveInfinity=>  s_positiveInfinity;
 
         #endregion
 

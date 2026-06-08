@@ -22,7 +22,7 @@ namespace UltimateXR.Extensions.Unity.Math
         /// <summary>
         ///     Represents a NaN vector.
         /// </summary>
-        public static ref readonly Vector4 NaN => ref s_nan;
+        public static Vector4 NaN { get; } = float.NaN * Vector4.one;
 
         #endregion
 
@@ -264,7 +264,6 @@ namespace UltimateXR.Extensions.Unity.Math
         private const string CardinalSeparator = ",";
 
         private static readonly char[]  s_cardinalSeparator = CardinalSeparator.ToCharArray();
-        private static readonly Vector4 s_nan               = float.NaN * Vector4.one;
 
         #endregion
     }

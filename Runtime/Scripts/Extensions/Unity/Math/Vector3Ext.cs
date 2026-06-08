@@ -24,17 +24,17 @@ namespace UltimateXR.Extensions.Unity.Math
         /// <summary>
         ///     Represents the NaN vector, an invalid value.
         /// </summary>
-        public static ref readonly Vector3 NaN => ref s_nan;
+        public static Vector3 NaN { get; } = float.NaN * Vector3.one;
 
         /// <summary>
         ///     Represents the Vector3 with minimum float values per component.
         /// </summary>
-        public static ref readonly Vector3 MinValue => ref s_minValue;
+        public static Vector3 MinValue { get; } = new Vector3(float.MinValue, float.MinValue, float.MinValue);
 
         /// <summary>
         ///     Represents the Vector3 with maximum float values per component.
         /// </summary>
-        public static ref readonly Vector3 MaxValue => ref s_maxValue;
+        public static Vector3 MaxValue { get; } = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
 
         #endregion
 
@@ -844,10 +844,7 @@ namespace UltimateXR.Extensions.Unity.Math
 
         private const string CardinalSeparator = ",";
 
-        private static readonly char[]  s_cardinalSeparator = CardinalSeparator.ToCharArray();
-        private static readonly Vector3 s_nan               = float.NaN * Vector3.one;
-        private static readonly Vector3 s_minValue          = new Vector3(float.MinValue, float.MinValue, float.MinValue);
-        private static readonly Vector3 s_maxValue          = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
+        private static readonly char[] s_cardinalSeparator = CardinalSeparator.ToCharArray();
 
         #endregion
     }

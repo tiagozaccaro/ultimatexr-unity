@@ -22,12 +22,12 @@ namespace UltimateXR.Extensions.Unity.Math
         /// <summary>
         ///     Representation of the minimum int values per component.
         /// </summary>
-        public static ref readonly Vector3Int MinValue => ref s_minValue;
+        public static Vector3Int MinValue=>  s_minValue;
 
         /// <summary>
         ///     Representation of the maximum int values per component.
         /// </summary>
-        public static ref readonly Vector3Int MaxValue => ref s_maxValue;
+        public static Vector3Int MaxValue=>  s_maxValue;
 
         #endregion
 
