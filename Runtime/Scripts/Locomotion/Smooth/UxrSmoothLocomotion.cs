@@ -500,7 +500,7 @@ namespace UltimateXR.Locomotion.Smooth
         /// <param name="e">The event data containing information</param>
         private void UxrAvatar_GlobalAvatarMoving(object sender, UxrAvatarMoveEventArgs e)
         {
-            if (e.Avatar == Avatar && (UxrSmoothLocomotion)sender != this && CharacterController != null)
+            if (e.Avatar == Avatar && !ReferenceEquals(sender, this) && CharacterController != null)
             {
                 _wasCCEnabledOnGlobalAvatarMoving = CharacterController.enabled;
                 CharacterController.enabled = false;
@@ -516,7 +516,7 @@ namespace UltimateXR.Locomotion.Smooth
         /// <param name="e">The event data containing information</param>
         private void UxrAvatar_GlobalAvatarMoved(object sender, UxrAvatarMoveEventArgs e)
         {
-            if (e.Avatar == Avatar && (UxrSmoothLocomotion)sender != this && CharacterController != null)
+            if (e.Avatar == Avatar && !ReferenceEquals(sender, this) && CharacterController != null)
             {
                 CharacterController.enabled = _wasCCEnabledOnGlobalAvatarMoving;
             }
