@@ -542,9 +542,9 @@ namespace UltimateXR.Editor.Core
         ///     and its children to the pending set.
         /// </summary>
         /// <param name="entityId">The entity ID of the GameObject</param>
-        private static void AddGameObjectComponents(int entityId)
+        private static void AddGameObjectComponents(EntityId entityId)
         {
-            GameObject obj = EditorUtility.InstanceIDToObject(entityId) as GameObject;
+            GameObject obj = EditorUtility.EntityIdToObject(entityId) as GameObject;
 
             if (obj == null)
             {
