@@ -55,19 +55,19 @@ namespace UltimateXR.Rendering.FX
             {
                 if (camPair.Value != null)
                 {
-                    DestroyImmediate(camPair.Value.gameObject);
+                    Destroy(camPair.Value.gameObject);
                 }
             }
 
             if (_reflectionTextureLeft)
             {
-                DestroyImmediate(_reflectionTextureLeft);
+                Destroy(_reflectionTextureLeft);
                 _reflectionTextureLeft = null;
             }
 
             if (_reflectionTextureRight)
             {
-                DestroyImmediate(_reflectionTextureRight);
+                Destroy(_reflectionTextureRight);
                 _reflectionTextureRight = null;
             }
 
@@ -295,8 +295,8 @@ namespace UltimateXR.Rendering.FX
                 dest.backgroundColor = src.backgroundColor;
                 if (src.clearFlags == CameraClearFlags.Skybox)
                 {
-                    Skybox skySrc = src.GetComponent(typeof(Skybox)) as Skybox;
-                    Skybox skyDst = dest.GetComponent(typeof(Skybox)) as Skybox;
+                    Skybox skySrc = src.GetComponent<Skybox>();
+                    Skybox skyDst = dest.GetComponent<Skybox>();
 
                     if (skyDst)
                     {
@@ -388,7 +388,7 @@ namespace UltimateXR.Rendering.FX
         {
             if (texture)
             {
-                DestroyImmediate(texture);
+                Destroy(texture);
             }
 
             texture = new RenderTexture(_textureSize, _textureSize, 16);

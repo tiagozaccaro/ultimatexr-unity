@@ -128,7 +128,7 @@ namespace UltimateXR.Networking.Integrations.Net.UnityNetCode
         public override void SetupPostProcess(List<UxrAvatar> avatarPrefabs)
         {
 #if ULTIMATEXR_USE_UNITY_NETCODE && UNITY_EDITOR
-            NetworkManager netCodeNetworkManager = FindObjectOfType<NetworkManager>();
+            NetworkManager netCodeNetworkManager = FindFirstObjectByType<NetworkManager>();
 
             if (netCodeNetworkManager != null && netCodeNetworkManager.NetworkConfig.PlayerPrefab == null && avatarPrefabs.Any())
             {

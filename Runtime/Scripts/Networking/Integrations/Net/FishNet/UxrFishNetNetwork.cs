@@ -171,7 +171,7 @@ namespace UltimateXR.Networking.Integrations.Net.FishNet
             
             // Find the player spawner and assign the first avatar in the list as the spawnable avatar.
 
-            PlayerSpawner fishNetPlayerSpawner = FindObjectOfType<PlayerSpawner>();
+            PlayerSpawner fishNetPlayerSpawner = FindFirstObjectByType<PlayerSpawner>();
 
             if (fishNetPlayerSpawner != null)
             {

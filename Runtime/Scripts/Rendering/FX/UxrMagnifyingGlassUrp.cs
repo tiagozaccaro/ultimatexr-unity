@@ -70,13 +70,13 @@ namespace UltimateXR.Rendering.FX
 
             if (_renderTextureLeft)
             {
-                DestroyImmediate(_renderTextureLeft);
+                Destroy(_renderTextureLeft);
                 _renderTextureLeft = null;
             }
 
             if (_renderTextureRight)
             {
-                DestroyImmediate(_renderTextureRight);
+                Destroy(_renderTextureRight);
                 _renderTextureRight = null;
             }
         }
@@ -324,8 +324,8 @@ namespace UltimateXR.Rendering.FX
 
                 if (src.clearFlags == CameraClearFlags.Skybox)
                 {
-                    Skybox srcSky = src.GetComponent(typeof(Skybox)) as Skybox;
-                    Skybox dstSky = dest.GetComponent(typeof(Skybox)) as Skybox;
+                    Skybox srcSky = src.GetComponent<Skybox>();
+                    Skybox dstSky = dest.GetComponent<Skybox>();
 
                     if (dstSky)
                     {
@@ -419,7 +419,7 @@ namespace UltimateXR.Rendering.FX
         {
             if (texture)
             {
-                DestroyImmediate(texture);
+                Destroy(texture);
             }
 
             texture = new RenderTexture(_textureSize, _textureSize, 0, RenderTextureFormat.Default);

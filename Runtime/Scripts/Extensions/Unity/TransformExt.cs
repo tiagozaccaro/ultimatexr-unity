@@ -82,19 +82,19 @@ namespace UltimateXR.Extensions.Unity
         }
 
         /// <summary>
-        ///     Destroys all children using DestroyImmediate().
+        ///     Destroys all children using Destroy().
         /// </summary>
         /// <param name="transform">Transform to destroy all children of</param>
         public static void DestroyImmediateAllChildren(this Transform transform)
         {
             for (int i = 0; i < transform.childCount; ++i)
             {
-                UnityObject.DestroyImmediate(transform.GetChild(i).gameObject);
+                UnityObject.Destroy(transform.GetChild(i).gameObject);
             }
         }
 
         /// <summary>
-        ///     Destroys all children GameObjects using DestroyImmediate() that have a given component type.
+        ///     Destroys all children GameObjects using Destroy() that have a given component type.
         /// </summary>
         /// <param name="transform">Transform to destroy all children of</param>
         /// <param name="includeInactive">Also delete children with inactive components?</param>
@@ -107,7 +107,7 @@ namespace UltimateXR.Extensions.Unity
             {
                 if (t != null)
                 {
-                    UnityObject.DestroyImmediate(t.gameObject);
+                    UnityObject.Destroy(t.gameObject);
                 }
             }
         }

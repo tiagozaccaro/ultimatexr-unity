@@ -143,7 +143,7 @@ namespace UltimateXR.Networking.Integrations.Net.Mirror
         {
 #if ULTIMATEXR_USE_MIRROR_SDK && UNITY_EDITOR
 
-            NetworkManager mirrorNetworkManager = FindObjectOfType<NetworkManager>();
+            NetworkManager mirrorNetworkManager = FindFirstObjectByType<NetworkManager>();
 
             if (mirrorNetworkManager != null)
             {
