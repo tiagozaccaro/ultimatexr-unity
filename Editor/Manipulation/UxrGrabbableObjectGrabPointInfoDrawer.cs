@@ -570,7 +570,7 @@ namespace UltimateXR.Editor.Manipulation
                     if (methodInfo != null && hierarchyWindow != null)
                     {
                         UnityEngine.EntityId entityId = snapParent.gameObject.GetEntityId();
-                        methodInfo.Invoke(hierarchyWindow, new object[] { entityId.RawIndex, true });
+                        methodInfo.Invoke(hierarchyWindow, new object[] { entityId, true });
                     }
                 }
 
