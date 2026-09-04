@@ -569,7 +569,7 @@ namespace UltimateXR.Editor.Manipulation
 
                     if (methodInfo != null && hierarchyWindow != null)
                     {
-                        methodInfo.Invoke(hierarchyWindow, new object[] { snapParent.gameObject.GetInstanceID(), true });
+                        methodInfo.Invoke(hierarchyWindow, new object[] { snapParent.gameObject.GetEntityId(), true });
                     }
                 }
 

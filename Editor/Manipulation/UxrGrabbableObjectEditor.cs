@@ -1121,7 +1121,7 @@ namespace UltimateXR.Editor.Manipulation
         /// <returns>Temporary hidden avatar instance</returns>
         private static UxrAvatar GetOrCreateTemporarySceneAvatar(GameObject avatarPrefab, string avatarPrefabGuid)
         {
-            string cacheKey = !string.IsNullOrEmpty(avatarPrefabGuid) ? avatarPrefabGuid : avatarPrefab.GetInstanceID().ToString();
+            string cacheKey = !string.IsNullOrEmpty(avatarPrefabGuid) ? avatarPrefabGuid : avatarPrefab.GetEntityId().ToString();
 
             if (s_temporarySceneAvatars.TryGetValue(cacheKey, out UxrAvatar cachedAvatar) && cachedAvatar != null)
             {

@@ -109,7 +109,7 @@ namespace UltimateXR.Editor.Attributes
         /// </returns>
         private static string GetInitializationKey(SerializedProperty property)
         {
-            return $"{property.serializedObject.targetObject.GetInstanceID()}:{property.propertyPath}";
+            return $"{property.serializedObject.targetObject.GetEntityId()}:{property.propertyPath}";
         }
 
         /// <summary>
