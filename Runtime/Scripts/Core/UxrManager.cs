@@ -485,7 +485,7 @@ namespace UltimateXR.Core
 
             int count = 0;
             long uncompressedLength = -1;
-            List<UxrAvatar> loadedAvatars = [];
+            List<UxrAvatar> loadedAvatars = new List<UxrAvatar>();
 
             // Read the header: header size, version, format, level and serialization version
 
@@ -1661,7 +1661,7 @@ namespace UltimateXR.Core
 
             DestroyPrecachedInstances();
 
-            _precacheInstances = [];
+            _precacheInstances = new Dictionary<UnityEngine.EntityId, GameObject>();
 
             for (int sceneIndex = 0; sceneIndex < SceneManager.sceneCount; ++sceneIndex)
             {
