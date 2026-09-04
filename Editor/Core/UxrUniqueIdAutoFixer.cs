@@ -242,7 +242,7 @@ namespace UltimateXR.Editor.Core
                     case ObjectChangeKind.CreateGameObjectHierarchy:
                     {
                         stream.GetCreateGameObjectHierarchyEvent(i, out CreateGameObjectHierarchyEventArgs data);
-                        AddGameObjectComponents(data.instanceId);
+                        AddGameObjectComponents(data.entityId);
                         hasChanges = true;
                         break;
                     }
@@ -250,7 +250,7 @@ namespace UltimateXR.Editor.Core
                     case ObjectChangeKind.ChangeGameObjectStructureHierarchy:
                     {
                         stream.GetChangeGameObjectStructureHierarchyEvent(i, out ChangeGameObjectStructureHierarchyEventArgs data);
-                        AddGameObjectComponents(data.instanceId);
+                        AddGameObjectComponents(data.entityId);
                         hasChanges = true;
                         break;
                     }
@@ -258,7 +258,7 @@ namespace UltimateXR.Editor.Core
                     case ObjectChangeKind.ChangeGameObjectStructure:
                     {
                         stream.GetChangeGameObjectStructureEvent(i, out ChangeGameObjectStructureEventArgs data);
-                        AddGameObjectComponents(data.instanceId);
+                        AddGameObjectComponents(data.entityId);
                         hasChanges = true;
                         break;
                     }
@@ -538,13 +538,13 @@ namespace UltimateXR.Editor.Core
         }
 
         /// <summary>
-        ///     Adds all <see cref="IUxrUniqueId" /> components from a <see cref="GameObject" /> (identified by instance ID)
+        ///     Adds all <see cref="IUxrUniqueId" /> components from a <see cref="GameObject" /> (identified by entity ID)
         ///     and its children to the pending set.
         /// </summary>
-        /// <param name="instanceId">The instance ID of the GameObject</param>
-        private static void AddGameObjectComponents(int instanceId)
+        /// <param name="entityId">The entity ID of the GameObject</param>
+        private static void AddGameObjectComponents(int entityId)
         {
-            GameObject obj = EditorUtility.InstanceIDToObject(instanceId) as GameObject;
+            GameObject obj = EditorUtility.InstanceIDToObject(entityId) as GameObject;
 
             if (obj == null)
             {
